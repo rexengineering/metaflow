@@ -1,0 +1,43 @@
+// Example of building this when updated:
+// python -m grpc_tools.protoc --python_out=. --grpc_python_out=.  -I. flow.proto
+
+syntax = "proto3";
+
+service FlowDaemon {
+    rpc ApplyWorkflow (ApplyRequest) returns (FlowdResult); // flowctl apply
+    rpc DeleteWorkflow (DeleteRequest) returns (FlowdResult); // flowctl delete
+    rpc PSQuery (PSRequest) returns (FlowdResult); // flowctl ps
+    rpc RunWorkflow (RunRequest) returns (FlowdResult); // flowctl run
+    rpc StartInstance (StartRequest) returns (FlowdResult); // flowctl start
+    rpc StopInstance (StopRequest) returns (FlowdResult); // flowctl stop
+}
+
+message FlowdResult {
+    int64 status = 1;
+    string message = 2;
+    string data = 3;
+}
+
+message ApplyRequest {
+    string bpmn_xml = 1;
+}
+
+message DeleteRequest {
+    // FIXME
+}
+
+message PSRequest {
+    // FIXME
+}
+
+message RunRequest {
+    // FIXME
+}
+
+message StartRequest {
+    // FIXME
+}
+
+message StopRequest {
+    // FIXME
+}

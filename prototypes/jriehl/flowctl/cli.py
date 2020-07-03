@@ -1,9 +1,11 @@
 import argparse
+import logging
 
 from .actions import apply_action, delete_action, ps_action, run_action, \
     start_action, stop_action
 
 ACTIONS = ('apply', 'delete', 'ps', 'run', 'start', 'stop')
+
 
 def add_action(action_name, subparsers, action_map):
     python_name = f'{action_name}_action'
@@ -21,6 +23,18 @@ def add_action(action_name, subparsers, action_map):
 
 def build_parser_and_action_map():
     parser = argparse.ArgumentParser(prog='flowctl')
+    parser.add_argument(
+        '--flowd_host', nargs='?', default='localhost', type=str,
+        help='hostname for the flowd server'
+    )
+    parser.add_argument(
+        '--flowd_port', nargs='?', default=9001, type=int,
+        help='port number for the flowd server'
+    )
+    parser.add_argument(
+        '--log_level', nargs='?', default=logging.INFO, type=int,
+        help=f'logging level (DEBUG={logging.DEBUG}, INFO={logging.INFO}...)'
+    )
     subparsers =  parser.add_subparsers(title='command')
     action_map = dict()
     for action in ACTIONS:

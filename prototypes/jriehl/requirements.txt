@@ -1,0 +1,8 @@
+lxml
+beautifulsoup4
+grpcio
+xmltodict
+# Optional development dependency
+grpcio-tools
+pudb
+pylint
