@@ -41,7 +41,7 @@ def apply_action(namespace : argparse.Namespace, *args, **kws):
             with open(spec) as spec_file_obj:
                 postprocessed_xml = process_specification(spec_file_obj)
                 responses[spec] = flowd.ApplyWorkflow(
-                        flow_pb2.ApplyRequest(bpmn_xml=postprocessed_xml)
+                    flow_pb2.ApplyRequest(bpmn_xml=postprocessed_xml)
                 )
     status = 0
     for spec, response in responses.items():

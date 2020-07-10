@@ -3,6 +3,7 @@ beautifulsoup4
 grpcio
 xmltodict
 etcd3
+kubernetes
 # Optional development dependency
 grpcio-tools
 pudb

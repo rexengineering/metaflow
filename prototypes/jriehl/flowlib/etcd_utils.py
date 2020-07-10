@@ -1,3 +1,5 @@
+import logging
+
 import etcd3
 
 
@@ -90,7 +92,6 @@ class EtcdDict(dict):
             prefix_path = prefix.split(delim)
             if len(prefix_path) > 2 and prefix_path[-1] == '':
                 prefix_path.pop()
-            print(prefix_path)
             prefix = delim.join(prefix_path)
             self.prefix = prefix
         self.delim = delim
@@ -108,9 +109,29 @@ class EtcdDict(dict):
             else:
                 result[childkey] = childdata
         return result
- 
+
     @classmethod
     def from_root(cls, root=None, delim='/', keys_only=False):
         return cls.from_dict(
             get_dict_from_prefix(root, delim, keys_only=keys_only),
             root=root, delim=delim)
+
+
+def transition_state(etcd, state_key, from_states, to_state):
+    '''Utility function that attempts to simulate a etcd transaction.
+    Arguments:
+        etcd - etcd instance.
+        state_key - key representing a state variable
+        from_states - Set (or iterable) of valid states from which to transition.
+        to_state - End state for the transition.
+    '''
+    result = False
+    crnt_state = etcd.get(state_key)[0]
+    if crnt_state in from_states:
+        if etcd.replace(state_key, crnt_state, to_state):
+            # FIXME: Consider changing this to a debug log level.
+            logging.info(f'State transition was successful. {state_key} : {crnt_state} -> {to_state}')
+            result = True
+        else:
+            logging.error(f'State transition failed! {state_key} : {crnt_state} -> {to_state}')
+    return result

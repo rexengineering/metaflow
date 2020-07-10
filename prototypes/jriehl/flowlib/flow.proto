@@ -22,22 +22,35 @@ message ApplyRequest {
     string bpmn_xml = 1;
 }
 
+enum RequestKind {
+    DEPLOYMENT = 0;
+    INSTANCE = 1;
+}
+
 message DeleteRequest {
-    // FIXME
+    RequestKind kind = 1;
+    repeated string ids = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message PSRequest {
-    // FIXME
+    RequestKind kind = 1;
+    repeated string ids = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message RunRequest {
-    // FIXME
+    string workflow_id = 1;
+    repeated string args = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message StartRequest {
-    // FIXME
+    string instance_id = 1;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message StopRequest {
-    // FIXME
+    repeated string ids = 1;
+    // FIXME: Figure out any additional flags and/or arguments.
 }

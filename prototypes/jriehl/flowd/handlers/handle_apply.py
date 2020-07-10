@@ -4,7 +4,8 @@ import uuid
 
 import xmltodict
 
-from ..etcdutils import get_etcd
+from ..probes import add_health_probe
+from flowlib.etcd_utils import get_etcd
 
 def handler(request):
     '''
@@ -25,8 +26,11 @@ def handler(request):
     workflow_id = f'{proc["@id"]}-{workflow_uuid.hex}'
     result[proc['@id']] = workflow_id
     etcd = get_etcd(is_not_none=True)
+    workflow_prefix = f'/rexflow/workflows/{workflow_id}'
     etcd.put(
-        f'/rexflow/workflows/{workflow_id}/proc',
+        workflow_prefix + '/proc',
         xmltodict.unparse(odict([('bpmn:process', proc)]))
     )
+    etcd.put(workflow_prefix + '/state', 'STARTING')
+    add_health_probe(workflow_id)
     return result
