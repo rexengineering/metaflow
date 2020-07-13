@@ -44,13 +44,29 @@ def get_etcd(*args, is_not_none=False, **kws):
     return result
 
 
-def get_dict_from_prefix(prefix=None, delim='/', keys_only=False):
+def get_keys_from_prefix(prefix=None):
+    '''
+    Arguents:
+        prefix - Key prefix.  Default is None.
+    Returns:
+        A set of keys in etcd.
+    '''
+    global _etcd
+    assert _etcd is not None
+    return set(
+        metadata.key.decode('utf-8')
+        for _, metadata in _etcd.get_prefix(prefix, keys_only=True)
+    )
+
+
+def get_dict_from_prefix(prefix=None, delim='/', keys_only=False, keys=None, value_transformer=None):
     '''Impose a naming discipline over a set of prefixed keys in etcd.
     Arguments:
         prefix - Key prefix.  Default is the root.
         delim - Path delimiter.  Default is "/".
         keys_only - Setting this flag will skip embedding values for the keys
                     in the output dictionary.
+        value_transformer - Function from bytes to whatever.
     Returns:
         A set of nested dictionaries that capture the nested keys.
     '''
@@ -64,11 +80,17 @@ def get_dict_from_prefix(prefix=None, delim='/', keys_only=False):
     for key in key_gen:
         crnt = plain_old_dict
         key_split = key[len(prefix):].split(delim)
-        for subkey in key_split[:-1]:
-            if subkey not in crnt:
-                crnt[subkey] = dict()
-            crnt = crnt[subkey]
-        crnt[key_split[-1]] = None if keys_only else _etcd.get(key)[0]
+        dict_key = key_split[-1]
+        if keys is None or dict_key in keys:
+            for subkey in key_split[:-1]:
+                if subkey not in crnt:
+                    crnt[subkey] = dict()
+                crnt = crnt[subkey]
+            crnt[dict_key] = (
+                None if keys_only
+                else (_etcd.get(key)[0] if value_transformer is None
+                        else value_transformer(_etcd.get(key)[0]))
+            )
     return plain_old_dict
 
 

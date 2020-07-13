@@ -1,7 +1,7 @@
 import logging
 
 from flowlib import flow_pb2
-from flowlib.etcd_utils import get_etcd, EtcdDict
+from flowlib.etcd_utils import get_etcd, get_keys_from_prefix, EtcdDict
 
 
 def handler(request : flow_pb2.DeleteRequest):
@@ -24,7 +24,6 @@ def handler(request : flow_pb2.DeleteRequest):
                 result[workflow_id] = dict(result=-1, message=message)
                 continue
             workflow_state = workflow['state']
-            print(workflow_state)
             if workflow_state != b'STOPPED':
                 message = f'Workflow deployment {workflow_id} is not in the STOPPED state.'
                 logging.warn(message)
@@ -40,13 +39,14 @@ def handler(request : flow_pb2.DeleteRequest):
     elif request_kind == flow_pb2.RequestKind.INSTANCE:
         for instance_id in request.ids:
             prefix = f'/rexflow/runs/{instance_id}'
-            keys = [metadata.key.decode('utf-8') for _, metadata in etcd.get_prefix(prefix, keys_only=True)]
+            keys = get_keys_from_prefix(prefix)
             if len(keys) <= 0:
                 message = f'Workflow instance {instance_id} was not found.'
                 logging.warn(message)
                 result[instance_id] = dict(result=-1, message=message)
                 continue
             # FIXME: Do something here.
+            raise NotImplementedError('Laxy developer error!') # Does something!
     else:
-        raise ValueError(f'Unknown request kind ({request_kind})!')
+        raise ValueError(f'Unknown delete request kind ({request_kind})!')
     return result
