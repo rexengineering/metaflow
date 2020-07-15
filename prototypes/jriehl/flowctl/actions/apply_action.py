@@ -10,6 +10,9 @@ __help__ = 'apply sufficiently annotated BPMN file(s)'
 
 
 def __refine_args__(parser : argparse.ArgumentParser):
+    parser.add_argument('--stopped', action='store_true',
+        help='flag that all deployments should be brought up in the STOPPED state',
+    )
     parser.add_argument('bpmn_spec', nargs='+', help='sufficiently annotated BPMN file(s)')
     return parser
 
@@ -41,7 +44,9 @@ def apply_action(namespace : argparse.Namespace, *args, **kws):
             with open(spec) as spec_file_obj:
                 postprocessed_xml = process_specification(spec_file_obj)
                 responses[spec] = flowd.ApplyWorkflow(
-                    flow_pb2.ApplyRequest(bpmn_xml=postprocessed_xml)
+                    flow_pb2.ApplyRequest(bpmn_xml=postprocessed_xml,
+                        stopped=namespace.stopped
+                    )
                 )
     status = 0
     for spec, response in responses.items():

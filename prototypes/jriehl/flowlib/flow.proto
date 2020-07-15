@@ -8,8 +8,8 @@ service FlowDaemon {
     rpc DeleteWorkflow (DeleteRequest) returns (FlowdResult); // flowctl delete
     rpc PSQuery (PSRequest) returns (FlowdResult); // flowctl ps
     rpc RunWorkflow (RunRequest) returns (FlowdResult); // flowctl run
-    rpc StartInstance (StartRequest) returns (FlowdResult); // flowctl start
-    rpc StopInstance (StopRequest) returns (FlowdResult); // flowctl stop
+    rpc StartWorkflow (StartRequest) returns (FlowdResult); // flowctl start
+    rpc StopWorkflow (StopRequest) returns (FlowdResult); // flowctl stop
 }
 
 message FlowdResult {
@@ -20,6 +20,7 @@ message FlowdResult {
 
 message ApplyRequest {
     string bpmn_xml = 1;
+    bool stopped = 2;
 }
 
 enum RequestKind {
@@ -46,11 +47,13 @@ message RunRequest {
 }
 
 message StartRequest {
-    string instance_id = 1;
+    RequestKind kind = 1;
+    repeated string ids = 2;
     // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message StopRequest {
-    repeated string ids = 1;
+    RequestKind kind = 1;
+    repeated string ids = 2;
     // FIXME: Figure out any additional flags and/or arguments.
 }

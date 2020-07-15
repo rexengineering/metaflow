@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_06zu3i6" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Zeebe Modeler" exporterVersion="0.8.0">
-  <bpmn:process id="Process_183a8z2" name="Calculate 2x^2" isExecutable="true">
+  <bpmn:process id="CalcProcess" name="Calculate 2x^2" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1" name="Start">
       <bpmn:outgoing>SequenceFlow_0djdp2m</bpmn:outgoing>
     </bpmn:startEvent>
@@ -18,7 +18,7 @@
     <bpmn:sequenceFlow id="SequenceFlow_0mdxqfr" sourceRef="Task_1um60ti" targetRef="EndEvent_0ufm5yq" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_183a8z2">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="CalcProcess">
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="179" y="99" width="36" height="36" />
         <bpmndi:BPMNLabel>

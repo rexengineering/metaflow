@@ -32,6 +32,9 @@ def handler(request):
         workflow_prefix + '/proc',
         xmltodict.unparse(odict([('bpmn:process', proc)]))
     )
-    etcd.put(workflow_prefix + '/state', 'STARTING')
-    add_health_probe(workflow_id)
+    if request.stopped:
+        etcd.put(workflow_prefix + '/state', 'STOPPED')
+    else:
+        etcd.put(workflow_prefix + '/state', 'STARTING')
+        add_health_probe(workflow_id)
     return result
