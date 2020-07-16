@@ -12,8 +12,8 @@ This project contains three principle components:
 Getting started
 ===============
 
-* (Optional) Create a BPMN XML document titled `example.bpmn` via a BPMN
-  modeling tool (such as Zeebe modeler).
+* (Optional) Create a BPMN XML document via a BPMN modeling tool (such as Zeebe
+  modeler).  Otherwise, you can use one of the example diagrams.
 * Add `flowlib`, `flowd`, `flowctl` to your Python path using the base directory
   of the prototype.  This is the same base directory that `flowctl` lives in
   itself.  For example:
@@ -32,7 +32,7 @@ Getting started
   ```
 * Create a *workflow deployment* using *apply*.  For example:
   ```zsh
-  % python -m flowctl apply flowctl/example.bpmn
+  % python -m flowctl apply examples/calc/calcprocess.bpmn
   2020-07-13 15:48:52,857|flowctl|INFO|apply_action.py:55|Got response: 0, "Ok", {"CalcProcess": "CalcProcess-42e0680ac54a11ea8c8bacde48001122"}
   ```
   The tool will provide a workflow deployment ID, such as

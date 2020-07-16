@@ -4,7 +4,9 @@ grpcio
 xmltodict
 etcd3
 kubernetes
+docker
 # Optional development dependency
 grpcio-tools
 pudb
 pylint
+Flask

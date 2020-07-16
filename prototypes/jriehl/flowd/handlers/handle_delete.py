@@ -24,10 +24,15 @@ def handler(request : flow_pb2.DeleteRequest):
                 result[workflow_id] = dict(result=-1, message=message)
                 continue
             workflow_state = workflow['state']
-            if workflow_state != b'STOPPED':
-                message = f'Workflow deployment {workflow_id} is not in the STOPPED state.'
+            if workflow_state not in {b'ERROR', b'STOPPED'}:
+                message = f'Workflow deployment {workflow_id} is not in the ERROR or STOPPED state.'
                 logging.warn(message)
                 result[workflow_id] = dict(result=-2, message=message)
+            # FIXME: Double check we're in an acceptable state.  Also, tear down
+            # the deployment in the container orchestrator, and ensure the tear
+            # down completes.
+            # FIXME: Do we need some sort of DELETING state, or other lock
+            # on the deployment?
             elif etcd.delete_prefix(prefix):
                 message = f'Successfully deleted {workflow_id}.'
                 logging.info(message)
