@@ -5,6 +5,7 @@ import uuid
 import xmltodict
 
 from ..probes import add_health_probe
+from flowlib.bpmn import get_tasks
 from flowlib.etcd_utils import get_etcd
 
 
@@ -21,11 +22,22 @@ def handler(request):
     if logger.level < logging.INFO:
         logging.debug(f'Received following BPMN specification:\n{spec}')
     proc = spec['bpmn:definitions']['bpmn:process']
-    workflow_uuid = uuid.uuid1()
     proc_id = proc['@id']
     assert proc_id != 'flow', 'Your process name cannot be "flow", as it is a reserved prefix'
-    workflow_id = f'{proc["@id"]}-{workflow_uuid.hex}'
-    result[proc['@id']] = workflow_id
+    # TODO:
+    # 1. Inspect process specification, extracting necessary data.
+    service_tasks = get_tasks(proc.get('bpmn:serviceTask'))
+    if len(service_tasks) <= 0:
+        logging.warn('No service tasks found in BPMN specification.')
+    else:
+        for task in service_tasks:
+            raise NotImplementedError('Lazy developer!')
+    # 2. Spin up services.
+    # 3. Start service monitoring.
+    # 4. Issue a UUID and report deployment back to user.
+    workflow_uuid = uuid.uuid1()
+    workflow_id = f'{proc_id}-{workflow_uuid.hex}'
+    result[proc_id] = workflow_id
     etcd = get_etcd(is_not_none=True)
     workflow_prefix = f'/rexflow/workflows/{workflow_id}'
     etcd.put(

@@ -11,7 +11,7 @@ def hello():
     return 'Hello world!'
 
 
-@server.route('/calc', methods=['PUT', 'POST'])
+@server.route('/', methods=['PUT', 'POST'])
 def calc():
     request_data = request.get_json()
     return jsonify(list(map(lambda x: 2 * float(x) ** 2, request_data)))
