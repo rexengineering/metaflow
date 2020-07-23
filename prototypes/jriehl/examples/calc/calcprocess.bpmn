@@ -18,8 +18,9 @@
     <bpmn:sequenceFlow id="SequenceFlow_0mdxqfr" sourceRef="Task_1um60ti" targetRef="EndEvent_0ufm5yq" />
     <bpmn:textAnnotation id="TextAnnotation_1s8rioy">
       <bpmn:text>rexflow:
-    host: localhost
-    port: 5000</bpmn:text>
+    service:
+        host: localhost
+        port: 5000</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_00xhtun" sourceRef="Task_1um60ti" targetRef="TextAnnotation_1s8rioy" />
   </bpmn:process>
@@ -49,11 +50,11 @@
         <di:waypoint x="432" y="207" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="TextAnnotation_1s8rioy_di" bpmnElement="TextAnnotation_1s8rioy">
-        <dc:Bounds x="370" y="80" width="134" height="59" />
+        <dc:Bounds x="370" y="80" width="134" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_00xhtun_di" bpmnElement="Association_00xhtun">
-        <di:waypoint x="366" y="169" />
-        <di:waypoint x="402" y="139" />
+        <di:waypoint x="367" y="170" />
+        <di:waypoint x="395" y="148" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

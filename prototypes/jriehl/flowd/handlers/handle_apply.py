@@ -26,12 +26,9 @@ def handler(request):
     assert proc_id != 'flow', 'Your process name cannot be "flow", as it is a reserved prefix'
     # TODO:
     # 1. Inspect process specification, extracting necessary data.
-    service_tasks = get_tasks(proc.get('bpmn:serviceTask'))
+    service_tasks = get_tasks(proc.get('bpmn:serviceTask'), wrap=True)
     if len(service_tasks) <= 0:
         logging.warn('No service tasks found in BPMN specification.')
-    else:
-        for task in service_tasks:
-            raise NotImplementedError('Lazy developer!')
     # 2. Spin up services.
     # 3. Start service monitoring.
     # 4. Issue a UUID and report deployment back to user.
