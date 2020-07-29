@@ -23,6 +23,11 @@
         port: 5000</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_00xhtun" sourceRef="Task_1um60ti" targetRef="TextAnnotation_1s8rioy" />
+    <bpmn:textAnnotation id="TextAnnotation_0h1up64">
+      <bpmn:text>rexflow:
+    orchestrator: docker</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0woz7n0" sourceRef="StartEvent_1" targetRef="TextAnnotation_0h1up64" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="CalcProcess">
@@ -55,6 +60,13 @@
       <bpmndi:BPMNEdge id="Association_00xhtun_di" bpmnElement="Association_00xhtun">
         <di:waypoint x="367" y="170" />
         <di:waypoint x="395" y="148" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="TextAnnotation_0h1up64_di" bpmnElement="TextAnnotation_0h1up64">
+        <dc:Bounds x="129" y="88" width="136" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_0woz7n0_di" bpmnElement="Association_0woz7n0">
+        <di:waypoint x="197" y="189" />
+        <di:waypoint x="197" y="140" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from bs4 import BeautifulSoup
+import xmltodict
 
 from flowlib import flow_pb2
 from flowlib.flowd_utils import get_flowd_connection
@@ -23,13 +23,12 @@ def process_specification(specification):
     rudimentary validation and cleanup of the document.  Returns a string with
     the resulting XML.
     '''
-    spec_soup = BeautifulSoup(specification, 'lxml')
-    spec_body_children = tuple(spec_soup.body.children)
-    spec_body_child_count = len(spec_body_children)
-    assert len(spec_body_children) == 2, \
-        f'Unexpected child count (got {spec_body_child_count}, not 2).'
-    spec_defns = spec_body_children[0]
-    return str(spec_defns)
+    spec = xmltodict.parse(specification)
+    definition = spec['bpmn:definitions']
+    definition_child_count = len([key for key in definition if key[0] != '@'])
+    assert definition_child_count == 2, \
+        f'Unexpected child count (got {definition_child_count}, not 2).'
+    return xmltodict.unparse(spec)
 
 
 def apply_action(namespace : argparse.Namespace, *args, **kws):
@@ -41,7 +40,7 @@ def apply_action(namespace : argparse.Namespace, *args, **kws):
     responses = dict()
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         for spec in namespace.bpmn_spec:
-            with open(spec) as spec_file_obj:
+            with open(spec, 'rb') as spec_file_obj:
                 postprocessed_xml = process_specification(spec_file_obj)
                 responses[spec] = flowd.ApplyWorkflow(
                     flow_pb2.ApplyRequest(bpmn_xml=postprocessed_xml,

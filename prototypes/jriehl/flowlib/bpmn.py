@@ -2,11 +2,15 @@
 '''
 
 from collections import OrderedDict
-from collections.abc import Iterable
-from io import IOBase
+from io import IOBase, StringIO
+import logging
+import subprocess
 import sys
 
 import yaml
+import xmltodict
+
+from .etcd_utils import get_etcd
 
 
 def iter_xmldict_for_key(odict : OrderedDict, key : str):
@@ -44,7 +48,7 @@ class BPMNTask:
         # FIXME: This is Zeebe specific.  Need to provide override if coming from
         # some other modeling tool.
         service_name = task['bpmn:extensionElements']['zeebe:taskDefinition']['@type']
-        self.definition = WorkflowProperties(service_name)
+        self.definition = TaskProperties(service_name)
         self.annotations = []
         if self._proc:
             targets = [
@@ -68,7 +72,6 @@ class ServiceProperties:
         self.name = service_name
         self._host = None
         self._port = None
-        self._orchestrator = None
         self._protocol = None
         self._container = None
 
@@ -79,10 +82,6 @@ class ServiceProperties:
     @property
     def port(self):
         return self._port if self._port is not None else 80
-
-    @property
-    def orchestrator(self):
-        return self._orchestrator if self._orchestrator is not None else 'docker'
 
     @property
     def protocol(self):
@@ -169,7 +168,7 @@ class HealthProperties:
             self._response = annotations['response']
 
 
-class WorkflowProperties:
+class TaskProperties:
     def __init__(self, service_name):
         self.service_name = service_name
         self._name = None
@@ -200,6 +199,15 @@ class BPMNTasks:
             tasks = []
         self.tasks = tasks
 
+    def __len__(self):
+        return len(self.tasks)
+
+    def __iter__(self):
+        return iter(self.tasks)
+
+    def __getitem__(self, key):
+        return self.tasks.__getitem__(key)
+
     def to_docker(self, stream : IOBase = None, **kws):
         if stream is None:
             stream = sys.stdout
@@ -210,7 +218,8 @@ class BPMNTasks:
             service = {}
             services[definition.name] = service
             service['image'] = definition.service.container
-            service['ports'] = [definition.service.port]
+            port = definition.service.port
+            service['ports'] = [f'{port}:{port}']
             service['deploy'] = {'replicas':1, 'restart_policy':{'condition':'on-failure'}}
         return yaml.safe_dump(result, stream, **kws)
 
@@ -227,3 +236,60 @@ class BPMNTasks:
         result = {}
         raise NotImplementedError('Lazy developer!')
         return yaml.safe_dump(result, stream)
+
+
+class WorkflowProperties:
+    def __init__(self, annotations=None):
+        self._orchestrator = None
+        if annotations is not None:
+            for annotation in annotations:
+                if 'rexflow' in annotation:
+                    self.update(annotation['rexflow'])
+
+    @property
+    def orchestrator(self):
+        return self._orchestrator if self._orchestrator is not None else 'docker'
+
+    def update(self, annotations):
+        if 'orchestrator' in annotations:
+            self._orchestrator = annotations['orchestrator']
+
+
+class BPMNProcess:
+    def __init__(self, process : OrderedDict):
+        self._process = process
+        self.id = process['@id']
+        self.tasks = BPMNTasks([
+            BPMNTask(task, process)
+            for task in iter_xmldict_for_key(process, 'bpmn:serviceTask')
+        ])
+        entry_point = process['bpmn:startEvent']
+        assert isinstance(entry_point, OrderedDict)
+        self.entry_point =  entry_point
+        self.annotations = list(self.get_annotations(self.entry_point['@id']))
+        self.properties = WorkflowProperties(self.annotations)
+
+    @classmethod
+    def from_workflow_id(cls, workflow_id):
+        etcd = get_etcd(is_not_none=True)
+        process_xml = etcd.get(f'/rexflow/workflows/{workflow_id}/proc')[0]
+        process_dict = xmltodict.parse(process_xml)['bpmn:process']
+        process = cls(process_dict)
+        return process
+
+    def to_xml(self):
+        return xmltodict.unparse(OrderedDict([('bpmn:process', self._process)]))
+
+    def get_annotations(self, source_ref=None):
+        if source_ref is not None:
+            targets = set()
+            for association in iter_xmldict_for_key(self._process, 'bpmn:association'):
+                if source_ref is None or association['@sourceRef'] == source_ref:
+                    targets.add(association['@targetRef'])
+        else:
+            targets = None
+        for annotation in iter_xmldict_for_key(self._process, 'bpmn:textAnnotation'):
+            if targets is None or annotation['@id'] in targets:
+                text = annotation['bpmn:text']
+                if text.startswith('rexflow:'):
+                    yield yaml.safe_load(text.replace('\xa0', ''))
