@@ -1,11 +1,16 @@
+from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 import logging
+import multiprocessing
 import subprocess
+import time
 import uuid
 
+import requests
 import xmltodict
 
 from . import bpmn
+from .executor import get_executor
 from .etcd_utils import get_etcd, transition_state
 
 
@@ -45,7 +50,6 @@ class Workflow:
             )
             if docker_result.returncode == 0:
                 logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
-                # TODO Start health check...
             else:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
                 etcd.replace(state_key, 'STARTING', 'ERROR')
@@ -59,15 +63,14 @@ class Workflow:
     def stop(self):
         etcd = get_etcd()
         state_key = f'{self.key_prefix}/state'
-        if not transition_state(etcd, state_key, ('RUNNING', 'ERROR'), 'STOPPING'):
+        if not transition_state(etcd, state_key, (b'RUNNING', b'ERROR'), b'STOPPING'):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
         if self.properties.orchestrator == 'docker':
             docker_result = subprocess.run(
-                ['docker', 'stack', 'rm', id], capture_output=True, text=True,
+                ['docker', 'stack', 'rm', self.id], capture_output=True, text=True,
             )
             if docker_result.returncode == 0:
                 logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
-                # TODO Stop health check...
             else:
                 logging.error(f'Error from Dockers:\n{docker_result.stderr}')
                 etcd.replace(state_key, 'STOPPING', 'ERROR')

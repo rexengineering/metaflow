@@ -5,6 +5,7 @@ xmltodict
 etcd3
 kubernetes
 docker
+Flask
 # Optional development dependency
 grpcio-tools
 pudb

@@ -59,6 +59,23 @@ def get_keys_from_prefix(prefix=None):
     )
 
 
+def get_next_level(prefix=None, delim='/'):
+    '''
+    Arguments:
+        prefix - Key prefix.  Default is the delimiter.
+        delim - Path delimiter.  Default is /.
+    Returns:
+        A set of the next level sub-keys.
+    '''
+    index = len(prefix.split(delim))
+    if prefix.endswith(delim):
+        index -= 1
+    return set(
+        key.split(delim)[index]
+        for key in get_keys_from_prefix(prefix)
+    )
+
+
 def get_dict_from_prefix(prefix=None, delim='/', keys_only=False, keys=None, value_transformer=None):
     '''Impose a naming discipline over a set of prefixed keys in etcd.
     Arguments:
