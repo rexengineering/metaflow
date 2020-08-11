@@ -43,6 +43,7 @@ message PSRequest {
 message RunRequest {
     string workflow_id = 1;
     repeated string args = 2;
+    bool stopped = 3;
     // FIXME: Figure out any additional flags and/or arguments.
 }
 
