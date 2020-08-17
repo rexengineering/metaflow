@@ -11,6 +11,9 @@ def __refine_args__(parser : argparse.ArgumentParser):
     parser.add_argument('workflow_id', type=str,
         help='workflow deployment ID to run',
     )
+    parser.add_argument('--stopped', action='store_true',
+        help='flag that all runs should be brought up in the STOPPED state',
+    )
     parser.add_argument('args', nargs='*', type=str,
         help='optional arguments to send to the workflow deployment',
     )
@@ -21,6 +24,7 @@ def run_action(namespace : argparse.Namespace, *args, **kws):
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         response = flowd.RunWorkflow(flow_pb2.RunRequest(
             workflow_id=namespace.workflow_id, args=namespace.args,
+            stopped=namespace.stopped,
         ))
     status = response.status
     if status < 0:

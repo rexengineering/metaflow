@@ -45,6 +45,7 @@ class BPMNTask:
         self._proc = process
         self.id = task['@id']
         self.name = task['@name']
+        self._url = None
         # FIXME: This is Zeebe specific.  Need to provide override if coming from
         # some other modeling tool.
         service_name = task['bpmn:extensionElements']['zeebe:taskDefinition']['@type']
@@ -65,6 +66,21 @@ class BPMNTask:
             for annotation in self.annotations:
                 if 'rexflow' in annotation:
                     self.definition.update(annotation['rexflow'])
+
+    @property
+    def url(self):
+        if self._url is None:
+            definition = self.definition
+            service_props = definition.service
+            proto = service_props.protocol.lower()
+            host = service_props.host
+            port = service_props.port
+            call_props = definition.call
+            path = call_props.path
+            if not path.startswith('/'):
+                path = '/' + path
+            self._url = f'{proto}://{host}:{port}{path}'
+        return self._url
 
 
 class ServiceProperties:
@@ -198,6 +214,7 @@ class BPMNTasks:
         if tasks is None:
             tasks = []
         self.tasks = tasks
+        self.task_map = {task.id : task for task in tasks}
 
     def __len__(self):
         return len(self.tasks)
@@ -266,8 +283,10 @@ class BPMNProcess:
         entry_point = process['bpmn:startEvent']
         assert isinstance(entry_point, OrderedDict)
         self.entry_point =  entry_point
+        self.exit_point = process['bpmn:endEvent']
         self.annotations = list(self.get_annotations(self.entry_point['@id']))
         self.properties = WorkflowProperties(self.annotations)
+        self._digraph = None
 
     @classmethod
     def from_workflow_id(cls, workflow_id):
@@ -279,6 +298,26 @@ class BPMNProcess:
 
     def to_xml(self):
         return xmltodict.unparse(OrderedDict([('bpmn:process', self._process)]))
+
+    def to_digraph(self, digraph : dict=None):
+        if digraph is None:
+            digraph = dict()
+        for sequence_flow in iter_xmldict_for_key(self._process, 'bpmn:sequenceFlow'):
+            source_ref = sequence_flow['@sourceRef']
+            target_ref = sequence_flow['@targetRef']
+            if source_ref not in digraph:
+                digraph[source_ref] = set()
+            digraph[source_ref].add(target_ref)
+        return digraph
+
+    @property
+    def digraph(self):
+        if self._digraph is None:
+            result = self.to_digraph()
+            self._digraph = result
+        else:
+            result = self._digraph
+        return result
 
     def get_annotations(self, source_ref=None):
         if source_ref is not None:

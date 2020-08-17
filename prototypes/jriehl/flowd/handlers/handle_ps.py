@@ -30,7 +30,7 @@ class PSHandlers:
 
     def handle_single_instance(self, instance_id):
         return etcd_utils.get_dict_from_prefix(
-            f'/rexflow/runs/{instance_id}',
+            f'/rexflow/instances/{instance_id}',
             value_transformer=lambda bstr: bstr.decode('utf-8')
         )
 
@@ -42,8 +42,8 @@ class PSHandlers:
 
     def handle_all_instances(self):
         all_ids = set(
-            key.split['/'][3]
-            for key in etcd_utils.get_keys_from_prefix('/rexflow/runs/')
+            key.split('/')[3]
+            for key in etcd_utils.get_keys_from_prefix('/rexflow/instances/')
         )
         return self.handle_some_instances(all_ids)
 

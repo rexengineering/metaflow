@@ -1,5 +1,7 @@
-from concurrent.futures import ThreadPoolExecutor
+from ast import literal_eval
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 from io import StringIO
+import json
 import logging
 import multiprocessing
 import subprocess
@@ -8,6 +10,7 @@ import uuid
 
 import requests
 import xmltodict
+import yaml
 
 from . import bpmn
 from .executor import get_executor
@@ -83,11 +86,66 @@ class Workflow:
 
 
 class WorkflowInstance:
-    def __init__(self, parent : str, id:str=None):
-        self.parent = parent
+    def __init__(self, parent : (str, Workflow), id:str=None):
+        if isinstance(parent, str):
+            self.parent = Workflow.from_id(parent)
+        else:
+            self.parent = parent
         if id is None:
             uid = uuid.uuid1().hex
             self.id = f'flow-{uid}'
         else:
             self.id = id
-        self.key_prefix = f'/rexflow/isntances/{self.id}'
+        self.key_prefix = f'/rexflow/instances/{self.id}'
+
+    def start(self, *args):
+        process = self.parent.process
+        digraph = process.digraph
+        executor_obj = get_executor()
+        def start_task(task_id):
+            '''
+            Arguments:
+                task_id - Task ID in the BPMN spec.
+            Returns:
+                A boolean value indicating an OK response.
+            '''
+            task = process.tasks.task_map[task_id]
+            call_props = task.definition.call
+            serialization = call_props.serialization.lower()
+            eval_args = [literal_eval(arg) for arg in args]
+            if serialization == 'json':
+                data = json.dumps(eval_args)
+                mime_type = 'application/json'
+            elif serialization == 'yaml':
+                data = yaml.dump(eval_args)
+                mime_type = 'application/x-yaml'
+            else:
+                raise ValueError(f'{serialization} is not a supported serialization type.')
+            method = call_props.method.lower()
+            if method not in {'post',}:
+                raise ValueError(f'{method} is not a supported method.')
+            request = getattr(requests, method)
+            response = request(
+                task.url,
+                headers={'X-Flow-ID':self.id, 'Content-Type':mime_type},
+                data=data
+            )
+            if not response.ok:
+                logging.error(f"Response for {task_id} in {self.id} was not OK.  (status code {response.status_code})")
+            return response.ok
+        targets = [target_id
+            for target_id in digraph[process.entry_point['@id']]
+            if target_id.startswith('Task') # TODO: Handle other vertex types...
+        ]
+        results = executor_obj.map(start_task, targets)
+        all_ok = all(result for result in results)
+        etcd = get_etcd(is_not_none=True)
+        if not all_ok:
+            if not etcd.replace(f'{self.key_prefix}/state', 'STARTING', 'ERROR'):
+                logging.error('Failed to transition from STARTING -> ERROR.')
+        else:
+            if not etcd.replace(f'{self.key_prefix}/state', 'STARTING', 'RUNNING'):
+                logging.error('Failed to transition from STARTING -> RUNNING.')
+
+    def stop(self):
+        raise NotImplementedError('Lazy developer error!')

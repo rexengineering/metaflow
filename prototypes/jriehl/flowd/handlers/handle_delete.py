@@ -38,12 +38,12 @@ def handler(request : flow_pb2.DeleteRequest):
                 logging.info(message)
                 result[workflow_id] = dict(result=0, message=message)
             else:
-                message = f'Failed to fully delete {workflow_id} in the backing store.'
+                message = f'Failed to fully remove {workflow_id} from the backing store.'
                 logging.error(message)
                 result[workflow_id] = dict(result=-3, message=message)
     elif request_kind == flow_pb2.RequestKind.INSTANCE:
         for instance_id in request.ids:
-            prefix = f'/rexflow/runs/{instance_id}'
+            prefix = f'/rexflow/instances/{instance_id}'
             keys = get_keys_from_prefix(prefix)
             if len(keys) <= 0:
                 message = f'Workflow instance {instance_id} was not found.'
