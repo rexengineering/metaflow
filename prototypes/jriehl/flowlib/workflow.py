@@ -1,5 +1,6 @@
 from ast import literal_eval
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
+from ctypes import c_size_t
 from io import StringIO
 import json
 import logging
@@ -25,6 +26,7 @@ class Workflow:
             self.id = f'{process.id}-{uid}'
         else:
             self.id = id
+        self.id_hash = '%016x' % c_size_t(hash(self.id)).value
         self.key_prefix = f'/rexflow/workflows/{self.id}'
         self.properties = process.properties
 
@@ -45,9 +47,9 @@ class Workflow:
                 raise RuntimeError(f'{self.id} is not in a startable state')
         if self.properties.orchestrator == 'docker':
             docker_compose_input = StringIO()
-            self.process.tasks.to_docker(docker_compose_input)
+            self.process.to_docker(docker_compose_input)
             docker_result = subprocess.run(
-                ['docker', 'stack', 'deploy', '--compose-file', '-', self.id],
+                ['docker', 'stack', 'deploy', '--compose-file', '-', self.id_hash],
                 input=docker_compose_input.getvalue(), capture_output=True,
                 text=True,
             )
@@ -70,7 +72,7 @@ class Workflow:
             raise RuntimeError(f'{self.id} is not in a stoppable state')
         if self.properties.orchestrator == 'docker':
             docker_result = subprocess.run(
-                ['docker', 'stack', 'rm', self.id], capture_output=True, text=True,
+                ['docker', 'stack', 'rm', self.id_hash], capture_output=True, text=True,
             )
             if docker_result.returncode == 0:
                 logging.info(f'Got following output from Docker:\n{docker_result.stdout}')

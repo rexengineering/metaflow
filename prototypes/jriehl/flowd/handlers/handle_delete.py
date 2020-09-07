@@ -51,7 +51,7 @@ def handler(request : flow_pb2.DeleteRequest):
                 result[instance_id] = dict(result=-1, message=message)
                 continue
             # FIXME: Do something here.
-            raise NotImplementedError('Laxy developer error!') # Does something!
+            raise NotImplementedError('Lazy developer error!') # Does something!
     else:
         raise ValueError(f'Unknown delete request kind ({request_kind})!')
     return result

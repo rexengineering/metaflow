@@ -4,12 +4,14 @@
 from collections import OrderedDict
 from io import IOBase, StringIO
 import logging
+import socket
 import subprocess
 import sys
 
 import yaml
 import xmltodict
 
+from .envoy_config import get_envoy_config, Upstream
 from .etcd_utils import get_etcd
 
 
@@ -23,18 +25,6 @@ def iter_xmldict_for_key(odict : OrderedDict, key : str):
                 yield child_value
         else:
             yield value
-
-
-def get_tasks(process, wrap=False):
-    '''Given a BPMN process, get the service tasks in that process.
-    Arguments:
-        process - OrderedDict instance containing a BPMN process.
-        wrap -  Flag to wrap the task OrderedDict instances as BPMNTask instances.
-    Returns:
-        List of OrderedDict or BPMNTask instances for each service task.
-    '''
-    return list(BPMNTask(task, process) if wrap else task
-                for task in iter_xmldict_for_key(process, 'bpmn:serviceTask'))
 
 
 class BPMNTask:
@@ -165,7 +155,7 @@ class HealthProperties:
 
     @property
     def period(self):
-        return self._period if self._period is not None else 10
+        return self._period if self._period is not None else 30
 
     @property
     def response(self):
@@ -224,35 +214,6 @@ class BPMNTasks:
 
     def __getitem__(self, key):
         return self.tasks.__getitem__(key)
-
-    def to_docker(self, stream : IOBase = None, **kws):
-        if stream is None:
-            stream = sys.stdout
-        services = {}
-        result = {'version' : '3', 'services' : services}
-        for task in self.tasks:
-            definition = task.definition
-            service = {}
-            services[definition.name] = service
-            service['image'] = definition.service.container
-            port = definition.service.port
-            service['ports'] = [f'{port}:{port}']
-            service['deploy'] = {'replicas':1, 'restart_policy':{'condition':'on-failure'}}
-        return yaml.safe_dump(result, stream, **kws)
-
-    def to_kubernetes(self, stream : IOBase = None):
-        if stream is None:
-            stream = sys.stdout
-        result = {}
-        raise NotImplementedError('Lazy developer!')
-        return yaml.safe_dump(result, stream)
-
-    def to_istio(self, stream : IOBase = None):
-        if stream is None:
-            stream = sys.stdout
-        result = {}
-        raise NotImplementedError('Lazy developer!')
-        return yaml.safe_dump(result, stream)
 
 
 class WorkflowProperties:
@@ -332,3 +293,81 @@ class BPMNProcess:
                 text = annotation['bpmn:text']
                 if text.startswith('rexflow:'):
                     yield yaml.safe_load(text.replace('\xa0', ''))
+
+    def to_docker(self, stream : IOBase = None, **kws):
+        if stream is None:
+            stream = sys.stdout
+        services = {}
+        networks = {}
+        result = {
+            'version' : '3',
+            'services' : services,
+            'networks' : networks,
+        }
+        for task in self.tasks:
+            definition = task.definition
+            service_name = definition.name
+            port = definition.service.port
+            network_name = f'{service_name}_net'
+            services[service_name] = {
+                'image' : definition.service.container,
+                'ports' : [f'{port}'],
+                'deploy' : {
+                    'replicas' : 1,
+                    'restart_policy' : {
+                        'condition' : 'on-failure',
+                    },
+                },
+                'networks' : {
+                    network_name : {
+                        'aliases': [service_name],
+                    },
+                },
+            }
+            networks[network_name] = {}
+            proxy_name = f'{service_name}_proxy'
+            upstreams = []
+            for out_edge in self.digraph.get(task.id, set()):
+                logging.debug(out_edge)
+                if out_edge in self.tasks.task_map:
+                    out_task = self.tasks.task_map[out_edge]
+                    out_defn = out_task.definition
+                    upstreams.append(Upstream(
+                        out_defn.name,
+                        out_defn.service.host,
+                        out_defn.service.port))
+                else:
+                    # FIXME: Get port number from whatever is running the flowd
+                    # Flask server...
+                    upstreams.append(Upstream('flowd', socket.getfqdn(), 9002))
+            envoy_config = get_envoy_config(service_name, set(upstreams))
+            logging.info(f'Wrote Envoy config for {service_name} to {envoy_config}')
+            services[proxy_name] = {
+                'image' : 'envoyproxy/envoy-dev:latest',
+                'ports' : [f'{port}:{port}'],
+                'networks' : [
+                    'default',
+                    network_name,
+                ],
+                'volumes' : [
+                    f'{envoy_config}:/etc/envoy/envoy.yaml',
+                ]
+            }
+        result_yaml = yaml.safe_dump(result, **kws)
+        logging.debug(f'Envoy result_yaml:\n{result_yaml}')
+        stream.write(result_yaml)
+        return result_yaml
+
+    def to_kubernetes(self, stream : IOBase = None):
+        if stream is None:
+            stream = sys.stdout
+        result = {}
+        raise NotImplementedError('Lazy developer!')
+        return yaml.safe_dump(result, stream)
+
+    def to_istio(self, stream : IOBase = None):
+        if stream is None:
+            stream = sys.stdout
+        result = {}
+        raise NotImplementedError('Lazy developer!')
+        return yaml.safe_dump(result, stream)
