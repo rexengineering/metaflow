@@ -45,7 +45,7 @@ function envoy_on_request(request_handle)
         local size = request_handle:body():length()
         local headers, body = request_handle:httpCall(
             "local_service",
-            request_handle:headers(),
+            request_headers_table,
             request_handle:body():getBytes(0, size),
             30000,
             false
@@ -64,7 +64,7 @@ function envoy_on_request(request_handle)
 end
 '''.format(''.join([f'''
         request_handle:httpCall(
-            "{upstream.name}", headers_table, body:getBytes(0, body:length(), 500, true)'''
+            "{upstream.name}", headers_table, body, 500, true)'''
     for upstream in upstreams]))
     logging.debug(f'Generated Lua code:\n{result}')
     return result

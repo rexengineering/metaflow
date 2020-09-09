@@ -157,7 +157,7 @@ class EtcdDict(dict):
 
 
 def transition_state(etcd, state_key, from_states, to_state):
-    '''Utility function that attempts to simulate a etcd transaction.
+    '''Utility function that attempts to simulate an etcd transaction.
     Arguments:
         etcd - etcd instance.
         state_key - key representing a state variable
@@ -165,12 +165,13 @@ def transition_state(etcd, state_key, from_states, to_state):
         to_state - End state for the transition.
     '''
     result = False
-    crnt_state = etcd.get(state_key)[0]
-    if crnt_state in from_states:
-        if etcd.replace(state_key, crnt_state, to_state):
-            # FIXME: Consider changing this to a debug log level.
-            logging.info(f'State transition was successful. {state_key} : {crnt_state} -> {to_state}')
-            result = True
-        else:
-            logging.error(f'State transition failed! {state_key} : {crnt_state} -> {to_state}')
+    with etcd.lock(state_key):
+        crnt_state = etcd.get(state_key)[0]
+        if crnt_state in from_states:
+            if etcd.replace(state_key, crnt_state, to_state):
+                result = True
+    if result:
+        logging.debug(f'State transition was successful. {state_key} : {crnt_state} -> {to_state}')
+    else:
+        logging.error(f'State transition failed! {state_key} : {crnt_state} -> {to_state}')
     return result

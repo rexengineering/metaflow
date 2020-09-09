@@ -40,9 +40,14 @@ class HealthProbe:
 
     def __call__(self):
         self.logger.info(f'Starting status checks for {self.task.id}')
+        health_properties = self.task.definition.health
         while self.running:
-            health_properties = self.task.definition.health
             time.sleep(health_properties.period)
+            if not self.running:
+                break
+            # FIXME: The above should fix a majority of races with a stopping
+            # workflow.  It, however, does not fix all races and healthd may
+            # still pollute etcd with a final put before stopping fully.
             try:
                 response = requests.request(
                     health_properties.method, self.url,

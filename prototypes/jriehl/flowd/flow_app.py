@@ -17,7 +17,12 @@ def root_route():
     if 'X-Flow-Id' in request.headers:
         flow_id = request.headers['X-Flow-Id']
         key_prefix = f'/rexflow/instances/{flow_id}'
-        etcd.put(f'{key_prefix}/result', request.data)
-        transition_state(etcd, f'{key_prefix}/state', [b'STARTING', b'RUNNING'],
-                         b'COMPLETED')
+        state_key = f'{key_prefix}/state'
+        good_states = {b'STARTING', b'RUNNING'}
+        if etcd.get(state_key)[0] in good_states:
+            if transition_state(etcd, state_key, good_states, b'COMPLETED'):
+                etcd.put(f'{key_prefix}/result', request.data)
+            else:
+                logging.error(f'Race on {state_key}; state changed out of known'\
+                               ' good state before state transition could occur!')
     return 'Hello there!\n'

@@ -30,7 +30,9 @@ def handler(request):
     workflow_prefix = f'/rexflow/workflows/{workflow_obj.id}'
     etcd.put(workflow_prefix + '/proc', process.to_xml())
     if request.stopped:
-        etcd.put(workflow_prefix + '/state', 'STOPPED')
+        state_key = f'{workflow_prefix}/state'
+        if not etcd.put_if_not_exists(state_key, 'STOPPED'):
+            logging.error(f'{state_key} already defined in etcd!')
     else:
         workflow_obj.start()
     return result
