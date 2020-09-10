@@ -16,9 +16,9 @@ This project contains four components:
 Set-up
 ======
 
-* Add `flowlib`, `flowd`, `flowctl` to your Python path using the base directory
-  of the prototype.  This is the same base directory that `flowctl` lives in
-  itself.  For example:
+* Add `flowlib`, `flowd`, `flowctl`, and `healthd` to your Python path using the
+  base directory of the prototype.  This is the same base directory that `flowctl`
+  lives in itself.  For example:
   `export PYTHONPATH=.../rexflow/prototypes/jriehl:$PYTHONPATH`.
 * In another shell, run the etc daemon.  This will require you to set a `GOPATH`,
   and add it's `bin` subdirectory to your `PATH`.  For example:
@@ -62,7 +62,7 @@ Getting started
   `CalcProcess-42e0680ac54a11ea8c8bacde48001122`.
 * Create a *workflow_instance*, using *run*.  For example:
   ```zsh
-  % python -m flowctl run example_ba583a10bbc311ea9f25faffc22d59be --args 42
+  % python -m flowctl run example_ba583a10bbc311ea9f25faffc22d59be 42
   ```
   The tool will provide a workflow instance ID, such as
   `flow_47d8a3d4bbc411ea9f25faffc22d59be`.

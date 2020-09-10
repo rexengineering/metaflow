@@ -50,8 +50,23 @@ def handler(request : flow_pb2.DeleteRequest):
                 logging.warn(message)
                 result[instance_id] = dict(result=-1, message=message)
                 continue
-            # FIXME: Do something here.
-            raise NotImplementedError('Lazy developer error!') # Does something!
+            state_key = f'{prefix}/state'
+            instance_state = etcd.get(state_key)[0]
+            good_states = {b'STOPPED', b'ERROR', b'COMPLETED'}
+            logging.debug(instance_state)
+            if instance_state not in good_states:
+                message = f'Workflow instance {instance_id} is not in the '\
+                           'COMPLETED, ERROR, or STOPPED state.'
+                logging.warn(message)
+                result[instance_id] = dict(result=-2, message=message)
+            elif etcd.delete_prefix(prefix):
+                message = f'Successfully deleted {instance_id}.'
+                logging.info(message)
+                result[instance_id] = dict(result=0, message=message)
+            else:
+                message = f'Failed to fully remove {instance_id} from the backing store.'
+                logging.error(message)
+                result[instance_id] = dict(result=-3, message=message)
     else:
         raise ValueError(f'Unknown delete request kind ({request_kind})!')
     return result
