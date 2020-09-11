@@ -311,7 +311,7 @@ class BPMNProcess:
             network_name = f'{service_name}_net'
             services[service_name] = {
                 'image' : definition.service.container,
-                'ports' : [f'{port}'],
+                'ports' : [5000],
                 'deploy' : {
                     'replicas' : 1,
                     'restart_policy' : {
@@ -334,7 +334,8 @@ class BPMNProcess:
                     out_defn = out_task.definition
                     upstreams.append(Upstream(
                         out_defn.name,
-                        out_defn.service.host,
+                        socket.getfqdn(), # FIXME: shouldn't this have something
+                                          # to do with out_defn.service.host?
                         out_defn.service.port))
                 else:
                     # FIXME: Get port number from whatever is running the flowd
@@ -344,7 +345,7 @@ class BPMNProcess:
             logging.info(f'Wrote Envoy config for {service_name} to {envoy_config}')
             services[proxy_name] = {
                 'image' : 'envoyproxy/envoy-dev:latest',
-                'ports' : [f'{port}:{port}'],
+                'ports' : [f'{port}:5000'],
                 'networks' : [
                     'default',
                     network_name,
@@ -354,7 +355,7 @@ class BPMNProcess:
                 ]
             }
         result_yaml = yaml.safe_dump(result, **kws)
-        logging.debug(f'Envoy result_yaml:\n{result_yaml}')
+        logging.debug(f'Docker result_yaml:\n{result_yaml}')
         stream.write(result_yaml)
         return result_yaml
 
