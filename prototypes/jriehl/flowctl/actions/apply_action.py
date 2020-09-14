@@ -13,6 +13,9 @@ def __refine_args__(parser : argparse.ArgumentParser):
     parser.add_argument('--stopped', action='store_true',
         help='flag that all deployments should be brought up in the STOPPED state',
     )
+    parser.add_argument('-o', '--output', action='store_true',
+        help='Output response data to stdout.'
+    )
     parser.add_argument('bpmn_spec', nargs='+', help='sufficiently annotated BPMN file(s)')
     return parser
 
@@ -59,4 +62,6 @@ def apply_action(namespace : argparse.Namespace, *args, **kws):
             logging.info(
                 f'Got response: {response.status}, "{response.message}", {response.data}'
             )
+            if namespace.output:
+                print(response.data)
     return status

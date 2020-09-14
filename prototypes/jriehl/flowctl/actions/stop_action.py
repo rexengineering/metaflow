@@ -9,7 +9,7 @@ __help__ = 'stop one or more workflow deployments or instances'
 
 
 def __refine_args__(parser : argparse.ArgumentParser):
-    parser.add_argument('--kind', action='store', default='INSTANCE',
+    parser.add_argument('-k', '--kind', action='store', default='INSTANCE',
         help=f'Request kind, one of {", ".join(key for key in flow_pb2.RequestKind.keys())}, default is INSTANCE.',
     )
     parser.add_argument('ids', nargs='+', help='workflow id\'s to stop')
