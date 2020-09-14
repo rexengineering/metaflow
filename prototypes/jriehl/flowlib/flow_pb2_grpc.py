@@ -34,13 +34,13 @@ class FlowDaemonStub(object):
                 request_serializer=flow__pb2.RunRequest.SerializeToString,
                 response_deserializer=flow__pb2.FlowdResult.FromString,
                 )
-        self.StartInstance = channel.unary_unary(
-                '/FlowDaemon/StartInstance',
+        self.StartWorkflow = channel.unary_unary(
+                '/FlowDaemon/StartWorkflow',
                 request_serializer=flow__pb2.StartRequest.SerializeToString,
                 response_deserializer=flow__pb2.FlowdResult.FromString,
                 )
-        self.StopInstance = channel.unary_unary(
-                '/FlowDaemon/StopInstance',
+        self.StopWorkflow = channel.unary_unary(
+                '/FlowDaemon/StopWorkflow',
                 request_serializer=flow__pb2.StopRequest.SerializeToString,
                 response_deserializer=flow__pb2.FlowdResult.FromString,
                 )
@@ -77,14 +77,14 @@ class FlowDaemonServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def StartInstance(self, request, context):
+    def StartWorkflow(self, request, context):
         """flowctl start
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def StopInstance(self, request, context):
+    def StopWorkflow(self, request, context):
         """flowctl stop
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -114,13 +114,13 @@ def add_FlowDaemonServicer_to_server(servicer, server):
                     request_deserializer=flow__pb2.RunRequest.FromString,
                     response_serializer=flow__pb2.FlowdResult.SerializeToString,
             ),
-            'StartInstance': grpc.unary_unary_rpc_method_handler(
-                    servicer.StartInstance,
+            'StartWorkflow': grpc.unary_unary_rpc_method_handler(
+                    servicer.StartWorkflow,
                     request_deserializer=flow__pb2.StartRequest.FromString,
                     response_serializer=flow__pb2.FlowdResult.SerializeToString,
             ),
-            'StopInstance': grpc.unary_unary_rpc_method_handler(
-                    servicer.StopInstance,
+            'StopWorkflow': grpc.unary_unary_rpc_method_handler(
+                    servicer.StopWorkflow,
                     request_deserializer=flow__pb2.StopRequest.FromString,
                     response_serializer=flow__pb2.FlowdResult.SerializeToString,
             ),
@@ -199,7 +199,7 @@ class FlowDaemon(object):
             call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def StartInstance(request,
+    def StartWorkflow(request,
             target,
             options=(),
             channel_credentials=None,
@@ -208,14 +208,14 @@ class FlowDaemon(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/FlowDaemon/StartInstance',
+        return grpc.experimental.unary_unary(request, target, '/FlowDaemon/StartWorkflow',
             flow__pb2.StartRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
             call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def StopInstance(request,
+    def StopWorkflow(request,
             target,
             options=(),
             channel_credentials=None,
@@ -224,7 +224,7 @@ class FlowDaemon(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/FlowDaemon/StopInstance',
+        return grpc.experimental.unary_unary(request, target, '/FlowDaemon/StopWorkflow',
             flow__pb2.StopRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,

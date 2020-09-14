@@ -8,8 +8,8 @@ service FlowDaemon {
     rpc DeleteWorkflow (DeleteRequest) returns (FlowdResult); // flowctl delete
     rpc PSQuery (PSRequest) returns (FlowdResult); // flowctl ps
     rpc RunWorkflow (RunRequest) returns (FlowdResult); // flowctl run
-    rpc StartInstance (StartRequest) returns (FlowdResult); // flowctl start
-    rpc StopInstance (StopRequest) returns (FlowdResult); // flowctl stop
+    rpc StartWorkflow (StartRequest) returns (FlowdResult); // flowctl start
+    rpc StopWorkflow (StopRequest) returns (FlowdResult); // flowctl stop
 }
 
 message FlowdResult {
@@ -20,24 +20,41 @@ message FlowdResult {
 
 message ApplyRequest {
     string bpmn_xml = 1;
+    bool stopped = 2;
+}
+
+enum RequestKind {
+    DEPLOYMENT = 0;
+    INSTANCE = 1;
 }
 
 message DeleteRequest {
-    // FIXME
+    RequestKind kind = 1;
+    repeated string ids = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message PSRequest {
-    // FIXME
+    RequestKind kind = 1;
+    repeated string ids = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message RunRequest {
-    // FIXME
+    string workflow_id = 1;
+    repeated string args = 2;
+    bool stopped = 3;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message StartRequest {
-    // FIXME
+    RequestKind kind = 1;
+    repeated string ids = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
 }
 
 message StopRequest {
-    // FIXME
+    RequestKind kind = 1;
+    repeated string ids = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
 }

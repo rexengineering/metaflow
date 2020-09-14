@@ -17,8 +17,8 @@ class Flow(flow_pb2_grpc.FlowDaemon):
     def RunWorkflow(self, request, context):
         return handler_dispatch('run', request, context)
 
-    def StartInstance(self, request, context):
+    def StartWorkflow(self, request, context):
         return handler_dispatch('start', request, context)
 
-    def StopInstance(self, request, context):
+    def StopWorkflow(self, request, context):
         return handler_dispatch('stop', request, context)
