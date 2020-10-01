@@ -16,7 +16,14 @@ def init_etcd(*args, **kws):
     global _etcd
     if _etcd is None:
         result = etcd3.client(*args, **kws)
+        result.get('😏') # If this throws an error, we know there is
+                         # something wrong with the client configuration.
         _etcd = result
+    elif args or kws:
+        # Notes: without this check, additional arguments to init_etcd()
+        # would be ignored, possibly defeating caller expectations that their
+        # arguments would be in effect.
+        raise ValueError('init_etcd() called more than once with arguments')
     else:
         result = _etcd
     return result
@@ -34,7 +41,7 @@ def get_etcd(*args, is_not_none=False, **kws):
         The module-level etcd3 client.s
     '''
     global _etcd
-    if kws.get('is_not_none'):
+    if is_not_none:
         assert _etcd is not None
         result = _etcd
     elif _etcd is None:
