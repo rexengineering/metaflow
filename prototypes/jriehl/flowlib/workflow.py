@@ -1,12 +1,10 @@
 from ast import literal_eval
-from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 from ctypes import c_size_t
 from io import StringIO
 import json
 import logging
-import multiprocessing
 import subprocess
-import time
+from typing import Union
 import uuid
 
 import requests
@@ -66,7 +64,7 @@ class Workflow:
             raise ValueError(f'Unrecognized orchestrator setting, "{self.properties.orchestrator}"')
 
     def stop(self):
-        etcd = get_etcd()
+        etcd = get_etcd(is_not_none=True)
         state_key = f'{self.key_prefix}/state'
         if not transition_state(etcd, state_key, (b'RUNNING', b'ERROR'), b'STOPPING'):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
@@ -88,7 +86,7 @@ class Workflow:
 
 
 class WorkflowInstance:
-    def __init__(self, parent : (str, Workflow), id:str=None):
+    def __init__(self, parent : Union[str, Workflow], id:str=None):
         if isinstance(parent, str):
             self.parent = Workflow.from_id(parent)
         else:

@@ -311,7 +311,8 @@ class BPMNProcess:
             network_name = f'{service_name}_net'
             services[service_name] = {
                 'image' : definition.service.container,
-                'ports' : [5000],
+                'ports' : [5000], # FIXME: Need to add container-specific port
+                                  # as a service property here.
                 'deploy' : {
                     'replicas' : 1,
                     'restart_policy' : {
@@ -345,7 +346,8 @@ class BPMNProcess:
             logging.info(f'Wrote Envoy config for {service_name} to {envoy_config}')
             services[proxy_name] = {
                 'image' : 'envoyproxy/envoy-dev:latest',
-                'ports' : [f'{port}:5000'],
+                'ports' : [f'{port}:5000'], # FIXME: See note above about adding
+                                            # container port.
                 'networks' : [
                     'default',
                     network_name,
@@ -359,12 +361,89 @@ class BPMNProcess:
         stream.write(result_yaml)
         return result_yaml
 
-    def to_kubernetes(self, stream : IOBase = None):
+    def to_kubernetes(self, stream : IOBase = None, **kws):
         if stream is None:
             stream = sys.stdout
-        result = {}
-        raise NotImplementedError('Lazy developer!')
-        return yaml.safe_dump(result, stream)
+        results = []
+        for task in self.tasks:
+            definition = task.definition
+            service_name = definition.name
+            # FIXME: The following is a workaround; need to add a full-on regex
+            # check of the service name and error on invalid spec.
+            dns_safe_name = service_name.replace('_', '-')
+            port = definition.service.port
+            service_account = {
+                'apiVersion': 'v1',
+                'kind': 'ServiceAccount',
+                'metadata': {
+                    'name': dns_safe_name,
+                },
+            }
+            results.append(service_account)
+            service = {
+                'apiVersion': 'v1',
+                'kind': 'Service',
+                'metadata': {
+                    'name': dns_safe_name,
+                    'labels': {
+                        'app': dns_safe_name,
+                    },
+                },
+                'spec': {
+                    'ports': [
+                        {
+                            'name': 'http',
+                            'port': port,
+                            'targetPort': 5000, # FIXME: add container-specific port property
+                        }
+                    ],
+                    'selector': {
+                        'app': dns_safe_name,
+                    },
+                },
+            }
+            results.append(service)
+            deployment = {
+                'apiVersion': 'apps/v1',
+                'kind': 'Deployment',
+                'metadata': {
+                    'name': dns_safe_name,
+                },
+                'spec': {
+                    'replicas': 1,
+                    'selector': {
+                        'matchLabels': {
+                            'app': dns_safe_name,
+                        },
+                    },
+                    'template': {
+                        'metadata': {
+                            'labels': {
+                                'app': dns_safe_name,
+                            },
+                        },
+                        'spec': {
+                            'serviceAccountName': dns_safe_name,
+                            'containers': [
+                                {
+                                    'image': definition.service.container,
+                                    'imagePullPolicy': 'IfNotPresent',
+                                    'name': dns_safe_name,
+                                    'ports': [
+                                        {
+                                            'containerPort': 5000, # FIXME: As above...
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                },
+            }
+            results.append(deployment)
+        result = '---\n'.join((yaml.safe_dump(result, **kws) for result in results))
+        stream.write(result)
+        return result
 
     def to_istio(self, stream : IOBase = None):
         if stream is None:
