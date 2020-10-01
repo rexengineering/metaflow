@@ -1,22 +1,15 @@
-from concurrent.futures import wait
 import logging
 import time
 
 from etcd3.events import DeleteEvent, PutEvent
-from flask import Flask, jsonify, request
+from quart import jsonify
 import requests
 
 from flowlib.etcd_utils import get_etcd, get_next_level
 from flowlib.executor import get_executor
 from flowlib.flowd_utils import get_log_format
+from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
-
-
-app = Flask(__name__)
-
-executor = get_executor()
-
-etcd = get_etcd()
 
 
 class HealthProbe:
@@ -28,6 +21,8 @@ class HealthProbe:
         self.running = False
         self.status = None
         self.logger = logging.getLogger()
+        self.etcd = get_etcd()
+        self.executor = get_executor()
         health_properties = task.definition.health
         service_properties = task.definition.service
         protocol = service_properties.protocol.lower()
@@ -41,6 +36,7 @@ class HealthProbe:
     def __call__(self):
         self.logger.info(f'Starting status checks for {self.task.id}')
         health_properties = self.task.definition.health
+        result = ''
         while self.running:
             time.sleep(health_properties.period)
             if not self.running:
@@ -58,7 +54,7 @@ class HealthProbe:
                 exception = exn
                 response = exn.response
             result = 'UP' if exception is None and response.ok else 'DOWN'
-            etcd.put(self.key, result)
+            self.etcd.put(self.key, result)
             self.status = result
             self.logger.info(f'Status check for {self.task.id} is {result}')
         return result
@@ -66,7 +62,7 @@ class HealthProbe:
     def start(self):
         assert self.future is None
         self.running = True
-        self.future = executor.submit(self)
+        self.future = self.executor.submit(self)
 
     def stop(self):
         assert self.future is not None
@@ -75,15 +71,18 @@ class HealthProbe:
 
 class HealthManager:
     def __init__(self):
+        self.etcd = get_etcd()
+        self.executor = get_executor()
         self.workflows = {workflow_id : Workflow.from_id(workflow_id)
             for workflow_id in get_next_level('/rexflow/workflows')
         }
         self.probes = {}
         self.future = None
+        self.cancel_watch = None
         self.logger = logging.getLogger()
 
     def __call__(self):
-        watch_iter, cancel_watch = etcd.watch_prefix('/rexflow/workflows')
+        watch_iter, self.cancel_watch = self.etcd.watch_prefix('/rexflow/workflows')
         for event in watch_iter:
             key = event.key.decode('utf-8')
             if key.endswith('/state'):
@@ -100,22 +99,23 @@ class HealthManager:
                         }
                         for probe in self.probes[workflow_id].values():
                            probe.start()
-                        future = executor.submit(self.wait_for_up, workflow)
+                        future = self.executor.submit(self.wait_for_up, workflow)
                     elif value == 'STOPPING':
                         workflow = self.workflows[workflow_id]
-                        future = executor.submit(self.wait_for_down, workflow)
+                        future = self.executor.submit(self.wait_for_down, workflow)
                 elif isinstance(event, DeleteEvent):
                     pass
 
     def wait_for_up(self, workflow : Workflow):
         self.logger.info(f'wait_for_up() called for workflow {workflow.id}')
         probes = self.probes[workflow.id]
-        watch_iter, _ = etcd.watch_prefix(f'{workflow.key_prefix}/probes')
+        watch_iter, _ = self.etcd.watch_prefix(f'{workflow.key_prefix}/probes')
         for event in watch_iter:
             self.logger.info(f'wait_for_up(): Got {type(event)} to key {event.key}')
             if isinstance(event, PutEvent):
                 if all(probe.status == 'UP' for probe in probes.values()):
-                    result = etcd.replace(f'{workflow.key_prefix}/state', 'STARTING', 'RUNNING')
+                    result = self.etcd.replace(f'{workflow.key_prefix}/state',
+                                               'STARTING', 'RUNNING')
                     if result:
                         self.logger.info('wait_for_up(): State transition succeeded.')
                     else:
@@ -126,7 +126,7 @@ class HealthManager:
     def wait_for_down(self, workflow : Workflow):
         self.logger.info(f'wait_for_down() called for workflow {workflow.id}')
         probes = self.probes[workflow.id]
-        watch_iter, _ = etcd.watch_prefix(f'/rexflow/workflows/{workflow.id}/probes/')
+        watch_iter, _ = self.etcd.watch_prefix(f'/rexflow/workflows/{workflow.id}/probes/')
         for event in watch_iter:
             self.logger.info(f'wait_for_down(): Got {type(event)} to key {event.key}')
             if isinstance(event, PutEvent):
@@ -135,7 +135,7 @@ class HealthManager:
                         probe.stop()
                     del self.probes[workflow.id]
                     del self.workflows[workflow.id]
-                    result = etcd.replace(f'{workflow.key_prefix}/state', 'STOPPING', 'STOPPED')
+                    result = self.etcd.replace(f'{workflow.key_prefix}/state', 'STOPPING', 'STOPPED')
                     if result:
                         self.logger.info('wait_for_down(): State transition succeeded.')
                     else:
@@ -152,34 +152,45 @@ class HealthManager:
             for probe in probes.values():
                 probe.start()
             self.probes[workflow.id] = probes
-            workflow_state = etcd.get(workflow.key_prefix + '/state')[0].decode()
+            workflow_state = self.etcd.get(workflow.key_prefix + '/state')[0].decode()
             self.logger.info(f'Started probes for {workflow.id}, in state {workflow_state}')
             if workflow_state == 'STARTING':
-                executor.submit(self.wait_for_up, workflow)
+                self.executor.submit(self.wait_for_up, workflow)
             elif workflow_state == 'STOPPING':
-                executor.submit(self.wait_for_down, workflow)
-        self.future = executor.submit(self)
+                self.executor.submit(self.wait_for_down, workflow)
+        self.future = self.executor.submit(self)
 
     def stop(self):
         probes = [
             probe
-            for probe in probes.values()
-            for probes in self.probes[workflow.id]
             for workflow in self.workflows
+            for probes in self.probes[workflow.id]
+            for probe in probes.values()
         ]
         for probe in probes:
             probe.stop()
-        # FIXME: Bring the manager future down cleanly.
+        if self.cancel_watch:
+            self.cancel_watch()
 
 
-manager = HealthManager()
+class HealthApp(QuartApp):
+    def __init__(self, **kws):
+        super().__init__(__name__, **kws)
+        self.manager = HealthManager()
+        self.app.route('/')(self.root_route)
 
+    def root_route(self):
+        return jsonify({workflow_id : {
+            task_id : str(probe)
+            for task_id, probe in self.manager.probes[workflow_id].items()
+        } for workflow_id in self.manager.workflows.keys()})
 
-@app.route('/')
-def root_route():
-    return jsonify({workflow_id : {
-        task_id : str(probe) for task_id, probe in manager.probes[workflow_id].items()
-    } for workflow_id in manager.workflows.keys()})
+    def _shutdown(self):
+        self.manager.stop()
+
+    def run(self):
+        self.manager.start()
+        super().run()
 
 
 if __name__ == '__main__':
@@ -187,5 +198,5 @@ if __name__ == '__main__':
     # Hot (re)start - Data already exists in etcd, reconstruct probes.
     # Cold start - No workflow and/or probe data are in etcd.
     logging.basicConfig(format=get_log_format('healthd'), level=logging.INFO)
-    manager.start()
-    app.run(host='0.0.0.0', port=5050)
+    app = HealthApp(bind='0.0.0.0:5050')
+    app.run()
