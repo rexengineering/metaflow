@@ -1,9 +1,21 @@
 import logging
+import os
+import re
 
 import etcd3
 
 
 _etcd = None
+
+url_match = re.compile('(?:http.*://)?(?P<host>[^:/ ]+).?(?P<port>[0-9]*).*')
+
+ENV_MAP = {
+    'ETCD_HOST': 'host',
+    'ETCD_PORT': 'port',
+    'ETCD_CERT_FILE': 'cert_cert',
+    'ETCD_KEY_FILE': 'cert_key',
+    'ETCD_TRUSTED_CA_FILE': 'ca_cert',
+}
 
 
 def init_etcd(*args, **kws):
@@ -15,7 +27,24 @@ def init_etcd(*args, **kws):
     '''
     global _etcd
     if _etcd is None:
-        result = etcd3.client(*args, **kws)
+        etcd_keys = [
+            key for key in os.environ.keys()
+            if key.startswith('ETCD_')
+        ]
+        etcd_opts = dict()
+        if etcd_keys:
+            for etcd_key in etcd_keys:
+                if etcd_key in ENV_MAP:
+                    etcd_opts[ENV_MAP[etcd_key]] = os.environ[etcd_key]
+                elif etcd_key == 'ETCD_ADVERTISE_CLIENT_URLS':
+                    match = url_match.search(os.environ[etcd_key])
+                    host = match.group('host')
+                    etcd_opts['host'] = host
+                    port_str = match.group('port')
+                    if port_str:
+                        etcd_opts['port'] = int(port_str)
+        etcd_opts.update(kws)
+        result = etcd3.client(*args, **etcd_opts)
         result.get('😏') # If this throws an error, we know there is
                          # something wrong with the client configuration.
         _etcd = result
