@@ -1,0 +1,8 @@
+FROM python:3.8-slim
+WORKDIR /opt/rexflow
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY flowlib flowlib/
+COPY flowd flowd/
+EXPOSE 9001/tcp 9002/tcp
+CMD [ "python", "-m", "flowd"]
