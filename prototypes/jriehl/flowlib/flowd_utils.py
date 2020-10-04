@@ -2,13 +2,15 @@ from contextlib import contextmanager
 
 import grpc
 
-from . import flow_pb2, flow_pb2_grpc
+from . import flow_pb2_grpc
 
 # Utility functions
 
 @contextmanager
-def get_flowd_connection(host : str, port : int, *args, **kws):
-    with grpc.insecure_channel(f'{host}:{port}') as channel:
+def get_flowd_connection(host : str, port : int, *_, **kws):
+    opts = [('grpc.default_authority', 'flowd:9001')]
+    opts.extend(list(kws.items()))
+    with grpc.insecure_channel(f'{host}:{port}', opts) as channel:
         server_proxy = flow_pb2_grpc.FlowDaemonStub(channel)
         yield server_proxy
 

@@ -82,6 +82,42 @@ flowd_edit_default_spec = {
     }
 }
 
+rexflow_gateway_spec = {
+    'apiVersion': 'networking.istio.io/v1alpha3',
+    'kind': 'Gateway',
+    'metadata': {'name': 'rexflow-gateway'},
+    'spec': {
+        'selector': {'istio': 'ingressgateway'},
+        'servers': [
+            {'port': {'number': 80, 'name': 'http', 'protocol': 'HTTP'},
+             'hosts': ['*']},
+        ],
+    },
+}
+
+flowd_virtual_service_spec = {
+    'apiVersion': 'networking.istio.io/v1alpha3',
+    'kind': 'VirtualService',
+    'metadata': {'name': 'flowd'},
+    'spec': {
+        'hosts': ['*'],
+        'gateways': ['rexflow-gateway'],
+        'http': [
+            {
+                'match': [{'uri': {'prefix': '/flowd'}}],
+                'rewrite': {'uri': '/'},
+                'route': [{'destination': {'port': {'number': 9002},
+                                           'host': 'flowd'}}],
+            },
+            {
+                'match': [{'authority': {'regex': 'flowd.*[:]9001'}}],
+                'route': [{'destination': {'port': {'number': 9001},
+                                           'host': 'flowd'}}],
+            },
+        ],
+    },
+}
+
 healthd_service_acct_spec = {
     'apiVersion': 'v1',
     'kind': 'ServiceAccount',
@@ -122,4 +158,27 @@ mk_healthd_deployment_spec = lambda etcd_host: {
                 'serviceAccountName': 'healthd'}
         }
     }
+}
+
+healthd_virtual_service_spec = {
+    'apiVersion': 'networking.istio.io/v1alpha3',
+    'kind': 'VirtualService',
+    'metadata': {'name': 'healthd'},
+    'spec': {
+        'hosts': ['*'],
+        'gateways': ['rexflow-gateway'],
+        'http': [
+            {
+                'match': [{'uri': {'prefix': '/healthd'}}],
+                'rewrite': {'uri': '/'},
+                'route': [
+                    {
+                        'destination': {
+                            'port': {'number': 5050},
+                            'host': 'healthd.rexflow.svc.cluster.local'},
+                    },
+                ],
+            },
+        ],
+    },
 }

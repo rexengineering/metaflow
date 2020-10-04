@@ -9,6 +9,7 @@ class Deployer:
         self.core_v1 = kubernetes.client.CoreV1Api()
         self.apps_v1 = kubernetes.client.AppsV1Api()
         self.rbac_v1 = kubernetes.client.RbacAuthorizationV1Api()
+        self.custom_api = kubernetes.client.CustomObjectsApi()
 
     def create(self, _):
         etcd_host = socket.getfqdn()
@@ -29,11 +30,29 @@ class Deployer:
             'rexflow', specs.healthd_service_spec)
         self.apps_v1.create_namespaced_deployment(
             'rexflow', specs.mk_healthd_deployment_spec(etcd_host))
+        self.custom_api.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'default', 'gateways',
+            specs.rexflow_gateway_spec)
+        self.custom_api.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
+            specs.flowd_virtual_service_spec)
+        self.custom_api.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
+            specs.healthd_virtual_service_spec)
 
     def delete(self, _):
+        self.custom_api.delete_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
+            'healthd')
+        self.custom_api.delete_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
+            'flowd')
         self.core_v1.delete_namespaced_service('flowd', 'default')
         self.core_v1.delete_namespaced_service('flowd', 'rexflow')
         self.apps_v1.delete_namespaced_deployment('flowd', 'rexflow')
+        self.core_v1.delete_namespaced_service('healthd', 'rexflow')
+        self.apps_v1.delete_namespaced_deployment('healthd', 'rexflow')
         self.rbac_v1.delete_namespaced_role_binding('flowd-edit-default', 'default')
+        self.core_v1.delete_namespaced_service_account('healthd', 'rexflow')
         self.core_v1.delete_namespaced_service_account('flowd', 'rexflow')
         self.core_v1.delete_namespace('rexflow')
