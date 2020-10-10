@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 
 from .actions import apply_action, delete_action, ps_action, run_action, \
     start_action, stop_action
@@ -23,12 +24,14 @@ def add_action(action_name, subparsers, action_map):
 
 def build_parser_and_action_map():
     parser = argparse.ArgumentParser(prog='flowctl')
+    flowd_host = os.environ.get('FLOWD_HOST', 'localhost')
     parser.add_argument(
-        '--flowd_host', nargs='?', default='localhost', type=str,
+        '--flowd_host', nargs='?', default=flowd_host, type=str,
         help='hostname for the flowd server'
     )
+    flowd_port = os.environ.get('FLOWD_PORT', 9001)
     parser.add_argument(
-        '--flowd_port', nargs='?', default=9001, type=int,
+        '--flowd_port', nargs='?', default=flowd_port, type=int,
         help='port number for the flowd server'
     )
     parser.add_argument(

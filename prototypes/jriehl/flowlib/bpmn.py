@@ -219,10 +219,15 @@ class BPMNTasks:
 class WorkflowProperties:
     def __init__(self, annotations=None):
         self._orchestrator = None
+        self._namespace = None
         if annotations is not None:
             for annotation in annotations:
                 if 'rexflow' in annotation:
                     self.update(annotation['rexflow'])
+
+    @property
+    def namespace(self):
+        return self._namespace if self._namespace is not None else 'default'
 
     @property
     def orchestrator(self):
@@ -231,6 +236,8 @@ class WorkflowProperties:
     def update(self, annotations):
         if 'orchestrator' in annotations:
             self._orchestrator = annotations['orchestrator']
+        if 'namespace' in annotations:
+            self._namespace = annotations['namespace']
 
 
 class BPMNProcess:
@@ -361,10 +368,23 @@ class BPMNProcess:
         stream.write(result_yaml)
         return result_yaml
 
-    def to_kubernetes(self, stream : IOBase = None, **kws):
-        if stream is None:
-            stream = sys.stdout
+    def generate_kubernetes(self, id_hash:str = None):
         results = []
+        namespace = self.properties.namespace
+        if namespace == 'default':
+            namespace = None
+        elif id_hash is not None and len(id_hash) > 3:
+            namespace = f'{namespace}-{id_hash[:4]}'
+        if namespace is not None:
+            results.append(
+                {
+                    'apiVersion': 'v1',
+                    'kind': 'Namespace',
+                    'metadata': {
+                        'name', namespace,
+                    },
+                }
+            )
         for task in self.tasks:
             definition = task.definition
             service_name = definition.name
@@ -410,7 +430,7 @@ class BPMNProcess:
                     'name': dns_safe_name,
                 },
                 'spec': {
-                    'replicas': 1,
+                    'replicas': 1, # FIXME: Make this a property one can set in the BPMN.
                     'selector': {
                         'matchLabels': {
                             'app': dns_safe_name,
@@ -441,13 +461,36 @@ class BPMNProcess:
                 },
             }
             results.append(deployment)
-        result = '---\n'.join((yaml.safe_dump(result, **kws) for result in results))
+            if namespace is not None:
+                service_account['metadata']['namespace'] = namespace
+                service['metadata']['namespace'] = namespace
+                deployment['metadata']['namespace'] = namespace
+        return results
+
+    def to_kubernetes(self, stream:IOBase = None, id_hash:str = None, **kws):
+        if stream is None:
+            stream = sys.stdout
+        results = self.generate_kubernetes(id_hash)
+        # FIXME: Add Envoy sidecars to Kubernetes results.
+        result = yaml.safe_dump_all(results, **kws)
         stream.write(result)
         return result
 
-    def to_istio(self, stream : IOBase = None):
+    def to_istio(self, stream:IOBase = None, id_hash:str = None, **kws):
+        result = None
         if stream is None:
             stream = sys.stdout
-        result = {}
-        raise NotImplementedError('Lazy developer!')
-        return yaml.safe_dump(result, stream)
+        results = self.generate_kubernetes(id_hash)
+        temp_yaml = yaml.safe_dump_all(results, **kws)
+        istioctl_result = subprocess.run(
+            ['istioctl', 'kube-inject', '-f', '-'],
+            input=temp_yaml, capture_output=True, text=True,
+        )
+        # FIXME: Patch sidecar configurations with BAVS/JAMS rerouting data.
+        if istioctl_result.returncode == 0:
+            result = istioctl_result.stdout.replace(': Always', ': IfNotPresent'
+                ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
+            stream.write(result)
+        else:
+            logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
+        return result
