@@ -59,10 +59,14 @@ class Workflow:
                 etcd.replace(state_key, 'STARTING', 'ERROR')
         elif orchestrator in {'kubernetes', 'istio'}:
             kubernetes_input = StringIO()
-            self.process.to_kubernetes(kubernetes_input, self.id_hash)
+            if orchestrator == 'kubernetes':
+                self.process.to_kubernetes(kubernetes_input, self.id_hash)
+            else:
+                self.process.to_istio(kubernetes_input, self.id_hash)
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'create', '-f', '-'],
+                ['kubectl', 'create',
+                 '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
             if kubectl_result.stdout:
@@ -96,7 +100,8 @@ class Workflow:
                 self.process.to_istio(kubernetes_stream, self.id_hash)
             ctl_input = kubernetes_stream.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'delete', '-f', '-'],
+                ['kubectl', 'delete',
+                 '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
             if kubectl_result.stdout:

@@ -149,15 +149,20 @@ mk_healthd_deployment_spec = lambda etcd_host: {
             'metadata': {'labels': {'app': 'healthd'}},
             'spec': {
                 'containers': [
-                    {'image': 'healthd',
-                     'imagePullPolicy': 'IfNotPresent',
-                     'name': 'healthd',
-                     'ports': [{'containerPort': 5050}],
-                     'env': [{'name': 'ETCD_HOST', 'value': etcd_host}]}
+                    {
+                        'image': 'healthd',
+                        'imagePullPolicy': 'IfNotPresent',
+                        'name': 'healthd',
+                        'ports': [{'containerPort': 5050}],
+                        'env': [
+                            {'name': 'ETCD_HOST', 'value': etcd_host},
+                            {'name': 'HEALTHD_ON_KUBERNETES', 'value': 'True'}
+                        ],
+                    },
                 ],
                 'serviceAccountName': 'healthd'}
-        }
-    }
+        },
+    },
 }
 
 healthd_virtual_service_spec = {

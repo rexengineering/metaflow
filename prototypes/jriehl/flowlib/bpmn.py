@@ -368,14 +368,18 @@ class BPMNProcess:
         stream.write(result_yaml)
         return result_yaml
 
+    def get_namespace(self, id_hash:str = None):
+        namespace = self.properties.namespace
+        if ((namespace != 'default') and (id_hash is not None) and (len(id_hash) > 3)):
+            namespace = f'{namespace}-{id_hash[:4]}'
+        return namespace
+
     def generate_kubernetes(self, id_hash:str = None):
         results = []
-        namespace = self.properties.namespace
+        namespace = self.get_namespace(id_hash)
         if namespace == 'default':
             namespace = None
-        elif id_hash is not None and len(id_hash) > 3:
-            namespace = f'{namespace}-{id_hash[:4]}'
-        if namespace is not None:
+        else:
             results.append(
                 {
                     'apiVersion': 'v1',

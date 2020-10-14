@@ -1,10 +1,12 @@
 import logging
+import os
 import time
 
 from etcd3.events import DeleteEvent, PutEvent
 from quart import jsonify
 import requests
 
+from flowlib.bpmn import BPMNTask
 from flowlib.etcd_utils import get_etcd, get_next_level
 from flowlib.executor import get_executor
 from flowlib.flowd_utils import get_log_format
@@ -13,7 +15,8 @@ from flowlib.workflow import Workflow
 
 
 class HealthProbe:
-    def __init__(self, workflow, task):
+    def __init__(self, workflow : Workflow, task : BPMNTask,
+                 on_kubernetes : bool=False):
         self.workflow = workflow
         self.task = task
         self.key = f'/rexflow/workflows/{workflow.id}/probes/{task.id}'
@@ -31,10 +34,13 @@ class HealthProbe:
         path = (health_properties.path
                 if health_properties.path.startswith('/')
                 else f'/{health_properties.path}')
+        if on_kubernetes:
+            namespace = self.workflow.process.get_namespace(self.workflow.id_hash)
+            host = f'{host}.{namespace}.svc.cluster.local'
         self.url = f'{protocol}://{host}:{port}{path}'
 
     def __call__(self):
-        self.logger.info(f'Starting status checks for {self.task.id}')
+        self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
         health_properties = self.task.definition.health
         result = ''
         while self.running:
@@ -70,7 +76,7 @@ class HealthProbe:
 
 
 class HealthManager:
-    def __init__(self):
+    def __init__(self, on_kubernetes : bool=False):
         self.etcd = get_etcd()
         self.executor = get_executor()
         self.workflows = {workflow_id : Workflow.from_id(workflow_id)
@@ -80,6 +86,7 @@ class HealthManager:
         self.future = None
         self.cancel_watch = None
         self.logger = logging.getLogger()
+        self.on_kubernetes = on_kubernetes
 
     def __call__(self):
         watch_iter, self.cancel_watch = self.etcd.watch_prefix('/rexflow/workflows')
@@ -94,7 +101,8 @@ class HealthManager:
                         workflow = Workflow.from_id(workflow_id)
                         self.workflows[workflow_id] = workflow
                         self.probes[workflow_id] = {
-                            task.id : HealthProbe(workflow, task)
+                            task.id : HealthProbe(
+                                workflow, task, self.on_kubernetes)
                             for task in workflow.process.tasks
                         }
                         for probe in self.probes[workflow_id].values():
@@ -104,7 +112,8 @@ class HealthManager:
                         workflow = self.workflows[workflow_id]
                         future = self.executor.submit(self.wait_for_down, workflow)
                 elif isinstance(event, DeleteEvent):
-                    pass
+                    for probe in self.probes[workflow_id].values():
+                        probe.stop()
 
     def wait_for_up(self, workflow : Workflow):
         self.logger.info(f'wait_for_up() called for workflow {workflow.id}')
@@ -112,6 +121,12 @@ class HealthManager:
         watch_iter, _ = self.etcd.watch_prefix(f'{workflow.key_prefix}/probes')
         for event in watch_iter:
             self.logger.info(f'wait_for_up(): Got {type(event)} to key {event.key}')
+            crnt_state = self.etcd.get(f'{workflow.key_prefix}/state')[0]
+            if (crnt_state is None) or (crnt_state != b'STARTING'):
+                self.logger.info(f'wait_for_up(): Workflow {workflow.id} is no '
+                                  'longer starting up, cancelling further '
+                                  'monitoring.')
+                break
             if isinstance(event, PutEvent):
                 if all(probe.status == 'UP' for probe in probes.values()):
                     result = self.etcd.replace(f'{workflow.key_prefix}/state',
@@ -146,7 +161,7 @@ class HealthManager:
     def start(self):
         for workflow in self.workflows.values():
             probes = {
-                task.id : HealthProbe(workflow, task)
+                task.id : HealthProbe(workflow, task, self.on_kubernetes)
                 for task in workflow.process.tasks
             }
             for probe in probes.values():
@@ -163,9 +178,8 @@ class HealthManager:
     def stop(self):
         probes = [
             probe
-            for workflow in self.workflows
-            for probes in self.probes[workflow.id]
-            for probe in probes.values()
+            for workflow in self.workflows.values()
+            for probe in self.probes[workflow.id].values()
         ]
         for probe in probes:
             probe.stop()
@@ -176,7 +190,10 @@ class HealthManager:
 class HealthApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
-        self.manager = HealthManager()
+        on_kubernetes_str = os.environ.get('HEALTHD_ON_KUBERNETES')
+        self.manager = HealthManager(
+            on_kubernetes=bool(on_kubernetes_str) and
+                          (on_kubernetes_str.lower() != 'false'))
         self.app.route('/')(self.root_route)
 
     def root_route(self):

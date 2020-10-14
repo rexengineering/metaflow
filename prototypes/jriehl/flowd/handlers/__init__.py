@@ -18,10 +18,10 @@ def handler_dispatch(command, request, context):
     try:
         internal_response = handler(request)
     except Exception as exn:
-        result = flow_pb2.FlowdResult(
-            status=-1, message=f'{type(exn).__name__}({",".join(exn.args)})'
-        )
         logging.info('Traceback from unhandled exception.', exc_info=exn)
+        result = flow_pb2.FlowdResult(
+            status=-1, message=f'{type(exn).__name__}({",".join(str(arg) for arg in exn.args)})'
+        )
         logging.error(f'Unhandled exception coming from delegated handler: {result.message}')
         return result
     return flow_pb2.FlowdResult(
