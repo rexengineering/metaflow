@@ -7,6 +7,7 @@ import logging
 import socket
 import subprocess
 import sys
+from typing import Any, Iterator, List, Mapping, Set
 
 import yaml
 import xmltodict
@@ -117,18 +118,18 @@ class CallProperties:
         self._serialization = None
 
     @property
-    def path(self):
+    def path(self) -> str:
         return self._path if self._path is not None else '/'
 
     @property
-    def method(self):
+    def method(self) -> str:
         return self._method if self._method is not None else 'POST'
 
     @property
-    def serialization(self):
+    def serialization(self) -> str:
         return self._serialization if self._serialization is not None else 'JSON'
 
-    def update(self, annotations):
+    def update(self, annotations:Mapping[str, Any]) -> None:
         if 'path' in annotations:
             self._path = annotations['path']
         if 'method' in annotations:
@@ -146,19 +147,19 @@ class HealthProperties:
         self._response = None
 
     @property
-    def path(self):
+    def path(self) -> str:
         return self._path if self._path is not None else '/'
 
     @property
-    def method(self):
+    def method(self) -> str:
         return self._method if self._method is not None else 'GET'
 
     @property
-    def period(self):
+    def period(self) -> int:
         return self._period if self._period is not None else 30
 
     @property
-    def response(self):
+    def response(self) -> str:
         return self._response if self._response is not None else 'HEALTHY'
 
     def update(self, annotations):
@@ -183,10 +184,10 @@ class TaskProperties:
         self.health = HealthProperties()
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name if self._name is not None else self.service_name
 
-    def update(self, annotations):
+    def update(self, annotations : Mapping[str, Any]) -> None:
         if 'name' in annotations:
             self._name = annotations['name']
         if 'service' in annotations:
@@ -209,7 +210,7 @@ class BPMNTasks:
     def __len__(self):
         return len(self.tasks)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[BPMNTask]:
         return iter(self.tasks)
 
     def __getitem__(self, key):
@@ -279,7 +280,7 @@ class BPMNProcess:
         return digraph
 
     @property
-    def digraph(self):
+    def digraph(self) -> Mapping[str, Set[str]]:
         if self._digraph is None:
             result = self.to_digraph()
             self._digraph = result
@@ -418,7 +419,7 @@ class BPMNProcess:
                         {
                             'name': 'http',
                             'port': port,
-                            'targetPort': 5000, # FIXME: add container-specific port property
+                            'targetPort': port,
                         }
                     ],
                     'selector': {
@@ -455,7 +456,7 @@ class BPMNProcess:
                                     'name': dns_safe_name,
                                     'ports': [
                                         {
-                                            'containerPort': 5000, # FIXME: As above...
+                                            'containerPort': port,
                                         },
                                     ],
                                 },
@@ -480,17 +481,183 @@ class BPMNProcess:
         stream.write(result)
         return result
 
+    def _make_forward(self, upstream : Upstream):
+        return {
+            'name': upstream.name,
+            'cluster': upstream.name,
+            'host': upstream.host,
+            'port': upstream.port,
+            'path': '/', # FIXME: Add path to Upstream NamedTuple...
+            'method': 'POST', # FIXME: Add method to Upstream NamedTuple...
+        }
+
+    def _make_host(self, upstream : Upstream):
+        return {
+            'applyTo': 'CLUSTER',
+            'match': {'context': 'SIDECAR_OUTBOUND'},
+            'patch': {
+                'operation': 'ADD',
+                'value': {
+                    'name': upstream.name,
+                    'type': 'STRICT_DNS',
+                    'connect_timeout': '0.5s',
+                    'lb_policy': 'ROUND_ROBIN',
+                    'hosts': [
+                        {
+                            'socket_address': {
+                                'protocol': 'TCP',
+                                'address': upstream.host,
+                                'port_value': upstream.port,
+                            },
+                        },
+                    ],
+                },
+            },
+        }
+
+    def generate_istio(self, kube_specs : List[Mapping[str, Any]]):
+        '''Patches sidecar configurations with BAVS/JAMS rerouting data.
+        '''
+        namespace = 'default'
+        task_map = {}
+        for task in self.tasks:
+            # FIXME: Per above...
+            dns_safe_name = task.definition.name.replace('_', '-')
+            task_map[dns_safe_name] = {'task': task}
+        for kube_spec in kube_specs:
+            spec_kind = kube_spec['kind']
+            spec_name = kube_spec['metadata']['name']
+            if spec_kind == 'Namespace':
+                namespace = kube_spec['name']
+            elif spec_kind == 'ServiceAccount':
+                task_map[spec_name]['service_account'] = kube_spec
+            elif spec_kind == 'Service':
+                task_map[spec_name]['service'] = kube_spec
+            elif spec_kind == 'Deployment':
+                task_map[spec_name]['deployment'] = kube_spec
+        for service_name in task_map:
+            specs = task_map[service_name]
+            task = specs['task'] # type: BPMNTask
+            # FIXME: Remove exposure to the ingress gateway.  However, this is
+            # currently useful for debugging purposes.
+            uri_prefix = (f'/{service_name}' if namespace == 'default'
+                          else f'/{namespace}/{service_name}')
+            port = specs['service']['spec']['ports'][0]['port']
+            service_fqdn = (service_name if namespace == 'default'
+                            else f'{service_name}.{namespace}.svc.cluster.local')
+            kube_specs.append({
+                'apiVersion': 'networking.istio.io/v1alpha3',
+                'kind': 'VirtualService',
+                'metadata': {
+                    'name': service_name,
+                    'namespace': 'default',
+                },
+                'spec': {
+                    'hosts': ['*'],
+                    'gateways': ['rexflow-gateway'],
+                    'http': [
+                        {
+                            'match': [{'uri': {'prefix': uri_prefix}}],
+                            'rewrite': {'uri': '/'},
+                            'route': [
+                                {
+                                    'destination': {
+                                        'port': {'number': port},
+                                        'host': service_fqdn
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            })
+            # Now generate the EnvoyFilter...
+            upstreams = [] # type: List[Upstream]
+            for out_edge in self.digraph.get(task.id, set()):
+                if out_edge in self.tasks.task_map:
+                    out_task = self.tasks.task_map[out_edge] # type: BPMNTask
+                    out_defn = out_task.definition
+                    out_name = out_defn.name.replace('_', '-') # FIXME: ...
+                    out_fqdn = (
+                        out_name if namespace == 'default'
+                        else f'{out_name}.{namespace}.svc.cluster.local'
+                    )
+                    upstreams.append(
+                        Upstream(
+                            out_name,
+                            out_fqdn,
+                            out_defn.service.port
+                        )
+                    )
+                else:
+                    # FIXME: Get FQDN and port number from whatever is running
+                    # the flowd server...
+                    upstreams.append(
+                        Upstream(
+                            'flowd',
+                            'flowd.rexflow.svc.cluster.local',
+                            9002
+                        )
+                    )
+            bavs_config = {
+                'forwards': [
+                    self._make_forward(upstream) for upstream in upstreams
+                ],
+            }
+            cluster_hosts = [
+                self._make_host(upstream) for upstream in upstreams
+            ]
+            kube_specs.append({
+                'apiVersion': 'networking.istio.io/v1alpha3',
+                'kind': 'EnvoyFilter',
+                'metadata': {
+                    'name': f'hijack-{service_name}',
+                    'namespace': namespace,
+                },
+                'spec': {
+                    'workloadSelector': {'labels': {'app': service_name}},
+                    'configPatches': [
+                        {
+                            'applyTo': 'HTTP_FILTER',
+                            'match': {
+                                'context': 'SIDECAR_INBOUND',
+                                'listener': {
+                                    'portNumber': port,
+                                    'filterChain': {
+                                        'filter': {
+                                            'name': 'envoy.http_connection_manager',
+                                            'subFilter': {'name': 'envoy.router'},
+                                        },
+                                    },
+                                },
+                            },
+                            'patch': {
+                                'operation': 'INSERT_BEFORE',
+                                'value': {
+                                    'name': 'bavs_filter',
+                                    'typed_config': {
+                                        '@type': 'type.googleapis.com/udpa.type.v1.TypedStruct',
+                                        'type_url': 'type.googleapis.com/bavs.BAVSFilter',
+                                        'value': bavs_config,
+                                    },
+                                },
+                            },
+                        },
+                    ] + cluster_hosts
+                }
+            })
+
     def to_istio(self, stream:IOBase = None, id_hash:str = None, **kws):
         result = None
         if stream is None:
             stream = sys.stdout
         results = self.generate_kubernetes(id_hash)
+        self.generate_istio(results)
         temp_yaml = yaml.safe_dump_all(results, **kws)
         istioctl_result = subprocess.run(
             ['istioctl', 'kube-inject', '-f', '-'],
             input=temp_yaml, capture_output=True, text=True,
         )
-        # FIXME: Patch sidecar configurations with BAVS/JAMS rerouting data.
         if istioctl_result.returncode == 0:
             result = istioctl_result.stdout.replace(': Always', ': IfNotPresent'
                 ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
