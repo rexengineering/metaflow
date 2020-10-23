@@ -46,8 +46,15 @@ class Deployer:
             self.custom_api.delete_namespaced_custom_object)
 
     def create(self, _):
-        etcd_host = socket.getfqdn()
         self.create_namespace(specs.rexflow_namespace_spec)
+        # ETCD
+        self.create_namespaced_service_account(
+            'rexflow', specs.etcd_service_acct_spec)
+        self.create_namespaced_service(
+            'rexflow', specs.etcd_service_specs)
+        self.create_namespaced_deployment(
+            'rexflow', specs.etcd_deployment_spec)
+        # flowd
         self.create_namespaced_service_account(
             'rexflow', specs.flowd_service_acct_spec)
         self.create_namespaced_service(
@@ -55,15 +62,17 @@ class Deployer:
         self.create_namespaced_service(
             'rexflow', specs.flowd_service_specs['rexflow'])
         self.create_namespaced_deployment(
-            'rexflow', specs.mk_flowd_deployment_spec(etcd_host))
+            'rexflow', specs.mk_flowd_deployment_spec('rexflow-etcd'))
         self.create_namespaced_role_binding(
             'default', specs.flowd_edit_default_spec)
+        # healthd
         self.create_namespaced_service_account(
             'rexflow', specs.healthd_service_acct_spec)
         self.create_namespaced_service(
             'rexflow', specs.healthd_service_spec)
         self.create_namespaced_deployment(
-            'rexflow', specs.mk_healthd_deployment_spec(etcd_host))
+            'rexflow', specs.mk_healthd_deployment_spec('rexflow-etcd'))
+        # Gateway and virtual services
         self.create_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'gateways',
             specs.rexflow_gateway_spec)
@@ -92,4 +101,7 @@ class Deployer:
         self.delete_namespaced_role_binding('flowd-edit-default', 'default')
         self.delete_namespaced_service_account('healthd', 'rexflow')
         self.delete_namespaced_service_account('flowd', 'rexflow')
+        self.delete_namespaced_service('rexflow-etcd', 'rexflow')
+        self.delete_namespaced_deployment('rexflow-etcd', 'rexflow')
+        self.delete_namespaced_service_account('rexflow-etcd', 'rexflow')
         self.delete_namespace('rexflow')

@@ -4,6 +4,56 @@ rexflow_namespace_spec = {
     'metadata': {'name': 'rexflow'}
 }
 
+etcd_service_acct_spec = {
+    'apiVersion': 'v1',
+    'kind': 'ServiceAccount',
+    'metadata': {'name': 'rexflow-etcd', 'namespace': 'rexflow'}
+}
+
+etcd_service_specs = {
+    'apiVersion': 'v1',
+    'kind': 'Service',
+    'metadata': {
+        'labels': {'app': 'rexflow-etcd'},
+        'name': 'rexflow-etcd',
+        'namespace': 'rexflow',
+    },
+    'spec': {
+        'ports': [{'name': 'grpc', 'port': 2379, 'targetPort': 2379},
+                  {'name': 'grpc2', 'port': 2380, 'targetPort': 2380}],
+        'selector': {'app': 'rexflow-etcd'},
+    },
+}
+
+etcd_deployment_spec = {
+    'apiVersion': 'apps/v1',
+    'kind': 'Deployment',
+    'metadata': {'name': 'rexflow-etcd'},
+    'spec': {
+        'replicas': 1,
+        'selector': {'matchLabels': {'app': 'rexflow-etcd'}},
+        'template': {
+            'metadata': {'labels': {'app': 'rexflow-etcd'}},
+            'spec': {
+                'containers': [
+                    {
+                        'image': 'quay.io/coreos/etcd',
+                        'imagePullPolicy': 'IfNotPresent',
+                        'name': 'rexflow-etcd',
+                        'command': [
+                            'etcd',
+                            '--listen-client-urls=http://0.0.0.0:2379',
+                            '--advertise-client-urls=http://0.0.0.0:2379',
+                        ],
+                        'ports': [{'containerPort': 2379}, {'containerPort': 2380}],
+                    }
+                ],
+                'serviceAccountName': 'rexflow-etcd',
+            }
+        }
+    }
+}
+
 flowd_service_acct_spec = {
     'apiVersion': 'v1',
     'kind': 'ServiceAccount',

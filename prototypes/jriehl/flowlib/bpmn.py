@@ -491,30 +491,6 @@ class BPMNProcess:
             'method': 'POST', # FIXME: Add method to Upstream NamedTuple...
         }
 
-    def _make_host(self, upstream : Upstream):
-        return {
-            'applyTo': 'CLUSTER',
-            'match': {'context': 'SIDECAR_OUTBOUND'},
-            'patch': {
-                'operation': 'ADD',
-                'value': {
-                    'name': upstream.name,
-                    'type': 'STRICT_DNS',
-                    'connect_timeout': '0.5s',
-                    'lb_policy': 'ROUND_ROBIN',
-                    'hosts': [
-                        {
-                            'socket_address': {
-                                'protocol': 'TCP',
-                                'address': upstream.host,
-                                'port_value': upstream.port,
-                            },
-                        },
-                    ],
-                },
-            },
-        }
-
     def generate_istio(self, kube_specs : List[Mapping[str, Any]]):
         '''Patches sidecar configurations with BAVS/JAMS rerouting data.
         '''
@@ -604,9 +580,6 @@ class BPMNProcess:
                     self._make_forward(upstream) for upstream in upstreams
                 ],
             }
-            cluster_hosts = [
-                self._make_host(upstream) for upstream in upstreams
-            ]
             kube_specs.append({
                 'apiVersion': 'networking.istio.io/v1alpha3',
                 'kind': 'EnvoyFilter',
@@ -643,7 +616,7 @@ class BPMNProcess:
                                 },
                             },
                         },
-                    ] + cluster_hosts
+                    ]
                 }
             })
 
