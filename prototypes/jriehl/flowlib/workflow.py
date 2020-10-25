@@ -130,7 +130,7 @@ class WorkflowInstance:
         process = self.parent.process
         digraph = process.digraph
         executor_obj = get_executor()
-        def start_task(task_id):
+        def start_task(task_id : str):
             '''
             Arguments:
                 task_id - Task ID in the BPMN spec.
@@ -158,7 +158,9 @@ class WorkflowInstance:
                 headers={'X-Flow-ID':self.id, 'Content-Type':mime_type},
                 data=data
             )
-            if not response.ok:
+            if response.ok:
+                logging.info(f"Response for {task_id} in {self.id} was OK.")
+            else:
                 logging.error(f"Response for {task_id} in {self.id} was not OK.  (status code {response.status_code})")
             return response.ok
         targets = [target_id

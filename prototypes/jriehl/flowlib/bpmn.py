@@ -2,12 +2,12 @@
 '''
 
 from collections import OrderedDict
-from io import IOBase, StringIO
+from io import IOBase
 import logging
 import socket
 import subprocess
 import sys
-from typing import Any, Iterator, List, Mapping, Set
+from typing import Any, Iterator, List, Mapping, Optional, Set
 
 import yaml
 import xmltodict
@@ -31,12 +31,13 @@ def iter_xmldict_for_key(odict : OrderedDict, key : str):
 class BPMNTask:
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task : OrderedDict, process : OrderedDict=None):
+    def __init__(self, task : OrderedDict, process : OrderedDict=None, global_props=None):
         self._task = task
         self._proc = process
-        self.id = task['@id']
-        self.name = task['@name']
-        self._url = None
+        self._global_props = global_props
+        self.id = task['@id'] # type: str
+        self.name = task['@name'] # type: str
+        self._url = '' # type: str
         # FIXME: This is Zeebe specific.  Need to provide override if coming from
         # some other modeling tool.
         service_name = task['bpmn:extensionElements']['zeebe:taskDefinition']['@type']
@@ -60,11 +61,13 @@ class BPMNTask:
 
     @property
     def url(self):
-        if self._url is None:
+        if not self._url:
             definition = self.definition
             service_props = definition.service
             proto = service_props.protocol.lower()
             host = service_props.host
+            if self._global_props and self._global_props.orchestrator != 'docker':
+                host += f'.{self._global_props.namespace}.svc.cluster.local'
             port = service_props.port
             call_props = definition.call
             path = call_props.path
@@ -201,11 +204,11 @@ class TaskProperties:
 class BPMNTasks:
     '''Utility container for BPMNTask instances.
     '''
-    def __init__(self, tasks=None):
+    def __init__(self, tasks:Optional[List[BPMNTask]]=None):
         if tasks is None:
-            tasks = []
+            tasks = [] # type: List[BPMNTask]
         self.tasks = tasks
-        self.task_map = {task.id : task for task in tasks}
+        self.task_map = {task.id : task for task in tasks} # type: Mapping[str, BPMNTask]
 
     def __len__(self):
         return len(self.tasks)
@@ -245,16 +248,16 @@ class BPMNProcess:
     def __init__(self, process : OrderedDict):
         self._process = process
         self.id = process['@id']
-        self.tasks = BPMNTasks([
-            BPMNTask(task, process)
-            for task in iter_xmldict_for_key(process, 'bpmn:serviceTask')
-        ])
         entry_point = process['bpmn:startEvent']
         assert isinstance(entry_point, OrderedDict)
         self.entry_point =  entry_point
         self.exit_point = process['bpmn:endEvent']
         self.annotations = list(self.get_annotations(self.entry_point['@id']))
         self.properties = WorkflowProperties(self.annotations)
+        self.tasks = BPMNTasks([
+            BPMNTask(task, process, self.properties)
+            for task in iter_xmldict_for_key(process, 'bpmn:serviceTask')
+        ])
         self._digraph = None
 
     @classmethod
@@ -554,10 +557,7 @@ class BPMNProcess:
                     out_task = self.tasks.task_map[out_edge] # type: BPMNTask
                     out_defn = out_task.definition
                     out_name = out_defn.name.replace('_', '-') # FIXME: ...
-                    out_fqdn = (
-                        out_name if namespace == 'default'
-                        else f'{out_name}.{namespace}.svc.cluster.local'
-                    )
+                    out_fqdn = f'{out_name}.{namespace}.svc.cluster.local'
                     upstreams.append(
                         Upstream(
                             out_name,
