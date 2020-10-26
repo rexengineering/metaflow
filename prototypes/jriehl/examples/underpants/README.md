@@ -16,7 +16,7 @@ Running the Example
     ```console
     % watch python -m flowctl ps --kind DEPLOYMENT
     ```
-* Create and run a workflow intance using the `run` sub-command.
+* Create and run a workflow instance using the `run` sub-command.
     ```console
     % python -m flowctl run $WF_PROC
     2020-09-11 10:46:39,279|flowctl|INFO|run_action.py:35|Got response: 0, "Ok", {"Underpants-daf84dc2f44511ea930aacde48001122": "flow-fb364c74f44511ea930aacde48001122"}
