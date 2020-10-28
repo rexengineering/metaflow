@@ -5,9 +5,8 @@ xmltodict
 etcd3
 kubernetes
 docker
-Flask
+quart
 # Optional development dependency
 grpcio-tools
 pudb
 pylint
-Flask

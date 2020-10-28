@@ -5,7 +5,7 @@ import subprocess
 import docker
 
 
-BASE_DOCKERFILE = '''FROM python:3.8
+BASE_DOCKERFILE = '''FROM python:3.8-slim
 WORKDIR /code
 COPY requirements.txt .
 RUN pip install -r requirements.txt

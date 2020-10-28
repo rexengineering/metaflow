@@ -140,6 +140,7 @@ class FlowDaemon(object):
             options=(),
             channel_credentials=None,
             call_credentials=None,
+            insecure=False,
             compression=None,
             wait_for_ready=None,
             timeout=None,
@@ -148,7 +149,7 @@ class FlowDaemon(object):
             flow__pb2.ApplyRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
-            call_credentials, compression, wait_for_ready, timeout, metadata)
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def DeleteWorkflow(request,
@@ -156,6 +157,7 @@ class FlowDaemon(object):
             options=(),
             channel_credentials=None,
             call_credentials=None,
+            insecure=False,
             compression=None,
             wait_for_ready=None,
             timeout=None,
@@ -164,7 +166,7 @@ class FlowDaemon(object):
             flow__pb2.DeleteRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
-            call_credentials, compression, wait_for_ready, timeout, metadata)
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def PSQuery(request,
@@ -172,6 +174,7 @@ class FlowDaemon(object):
             options=(),
             channel_credentials=None,
             call_credentials=None,
+            insecure=False,
             compression=None,
             wait_for_ready=None,
             timeout=None,
@@ -180,7 +183,7 @@ class FlowDaemon(object):
             flow__pb2.PSRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
-            call_credentials, compression, wait_for_ready, timeout, metadata)
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def RunWorkflow(request,
@@ -188,6 +191,7 @@ class FlowDaemon(object):
             options=(),
             channel_credentials=None,
             call_credentials=None,
+            insecure=False,
             compression=None,
             wait_for_ready=None,
             timeout=None,
@@ -196,7 +200,7 @@ class FlowDaemon(object):
             flow__pb2.RunRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
-            call_credentials, compression, wait_for_ready, timeout, metadata)
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def StartWorkflow(request,
@@ -204,6 +208,7 @@ class FlowDaemon(object):
             options=(),
             channel_credentials=None,
             call_credentials=None,
+            insecure=False,
             compression=None,
             wait_for_ready=None,
             timeout=None,
@@ -212,7 +217,7 @@ class FlowDaemon(object):
             flow__pb2.StartRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
-            call_credentials, compression, wait_for_ready, timeout, metadata)
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def StopWorkflow(request,
@@ -220,6 +225,7 @@ class FlowDaemon(object):
             options=(),
             channel_credentials=None,
             call_credentials=None,
+            insecure=False,
             compression=None,
             wait_for_ready=None,
             timeout=None,
@@ -228,4 +234,4 @@ class FlowDaemon(object):
             flow__pb2.StopRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
-            call_credentials, compression, wait_for_ready, timeout, metadata)
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
