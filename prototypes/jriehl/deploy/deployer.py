@@ -12,6 +12,9 @@ def wrap_api_call(api_call):
         try:
             result = api_call(*args, **kws)
         except kubernetes.client.rest.ApiException as exn:
+            # a 404 usually indicates that istio is not active on the k8s cluster
+            if exn.status == 404:
+                logging.error('\n***\n*** Is istio installed? istioctl install --set profile=demo\n***')
             logging.exception(exn)
         return result
     return _wrapped_api_call
