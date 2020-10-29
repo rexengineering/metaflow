@@ -13,13 +13,17 @@ This project contains four components:
 * `flowd` - This is a prototype backend for the proposed system.
 * `healthd` - This is a prototype health monitor for workflow deployments.
 
-Set-up
-======
+Set-up (To run Flowd and Etcd all in a Docker-Desktop k8s cluster)
+==================================================================
+See the `README.md` in examples/istio.
+
+Set-up (To run Flowd and Etcd on your own Terminal)
+==================================================
 
 * Add `flowlib`, `flowd`, `flowctl`, and `healthd` to your Python path using the
   base directory of the prototype.  This is the same base directory that `flowctl`
   lives in itself.  For example:
-  `export PYTHONPATH=.../rexflow/prototypes/jriehl:$PYTHONPATH`.
+  `export PYTHONPATH=.../rexflow:$PYTHONPATH`.
 * In another shell, run the etc daemon.  This will require you to set a `GOPATH`,
   and add it's `bin` subdirectory to your `PATH`.  For example:
   ```zsh
@@ -48,7 +52,10 @@ Set-up
   2020-08-07 14:59:36,347|flowctl|INFO|ps_action.py:35|Got response: 0, "Ok", {}
   ```
 
-Getting started
+*Note:* When you use the `istio` or `kubernetes` orchestrator with this strategy, you will run into some problems: the Flowd and Etcd both sit outside the cluster, so you will need to add your own Istio Gateway (an exercise left to the reader) to allow the Flowd to talk to services running inside your Docker-Desktop cluster (in order to get the Flow Instances to start). The services inside the cluster will have no way to talk to your Flowd (since it's running on your shell), so they will never tell Flowd that the Flow Instance has finished. However, running Flowd outside the cluster has the benefit of letting you use the `pdb` debugger, as well as letting you test changes without rebuilding a Docker image and kicking your pod.
+
+
+Getting started (Potentially deprecated, recommended to see `examples/istio/README.md`)
 ===============
 
 * (Optional) Create a BPMN XML document via a BPMN modeling tool (such as Zeebe
