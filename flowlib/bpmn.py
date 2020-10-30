@@ -153,7 +153,7 @@ class BPMNXGateway:
         })
 
         # Ok, now we know what to call our service (for k8s deployment) AND how to deploy it. TODO's are:
-        # 1. Figure out what the URL's are for the next two steps in service (depending on, go-, co-, you know the thing)
+        # 1. Figure out what the URL's are for the next two steps in service (using the )
         # 2. Store the conditional decision config in ETCD.
 
         true_next_cookie = self.annotation['gateway_true']['next_step']
@@ -367,7 +367,7 @@ class BPMNXGateways:
         if gateways is None:
             gateways = [] # type: List[BPMNXGateway]
         self.gateways = gateways
-        # type: Mapping[str, BPMNXGateway]
+        # type---map of {str: BPMNXGateway}
         self.gateway_map = {gateway.id : gateway for gateway in gateways}
 
     def __len__(self):
@@ -742,7 +742,7 @@ class BPMNProcess:
             #     assert False
 
         # We ONLY need to iterate through the task_map, since the task_map represents
-        # every serviceTask. The serviceTasks are the you know the thing (the microservices)
+        # every serviceTask. The serviceTasks are microservices (written by WF Engine user)
         # which each get their own networking.istio.io/v1alpha3.EnvoyFilter object.
         # The Gateways and other Components don't get their own EnvoyFilter objects, so we
         # DONT want to iterate through them here.
