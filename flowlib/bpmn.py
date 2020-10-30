@@ -483,6 +483,7 @@ class BPMNProcess:
 
         # FIXME: this is bad design...do something more elegant.
         '''
+        import pdb; pdb.set_trace()
         if component_id in self.tasks:
             task = self.tasks.task_map[component_id]
             defn = task.definition
@@ -577,7 +578,7 @@ class BPMNProcess:
                             'serviceAccountName': dns_safe_name,
                             'containers': [
                                 {
-                                    'image': 'exclusive-gateawy:1.0.0',
+                                    'image': 'exclusive-gateway:1.0.0',
                                     'imagePullPolicy': 'IfNotPresent',
                                     'name': dns_safe_name,
                                     'ports': [
@@ -784,6 +785,7 @@ class BPMNProcess:
             # Now generate the EnvoyFilter...
             upstreams = [] # type: List[Upstream]
             for out_edge in self.digraph.get(task.id, set()):
+                import pdb; pdb.set_trace()
                 if out_edge in self.tasks.task_map:
                     out_task = self.tasks.task_map[out_edge] # type: BPMNTask
                     out_defn = out_task.definition

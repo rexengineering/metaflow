@@ -73,8 +73,8 @@
       <bpmn:text>rexflow:
   gateway_name: did-apply
   jsonpath: 'underpants'
-  operator: '='
-  value: 'collected'
+  operator: '=='
+  value: 'Collected.'
   gateway_true: 
     next_step: ns_1
   gateway_false:
