@@ -28,6 +28,23 @@ def iter_xmldict_for_key(odict : OrderedDict, key : str):
             yield value
 
 
+# TODO: Dammit colt this is ugly.
+# TODO: Cache, please?
+def raw_proc_to_digraph(proc: OrderedDict):
+    '''Takes in an OrderedDict (just the BPMN Process).
+    Returns a directed graph, represented as a python dictionary, which shows the
+    call dependencies of all of the BPMN components in the process.
+    '''
+    digraph = dict()
+    for sequence_flow in iter_xmldict_for_key(proc, 'bpmn:sequenceFlow'):
+        source_ref = sequence_flow['@sourceRef']
+        target_ref = sequence_flow['@targetRef']
+        if source_ref not in digraph:
+            digraph[source_ref] = set()
+        digraph[source_ref].add(target_ref)
+    return digraph
+
+
 class BPMNTask:
     '''Wrapper for BPMN service task metadata.
     '''
@@ -39,9 +56,9 @@ class BPMNTask:
         self.name = task['@name'] # type: str
         self._url = '' # type: str
         # FIXME: This is Zeebe specific.  Need to provide override if coming from
-        # some other modeling tool.
+        # some other modeling tool. -- note from Jon
         service_name = task['bpmn:extensionElements']['zeebe:taskDefinition']['@type']
-        self.definition = TaskProperties(service_name)
+        self.definition = ComponentProperties(service_name)
         self.annotations = []
         if self._proc:
             targets = [
@@ -61,6 +78,118 @@ class BPMNTask:
 
     @property
     def url(self):
+        if not self._url:
+            definition = self.definition
+            service_props = definition.service
+            proto = service_props.protocol.lower()
+            host = service_props.host
+            if self._global_props and self._global_props.orchestrator != 'docker':
+                host += f'.{self._global_props.namespace}.svc.cluster.local'
+            port = service_props.port
+            call_props = definition.call
+            path = call_props.path
+            if not path.startswith('/'):
+                path = '/' + path
+            self._url = f'{proto}://{host}:{port}{path}'
+        return self._url
+
+
+XGATEWAY_SVC_PREFIX = "xgateway"
+XGATEWAY_LISTEN_PORT = "5000"
+
+class BPMNXGateway:
+    '''Wrapper for BPMN Exclusive Gateway metadata.
+    '''
+    def __init__(self, gateway : OrderedDict, process : OrderedDict=None, global_props=None):
+        self.jsonpath = ""
+        self.operator = ""
+        self.comparison_value = ""
+        self.true_forward_componentid = None
+        self.false_forward_componentid = None
+
+        self._gateway = gateway
+        self._proc = process
+        self._global_props = global_props
+        self.id = gateway['@id'] # type: str
+        self._url = '' # type: str
+
+        # FIXME: This is Zeebe specific.  Need to provide override if coming from
+        # some other modeling tool.
+        self.annotations = []
+        if not self._proc:
+            raise "You must properly annotate your Exclusive gateway!"
+
+        # Here, we iterate through all of the annotations in the BPMN Doc to find the magic
+        # one that 
+        targets = [  # `targets` has to do with annotation targets (the dotted lines from text box to component)
+            association['@targetRef']
+            for association in iter_xmldict_for_key(self._proc, 'bpmn:association')
+            if association['@sourceRef'] == self.id
+        ]
+        self.annotations = [
+            yaml.safe_load(annotation['bpmn:text'].replace('\xa0', ''))
+            for annotation in iter_xmldict_for_key(self._proc, 'bpmn:textAnnotation')
+            if annotation['@id'] in targets and
+                annotation['bpmn:text'].startswith('rexflow:')
+        ]
+        rexflow_annotations = [annotation for annotation in self.annotations if 'rexflow' in annotation]
+        assert len(rexflow_annotations) == 1
+        self.annotation = self.annotations[0]['rexflow']
+        self.jsonpath = self.annotation['jsonpath']
+        self.comparison_value = self.annotation['value']
+        self.operator = self.annotation['operator']
+
+        # We've got the annotation. From here, let's find out the name of the resulting
+        # gateway service.
+        self.name = f"{XGATEWAY_SVC_PREFIX}-{self.annotation['gateway_name']}"
+        self.definition = ComponentProperties(self.name)
+        assert ('service' not in self.annotation), "service-name must be auto-inferred for X-Gateways"
+
+        self.definition.update({
+            "service": {
+                "host": self.name,
+                "port": XGATEWAY_LISTEN_PORT,
+            }
+        })
+
+        # Ok, now we know what to call our service (for k8s deployment) AND how to deploy it. TODO's are:
+        # 1. Figure out what the URL's are for the next two steps in service (depending on, go-, co-, you know the thing)
+        # 2. Store the conditional decision config in ETCD.
+
+        true_next_cookie = self.annotation['gateway_true']['next_step']
+        false_next_cookie = self.annotation['gateway_false']['next_step']
+        # Look at the digraph to find out the two possible next steps. Then check the annotations
+        # for each of the steps to see which we go to for "true" evaluations and which we go to
+        # for "false" evaluations.
+        raw_graph = raw_proc_to_digraph(self._proc)  # FIXME: save this computation. Don't do it over-and-over.
+        outgoing_calls = raw_graph[self.id]
+
+        # now we find annotations...pardon the copy-pasta. Just for now...
+        outgoing_component_targets = {
+            association['@targetRef']: association['@sourceRef']
+            for association in iter_xmldict_for_key(self._proc, 'bpmn:association')
+            if association['@sourceRef'] in outgoing_calls
+        }
+        for annotation in iter_xmldict_for_key(self._proc, 'bpmn:textAnnotation'):
+            if (annotation['@id'] not in outgoing_component_targets.keys()) or not annotation['bpmn:text'].startswith('rexflow:'):
+                continue
+            annot_dict = yaml.safe_load(annotation['bpmn:text'].replace('\xa0', ''))['rexflow']
+            if 'next_step_id' in annot_dict:
+                if annot_dict['next_step_id'] == true_next_cookie:
+                    assert not self.true_forward_componentid
+                    self.true_forward_componentid = outgoing_component_targets[annotation['@id']]
+                if annot_dict['next_step_id'] == false_next_cookie:
+                    assert not self.false_forward_componentid
+                    self.false_forward_componentid = outgoing_component_targets[annotation['@id']]
+        assert self.true_forward_componentid
+        assert self.false_forward_componentid
+
+    @property
+    def url(self):
+        '''
+        Returns the K8s FQDN for the resulting XGateway (once it's deployed in
+        the istio cluster)
+        '''
         if not self._url:
             definition = self.definition
             service_props = definition.service
@@ -178,7 +307,18 @@ class HealthProperties:
             self._response = annotations['response']
 
 
-class TaskProperties:
+class ComponentProperties:
+    '''
+    Shared struct-like class used to store information about a BPMN Component's
+    representation that gets deployed into our cluster.
+
+    As a reminder, the initial
+    REXFlow prototype will say that "Every Component is a Service", i.e. a Task,
+    a Throw Event, a Catch Event, Mux/DMux Gateways, and Conditional Gateways all
+    will be implemented by a k8s Service.
+
+    This class contains info about how to make calls to that service.
+    '''
     def __init__(self, service_name):
         self.service_name = service_name
         self._name = None
@@ -217,7 +357,27 @@ class BPMNTasks:
         return iter(self.tasks)
 
     def __getitem__(self, key):
-        return self.tasks.__getitem__(key)
+        return self.tasks.__getitem__(key)  # should this be tasks_map.__getitem__ ?
+
+
+class BPMNXGateways:
+    '''Utility container for BPMNExclusiveGateway instances.
+    '''
+    def __init__(self, gateways:Optional[List[BPMNXGateway]]=None):
+        if gateways is None:
+            gateways = [] # type: List[BPMNXGateway]
+        self.gateways = gateways
+        # type: Mapping[str, BPMNXGateway]
+        self.gateway_map = {gateway.id : gateway for gateway in gateways}
+
+    def __len__(self):
+        return len(self.gateways)
+
+    def __iter__(self) -> Iterator[BPMNXGateway]:
+        return iter(self.gateways)
+
+    def __getitem__(self, key):
+        return self.gateways.__getitem__(key)  # should this be gateway_map.__getitem__?
 
 
 class WorkflowProperties:
@@ -246,6 +406,7 @@ class WorkflowProperties:
 
 class BPMNProcess:
     def __init__(self, process : OrderedDict):
+        self.namespace = "default"  # FIXME
         self._process = process
         self.id = process['@id']
         entry_point = process['bpmn:startEvent']
@@ -254,6 +415,10 @@ class BPMNProcess:
         self.exit_point = process['bpmn:endEvent']
         self.annotations = list(self.get_annotations(self.entry_point['@id']))
         self.properties = WorkflowProperties(self.annotations)
+        self.xgateways = BPMNXGateways([
+            BPMNXGateway(gateway, process, self.properties)
+            for gateway in iter_xmldict_for_key(process, 'bpmn:exclusiveGateway')
+        ])
         self.tasks = BPMNTasks([
             BPMNTask(task, process, self.properties)
             for task in iter_xmldict_for_key(process, 'bpmn:serviceTask')
@@ -305,78 +470,35 @@ class BPMNProcess:
                 if text.startswith('rexflow:'):
                     yield yaml.safe_load(text.replace('\xa0', ''))
 
-    def to_docker(self, stream : IOBase = None, **kws):
-        if stream is None:
-            stream = sys.stdout
-        services = {}
-        networks = {}
-        result = {
-            'version' : '3',
-            'services' : services,
-            'networks' : networks,
-        }
-        for task in self.tasks:
-            definition = task.definition
-            service_name = definition.name
-            port = definition.service.port
-            network_name = f'{service_name}_net'
-            services[service_name] = {
-                'image' : definition.service.container,
-                'ports' : [5000], # FIXME: Need to add container-specific port
-                                  # as a service property here.
-                'deploy' : {
-                    'replicas' : 1,
-                    'restart_policy' : {
-                        'condition' : 'on-failure',
-                    },
-                },
-                'networks' : {
-                    network_name : {
-                        'aliases': [service_name],
-                    },
-                },
-            }
-            networks[network_name] = {}
-            proxy_name = f'{service_name}_proxy'
-            upstreams = []
-            for out_edge in self.digraph.get(task.id, set()):
-                logging.debug(out_edge)
-                if out_edge in self.tasks.task_map:
-                    out_task = self.tasks.task_map[out_edge]
-                    out_defn = out_task.definition
-                    upstreams.append(Upstream(
-                        out_defn.name,
-                        socket.getfqdn(), # FIXME: shouldn't this have something
-                                          # to do with out_defn.service.host?
-                        out_defn.service.port))
-                else:
-                    # FIXME: Get port number from whatever is running the flowd
-                    # Flask server...
-                    upstreams.append(Upstream('flowd', socket.getfqdn(), 9002))
-            envoy_config = get_envoy_config(service_name, set(upstreams))
-            logging.info(f'Wrote Envoy config for {service_name} to {envoy_config}')
-            services[proxy_name] = {
-                'image' : 'envoyproxy/envoy-dev:latest',
-                'ports' : [f'{port}:5000'], # FIXME: See note above about adding
-                                            # container port.
-                'networks' : [
-                    'default',
-                    network_name,
-                ],
-                'volumes' : [
-                    f'{envoy_config}:/etc/envoy/envoy.yaml',
-                ]
-            }
-        result_yaml = yaml.safe_dump(result, **kws)
-        logging.debug(f'Docker result_yaml:\n{result_yaml}')
-        stream.write(result_yaml)
-        return result_yaml
-
     def get_namespace(self, id_hash:str = None):
         namespace = self.properties.namespace
         if ((namespace != 'default') and (id_hash is not None) and (len(id_hash) > 3)):
             namespace = f'{namespace}-{id_hash[:4]}'
         return namespace
+
+    def _generate_http_url(self, component_id: str):
+        '''Accepts a component id, which may be for a serviceTask or a gateway
+        at this point. Returns the fqdn for that component. This is the python
+        request module-friendly URL.
+
+        # FIXME: this is bad design...do something more elegant.
+        '''
+        if component_id in self.tasks:
+            task = self.tasks.task_map[component_id]
+            defn = task.definition
+            name = defn.name.replace('_', '-') # FIXME: ...
+            fqdn = f'{name}.{namespace}'
+            return f'http://{fqdn}:{defn.service.port}'
+        if component_id in self.xgateways:
+            task = self.xgateways.gateway_map[component_id]
+            defn = task.definition
+            name = defn.name.replace('_', '-') # FIXME: ...
+            fqdn = f'{name}.{namespace}'
+            return f'http://{fqdn}:{defn.service.port}'
+
+        # FIXME: we pray that it's intended for a "STOP" event. We can check to
+        # make sure, but I haven't gotten there yet.
+        return "http://flowd.rexflow:9002"
 
     def generate_kubernetes(self, id_hash:str = None):
         results = []
@@ -393,6 +515,95 @@ class BPMNProcess:
                     },
                 }
             )
+        
+        for xgw in self.xgateways:
+            definition = xgw.definition
+            service_name = definition.name
+            # FIXME: The following is a workaround; need to add a full-on regex
+            # check of the service name and error on invalid spec.
+            dns_safe_name = service_name.replace('_', '-')
+            port = definition.service.port
+            service_account = {
+                'apiVersion': 'v1',
+                'kind': 'ServiceAccount',
+                'metadata': {
+                    'name': dns_safe_name,
+                },
+            }
+            results.append(service_account)
+            service = {
+                'apiVersion': 'v1',
+                'kind': 'Service',
+                'metadata': {
+                    'name': dns_safe_name,
+                    'labels': {
+                        'app': dns_safe_name,
+                    },
+                },
+                'spec': {
+                    'ports': [
+                        {
+                            'name': 'http',
+                            'port': port,
+                            'targetPort': port,
+                        }
+                    ],
+                    'selector': {
+                        'app': dns_safe_name,
+                    },
+                },
+            }
+            results.append(service)
+            deployment = {
+                'apiVersion': 'apps/v1',
+                'kind': 'Deployment',
+                'metadata': {
+                    'name': dns_safe_name,
+                },
+                'spec': {
+                    'replicas': 1, # FIXME: Make this a property one can set in the BPMN.
+                    'selector': {
+                        'matchLabels': {
+                            'app': dns_safe_name,
+                        },
+                    },
+                    'template': {
+                        'metadata': {
+                            'labels': {
+                                'app': dns_safe_name,
+                            },
+                        },
+                        'spec': {
+                            'serviceAccountName': dns_safe_name,
+                            'containers': [
+                                {
+                                    'image': 'exclusive-gateawy:1.0.0',
+                                    'imagePullPolicy': 'IfNotPresent',
+                                    'name': dns_safe_name,
+                                    'ports': [
+                                        {
+                                            'containerPort': port,
+                                        },
+                                    ],
+                                    'env': [
+                                        {'name': 'REXFLOW_XGW_JSONPATH', 'value': xgw.jsonpath},
+                                        {'name': 'REXFLOW_XGW_OPERATOR', 'value': xgw.operator},
+                                        {'name': 'REXFLOW_XGW_COMPARISON_VALUE', 'value': xgw.comparison_value},
+                                        {'name': 'REXFLOW_XGW_TRUE_URL', 'value': self._generate_http_url(xgw.true_forward_componentid)},
+                                        {'name': 'REXFLOW_XGW_FALSE_URL', 'value': self._generate_http_url(xgw.false_forward_componentid)},
+                                    ]
+                                },
+                            ],
+                        },
+                    },
+                },
+            }
+            results.append(deployment)
+            if namespace is not None:
+                service_account['metadata']['namespace'] = namespace
+                service['metadata']['namespace'] = namespace
+                deployment['metadata']['namespace'] = namespace
+        
         for task in self.tasks:
             definition = task.definition
             service_name = definition.name
@@ -504,8 +715,10 @@ class BPMNProcess:
             dns_safe_name = task.definition.name.replace('_', '-')
             task_map[dns_safe_name] = {'task': task}
         for kube_spec in kube_specs:
-            spec_kind = kube_spec['kind']
             spec_name = kube_spec['metadata']['name']
+            if spec_name not in task_map:
+                continue
+            spec_kind = kube_spec['kind']
             if spec_kind == 'Namespace':
                 namespace = kube_spec['name']
             elif spec_kind == 'ServiceAccount':
@@ -514,6 +727,23 @@ class BPMNProcess:
                 task_map[spec_name]['service'] = kube_spec
             elif spec_kind == 'Deployment':
                 task_map[spec_name]['deployment'] = kube_spec
+            # elif spec_name in self.xgateways:
+            #     if spec_kind == 'Namespace':
+            #         namespace = kube_spec['name']
+            #     elif spec_kind == 'ServiceAccount':
+            #         task_map[spec_name]['service_account'] = kube_spec
+            #     elif spec_kind == 'Service':
+            #         task_map[spec_name]['service'] = kube_spec
+            #     elif spec_kind == 'Deployment':
+            #         task_map[spec_name]['deployment'] = kube_spec
+            # else:
+            #     assert False
+
+        # We ONLY need to iterate through the task_map, since the task_map represents
+        # every serviceTask. The serviceTasks are the you know the thing (the microservices)
+        # which each get their own networking.istio.io/v1alpha3.EnvoyFilter object.
+        # The Gateways and other Components don't get their own EnvoyFilter objects, so we
+        # DONT want to iterate through them here.
         for service_name in task_map:
             specs = task_map[service_name]
             task = specs['task'] # type: BPMNTask
@@ -521,6 +751,7 @@ class BPMNProcess:
             # currently useful for debugging purposes.
             uri_prefix = (f'/{service_name}' if namespace == 'default'
                           else f'/{namespace}/{service_name}')
+                
             port = specs['service']['spec']['ports'][0]['port']
             service_fqdn = (service_name if namespace == 'default'
                             else f'{service_name}.{namespace}.svc.cluster.local')
@@ -565,9 +796,26 @@ class BPMNProcess:
                             out_defn.service.port
                         )
                     )
+                elif out_edge in self.xgateways.gateway_map:
+                    out_gw = self.xgateways.gateway_map[out_edge]
+                    out_defn = out_gw.definition
+                    out_name = out_defn.name.replace('_', '-')
+                    out_fqdn = f'{out_name}.{namespace}.svc.cluster.local'
+                    upstreams.append(
+                        Upstream(
+                            out_name,
+                            out_fqdn,
+                            out_defn.service.port
+                        )
+                    )
                 else:
+                    # FIXME: We just pray that this means we've got an "End" event.
                     # FIXME: Get FQDN and port number from whatever is running
                     # the flowd server...
+                    # SOAPBOX: We're also going to have to have a serious discussion
+                    # about namespaces. Does each WF Deployment get its own namespace?
+                    # That's my (Colt's) vote. Also, we need to test what Jon did with
+                    # namespaces so far, and verify that it works.
                     upstreams.append(
                         Upstream(
                             'flowd',
@@ -626,6 +874,13 @@ class BPMNProcess:
             stream = sys.stdout
         results = self.generate_kubernetes(id_hash)
         self.generate_istio(results)
+
+        # This code below does manual sidecar injection. It is ONLY necessary
+        # for dev on docker-desktop, since it is not easily feasible to
+        # configure d4d istio to automatically inject a custom image.
+        # On a true deployment (where we set imagePullSecrets), we
+        # could easily tell Istio to automatically inject our own custom
+        # proxy image, and thus remove the code below.
         temp_yaml = yaml.safe_dump_all(results, **kws)
         istioctl_result = subprocess.run(
             ['istioctl', 'kube-inject', '-f', '-'],
