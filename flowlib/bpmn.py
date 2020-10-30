@@ -483,14 +483,15 @@ class BPMNProcess:
 
         # FIXME: this is bad design...do something more elegant.
         '''
-        import pdb; pdb.set_trace()
-        if component_id in self.tasks:
+        # FIXME: don't be so lazy, dammit
+        namespace = "default"
+        if component_id in self.tasks.task_map:
             task = self.tasks.task_map[component_id]
             defn = task.definition
             name = defn.name.replace('_', '-') # FIXME: ...
             fqdn = f'{name}.{namespace}'
             return f'http://{fqdn}:{defn.service.port}'
-        if component_id in self.xgateways:
+        if component_id in self.xgateways.gateway_map:
             task = self.xgateways.gateway_map[component_id]
             defn = task.definition
             name = defn.name.replace('_', '-') # FIXME: ...
@@ -785,7 +786,6 @@ class BPMNProcess:
             # Now generate the EnvoyFilter...
             upstreams = [] # type: List[Upstream]
             for out_edge in self.digraph.get(task.id, set()):
-                import pdb; pdb.set_trace()
                 if out_edge in self.tasks.task_map:
                     out_task = self.tasks.task_map[out_edge] # type: BPMNTask
                     out_defn = out_task.definition

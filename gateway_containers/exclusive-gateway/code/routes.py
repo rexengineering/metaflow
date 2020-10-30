@@ -42,7 +42,7 @@ def conditional():
     print("HOKAY.... decided on ", comparison_result)
     url = REXFLOW_XGW_TRUE_URL if comparison_result else REXFLOW_XGW_FALSE_URL
     print("sending traffic to url", url)
-    r = requests.post(url, json=incoming_json)
+    r = requests.post(url, json=incoming_json, headers={'x-flow-id': request.headers['x-flow-id']})
     print(r)
     return "The faith of knowing deep inside your heart, that Heaven holds"
 
