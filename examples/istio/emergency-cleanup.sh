@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ../.. && ./buildflowd.sh
+cd ../.. && ./buildflowd.sh && docker build -t healthd -f deploy/Dockerfile.healthd .
 nsp default
 kubectl delete --ignore-not-found services collect secret-sauce profit xgateway-did-apply
 kubectl delete --ignore-not-found deployments collect secret-sauce profit xgateway-did-apply

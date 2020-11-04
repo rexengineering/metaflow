@@ -77,6 +77,13 @@ class BPMNProcess:
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
 
+        self.all_components = []
+        self.all_components.extend(self.tasks)
+        self.all_components.extend(self.xgateways)
+
+        # don't yet add start/end events to self.all_components because we don't want
+        # healthchecks for them (they are just virtual components at this point)
+
         # # Throw Events.
         # # For now, to avoid forcing the user of REXFlow to have to annotate each event
         # # as either a Throw or Catch, we will infer based on the following rule:
