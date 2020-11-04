@@ -41,7 +41,7 @@ class HealthProbe:
 
     def __call__(self):
         self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
-        health_properties = self.task.definition.health
+        health_properties = self.task.health_properties()
         result = ''
         while self.running:
             time.sleep(health_properties.period)
