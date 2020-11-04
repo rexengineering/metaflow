@@ -6,7 +6,7 @@ from etcd3.events import DeleteEvent, PutEvent
 from quart import jsonify
 import requests
 
-from flowlib.bpmn import BPMNTask
+from flowlib.bpmn_util import BPMNComponent
 from flowlib.etcd_utils import get_etcd, get_next_level
 from flowlib.executor import get_executor
 from flowlib.flowd_utils import get_log_format
@@ -15,7 +15,7 @@ from flowlib.workflow import Workflow
 
 
 class HealthProbe:
-    def __init__(self, workflow : Workflow, task : BPMNTask,
+    def __init__(self, workflow : Workflow, task : BPMNComponent,
                  on_kubernetes : bool=False):
         self.workflow = workflow
         self.task = task
@@ -26,8 +26,8 @@ class HealthProbe:
         self.logger = logging.getLogger()
         self.etcd = get_etcd()
         self.executor = get_executor()
-        health_properties = task.definition.health
-        service_properties = task.definition.service
+        health_properties = task.health_properties()
+        service_properties = task.service_properties()
         protocol = service_properties.protocol.lower()
         host = service_properties.host
         port = service_properties.port
@@ -41,7 +41,7 @@ class HealthProbe:
 
     def __call__(self):
         self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
-        health_properties = self.task.definition.health
+        health_properties = self.task.health_properties()
         result = ''
         while self.running:
             time.sleep(health_properties.period)
@@ -101,9 +101,9 @@ class HealthManager:
                         workflow = Workflow.from_id(workflow_id)
                         self.workflows[workflow_id] = workflow
                         self.probes[workflow_id] = {
-                            task.id : HealthProbe(
-                                workflow, task, self.on_kubernetes)
-                            for task in workflow.process.tasks
+                            component.id : HealthProbe(
+                                workflow, component, self.on_kubernetes)
+                            for component in workflow.process.all_components
                         }
                         for probe in self.probes[workflow_id].values():
                            probe.start()

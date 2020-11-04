@@ -1,3 +1,8 @@
+'''I believe this file is no longer used, except for the definition of the Upstream tuple.
+This file contains code to define the Lua Filters and Envoy Configurations for the
+Docker Stack deployment.
+'''
+
 from collections import namedtuple
 import logging
 import tempfile

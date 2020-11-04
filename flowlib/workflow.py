@@ -43,6 +43,7 @@ class Workflow:
         if not etcd.put_if_not_exists(state_key, 'STARTING'):
             if not etcd.replace(state_key, 'STOPPED', 'STARTING'):
                 raise RuntimeError(f'{self.id} is not in a startable state')
+        print("starting here")
         orchestrator = self.properties.orchestrator
         if orchestrator == 'docker':
             docker_compose_input = StringIO()
@@ -62,13 +63,16 @@ class Workflow:
             if orchestrator == 'kubernetes':
                 self.process.to_kubernetes(kubernetes_input, self.id_hash)
             else:
+                print("calling to istio")
                 self.process.to_istio(kubernetes_input, self.id_hash)
+                print("done with to istio")
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'create',
+                ['kubectl', 'apply',
                  '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
+            print("done applying")
             if kubectl_result.stdout:
                 logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
             if kubectl_result.returncode != 0:
@@ -137,8 +141,8 @@ class WorkflowInstance:
             Returns:
                 A boolean value indicating an OK response.
             '''
-            task = process.tasks.task_map[task_id]
-            call_props = task.definition.call
+            task = process.component_map[task_id]
+            call_props = task.call_properties()
             serialization = call_props.serialization.lower()
             eval_args = [literal_eval(arg) for arg in args]
             if serialization == 'json':
@@ -154,7 +158,7 @@ class WorkflowInstance:
                 raise ValueError(f'{method} is not a supported method.')
             request = getattr(requests, method)
             response = request(
-                task.url,
+                task.k8s_url(),
                 headers={'X-Flow-ID':self.id, 'Content-Type':mime_type},
                 data=data
             )

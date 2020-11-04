@@ -2,7 +2,7 @@ import logging
 import os
 
 from flask import Flask, request, jsonify, make_response
-
+from random import random
 
 server = Flask(__name__)
 
@@ -16,7 +16,10 @@ def healthcheck():
 def serve():
     mode = os.environ.get('SERVER_MODE')
     if mode == 'collect':
-        response = jsonify({'underpants': 'Collected.'})
+        if random() > 0.5:
+            response = jsonify({'underpants': 'Collected.'})
+        else:
+            response = jsonify({"underpants": "Not collected ):"})
     else:
         response = request.get_json(force=True, silent=True)
         if response is not None:

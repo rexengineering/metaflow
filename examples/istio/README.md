@@ -37,6 +37,8 @@ Third, build and stand up the Flow Daemon and its infrastructure:
 % docker build -f deploy/Dockerfile.healthd -t healthd .
 % python -m deploy create
 ```
+*NOTE* If you make changes to any code that affects `flowd`, you must re-run the
+build command above and then bounce the flowd pod.
 
 Ensure the Flow Daemon comes up.  You should see something like follows:
 
@@ -141,6 +143,24 @@ pod have been deleted:
 % kubectl get pods
 No resources found in default namespace.
 ```
+
+### Running Exclusive (Conditional) Gateway
+You must first build the exclusive gateway docker container:
+```
+cd .../rexflow/gateway-containers/exclusive-gateway
+make build
+```
+
+Then, from this directory, run
+```
+python -m flowctl apply conditional.bpmn
+python -m flowctl run <<the wf id>> '{}'  # do this a few times
+python -m flowctl ps -o | jq .
+```
+You'll see that some of the time, the business plan goes off without a hitch.
+Other times, the girls' lockerroom is well-guarded and the mischievous
+underpants gnomes fail to collect the underpants. Therefore, the business
+plan fails with `{'underpants': 'Not collected.'}`.
 
 ### Summary/TL;DR
 
