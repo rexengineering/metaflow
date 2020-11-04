@@ -17,8 +17,6 @@ from .task import BPMNTask
 from .exclusive_gateway import BPMNXGateway
 from .start_event import BPMNStartEvent
 from .end_event import BPMNEndEvent
-# from .bpmn_throw import BPMNThrowEvent
-# from .bpmn_catch import BPMNCatchEvent
 
 from .bpmn_util import (
     iter_xmldict_for_key,
@@ -80,28 +78,8 @@ class BPMNProcess:
         self.all_components = []
         self.all_components.extend(self.tasks)
         self.all_components.extend(self.xgateways)
-
         # don't yet add start/end events to self.all_components because we don't want
         # healthchecks for them (they are just virtual components at this point)
-
-        # # Throw Events.
-        # # For now, to avoid forcing the user of REXFlow to have to annotate each event
-        # # as either a Throw or Catch, we will infer based on the following rule:
-        # # If there is an incoming edge to the Event in self.to_digraph, then
-        # # it's a Throw event. Else, it's a Catch event.
-        # self.throws = []
-        # for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-        #     if 'bpmn:incoming' in event:
-        #         bpmn_throw = BPMNThrowEvent(event, process, self.properties)
-        #         self.throws.append(bpmn_throw)
-        #         self.component_map[event['@id']] = bpmn_throw
-
-        # self.catches = []
-        # for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-        #     if 'bpmn:incoming' not in event:
-        #         bpmn_catch = BPMNCatchEvent(event, process, self.properties)
-        #         self.catches.append(bpmn_catch)
-        #         self.component_map[event['@id']] = bpmn_catch
 
     @classmethod
     def from_workflow_id(cls, workflow_id):
