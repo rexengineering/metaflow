@@ -12,6 +12,7 @@ from flowlib.executor import get_executor
 from flowlib.flowd_utils import get_log_format
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
+from flowlib.constants import States
 
 
 class HealthProbe:
@@ -67,11 +68,13 @@ class HealthProbe:
 
     def start(self):
         assert self.future is None
+        self.logger.info(f'Stopping probe for {self.workflow.id}')
         self.running = True
         self.future = self.executor.submit(self)
 
     def stop(self):
         assert self.future is not None
+        self.logger.info(f'Stopping probe for {self.workflow.id}')
         self.running = False
 
 
@@ -96,7 +99,8 @@ class HealthManager:
                 workflow_id = key.split('/')[3]
                 if isinstance(event, PutEvent):
                     value = event.value.decode('utf-8')
-                    if value == 'STARTING':
+                    self.logger.info(f'{workflow_id} PUT event - {value}')
+                    if value == States.STARTING:
                         assert workflow_id not in self.workflows.keys()
                         workflow = Workflow.from_id(workflow_id)
                         self.workflows[workflow_id] = workflow
@@ -108,10 +112,11 @@ class HealthManager:
                         for probe in self.probes[workflow_id].values():
                            probe.start()
                         future = self.executor.submit(self.wait_for_up, workflow)
-                    elif value == 'STOPPING':
+                    elif value == States.STOPPING:
                         workflow = self.workflows[workflow_id]
                         future = self.executor.submit(self.wait_for_down, workflow)
                 elif isinstance(event, DeleteEvent):
+                    self.logger.info(f'{workflow_id} DELETE event - {value}')
                     for probe in self.probes[workflow_id].values():
                         probe.stop()
 
@@ -122,7 +127,7 @@ class HealthManager:
         for event in watch_iter:
             self.logger.info(f'wait_for_up(): Got {type(event)} to key {event.key}')
             crnt_state = self.etcd.get(f'{workflow.key_prefix}/state')[0]
-            if (crnt_state is None) or (crnt_state != b'STARTING'):
+            if (crnt_state is None) or (crnt_state != States.STARTING):
                 self.logger.info(f'wait_for_up(): Workflow {workflow.id} is no '
                                   'longer starting up, cancelling further '
                                   'monitoring.')
@@ -130,7 +135,7 @@ class HealthManager:
             if isinstance(event, PutEvent):
                 if all(probe.status == 'UP' for probe in probes.values()):
                     result = self.etcd.replace(f'{workflow.key_prefix}/state',
-                                               'STARTING', 'RUNNING')
+                                               States.STARTING, States.RUNNING)
                     if result:
                         self.logger.info('wait_for_up(): State transition succeeded.')
                     else:
@@ -150,7 +155,8 @@ class HealthManager:
                         probe.stop()
                     del self.probes[workflow.id]
                     del self.workflows[workflow.id]
-                    result = self.etcd.replace(f'{workflow.key_prefix}/state', 'STOPPING', 'STOPPED')
+                    result = self.etcd.replace(f'{workflow.key_prefix}/state', 
+                                               States.STOPPING, States.STOPPED)
                     if result:
                         self.logger.info('wait_for_down(): State transition succeeded.')
                     else:
@@ -169,9 +175,9 @@ class HealthManager:
             self.probes[workflow.id] = probes
             workflow_state = self.etcd.get(workflow.key_prefix + '/state')[0].decode()
             self.logger.info(f'Started probes for {workflow.id}, in state {workflow_state}')
-            if workflow_state == 'STARTING':
+            if workflow_state == States.STARTING:
                 self.executor.submit(self.wait_for_up, workflow)
-            elif workflow_state == 'STOPPING':
+            elif workflow_state == States.STOPPING:
                 self.executor.submit(self.wait_for_down, workflow)
         self.future = self.executor.submit(self)
 

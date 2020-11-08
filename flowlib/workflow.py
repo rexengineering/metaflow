@@ -14,6 +14,7 @@ import yaml
 from . import bpmn
 from .executor import get_executor
 from .etcd_utils import get_etcd, transition_state
+from .constants import States
 
 
 class Workflow:
@@ -40,8 +41,8 @@ class Workflow:
     def start(self):
         etcd = get_etcd(is_not_none=True)
         state_key = f'{self.key_prefix}/state'
-        if not etcd.put_if_not_exists(state_key, 'STARTING'):
-            if not etcd.replace(state_key, 'STOPPED', 'STARTING'):
+        if not etcd.put_if_not_exists(state_key, States.STARTING):
+            if not etcd.replace(state_key, States.STOPPED, States.STARTING):
                 raise RuntimeError(f'{self.id} is not in a startable state')
         print("starting here")
         orchestrator = self.properties.orchestrator
@@ -57,7 +58,7 @@ class Workflow:
                 logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
             if docker_result.returncode != 0:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(state_key, 'STARTING', 'ERROR')
+                etcd.replace(state_key, States.STARTING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
             kubernetes_input = StringIO()
             if orchestrator == 'kubernetes':
@@ -77,14 +78,14 @@ class Workflow:
                 logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
             if kubectl_result.returncode != 0:
                 logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
-                etcd.replace(state_key, 'STARTING', 'ERROR')
+                etcd.replace(state_key, States.STARTING, States.ERROR)
         else:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def stop(self):
         etcd = get_etcd(is_not_none=True)
         state_key = f'{self.key_prefix}/state'
-        if not transition_state(etcd, state_key, (b'RUNNING', b'ERROR'), b'STOPPING'):
+        if not transition_state(etcd, state_key, (States.RUNNING, States.ERROR), States.STOPPING):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
         orchestrator = self.properties.orchestrator
         if orchestrator == 'docker':
@@ -95,7 +96,7 @@ class Workflow:
                 logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
             else:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(state_key, 'STOPPING', 'ERROR')
+                etcd.replace(state_key, States.STOPPING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
             kubernetes_stream = StringIO()
             if orchestrator == 'kubernetes':
@@ -112,7 +113,7 @@ class Workflow:
                 logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
             if kubectl_result.returncode != 0:
                 logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
-                etcd.replace(state_key, 'STOPPING', 'ERROR')
+                etcd.replace(state_key, States.STOPPING, States.ERROR)
         else:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
@@ -175,10 +176,10 @@ class WorkflowInstance:
         all_ok = all(result for result in results)
         etcd = get_etcd(is_not_none=True)
         if not all_ok:
-            if not etcd.replace(f'{self.key_prefix}/state', 'STARTING', 'ERROR'):
+            if not etcd.replace(f'{self.key_prefix}/state', States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
         else:
-            if not etcd.replace(f'{self.key_prefix}/state', 'STARTING', 'RUNNING'):
+            if not etcd.replace(f'{self.key_prefix}/state', States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
 
     def stop(self):
