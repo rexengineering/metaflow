@@ -6,6 +6,7 @@ import xmltodict
 
 from flowlib import bpmn, workflow
 from flowlib.etcd_utils import get_etcd
+from flowlib.constants import States
 
 
 def handler(request):

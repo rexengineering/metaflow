@@ -14,7 +14,7 @@ import yaml
 from . import bpmn
 from .executor import get_executor
 from .etcd_utils import get_etcd, transition_state
-from .constants import States
+from .constants import States, BStates
 
 
 class Workflow:
@@ -85,7 +85,7 @@ class Workflow:
     def stop(self):
         etcd = get_etcd(is_not_none=True)
         state_key = f'{self.key_prefix}/state'
-        if not transition_state(etcd, state_key, (States.RUNNING, States.ERROR), States.STOPPING):
+        if not transition_state(etcd, state_key, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
         orchestrator = self.properties.orchestrator
         if orchestrator == 'docker':

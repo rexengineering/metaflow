@@ -16,6 +16,7 @@ def handler(request):
     state_key = f'{wf_instance.key_prefix}/state'
     if not etcd.put_if_not_exists(state_key, States.STARTING):
         logging.error(f'{state_key} already defined in etcd!')
+    etcd.put(f'{wf_instance.key_prefix}/parent', request.workflow_id)
     result[request.workflow_id] = wf_instance.id
     executor_obj = executor.get_executor()
     executor_obj.submit(wf_instance.start, *request.args)

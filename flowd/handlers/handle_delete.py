@@ -2,7 +2,7 @@ import logging
 
 from flowlib import flow_pb2
 from flowlib.etcd_utils import get_etcd, get_keys_from_prefix, EtcdDict
-from flowlib.constants import States
+from flowlib.constants import States, BStates
 
 
 def handler(request : flow_pb2.DeleteRequest):
@@ -25,7 +25,7 @@ def handler(request : flow_pb2.DeleteRequest):
                 result[workflow_id] = dict(result=-1, message=message)
                 continue
             workflow_state = workflow['state']
-            if workflow_state not in {States.ERROR, States.STOPPED}:
+            if workflow_state not in {BStates.ERROR, BStates.STOPPED}:
                 message = f'Workflow deployment {workflow_id} is not in the ERROR or STOPPED state.'
                 logging.warn(message)
                 result[workflow_id] = dict(result=-2, message=message)
@@ -53,7 +53,7 @@ def handler(request : flow_pb2.DeleteRequest):
                 continue
             state_key = f'{prefix}/state'
             instance_state = etcd.get(state_key)[0]
-            good_states = {States.STOPPED, States.ERROR, States.COMPLETED}
+            good_states = {BStates.STOPPED, BStates.ERROR, BStates.COMPLETED}
             logging.debug(instance_state)
             if instance_state not in good_states:
                 message = f'Workflow instance {instance_id} is not in the '\

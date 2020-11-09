@@ -4,7 +4,7 @@ from quart import request
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
-from flowlib.constants import States
+from flowlib.constants import BStates
 
 class FlowApp(QuartApp):
     def __init__(self, **kws):
@@ -19,9 +19,9 @@ class FlowApp(QuartApp):
             flow_id = request.headers['X-Flow-Id']
             key_prefix = f'/rexflow/instances/{flow_id}'
             state_key = f'{key_prefix}/state'
-            good_states = {States.STARTING, States.RUNNING}
+            good_states = {BStates.STARTING, BStates.RUNNING}
             if self.etcd.get(state_key)[0] in good_states:
-                if transition_state(self.etcd, state_key, good_states, States.COMPLETED):
+                if transition_state(self.etcd, state_key, good_states, BStates.COMPLETED):
                     self.etcd.put(f'{key_prefix}/result', await request.data)
                 else:
                     logging.error(

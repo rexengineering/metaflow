@@ -3,11 +3,21 @@
 # constants everywhere.
 #
 
+from functools import cached_property
+
 class States:
-    COMPLETED = b'COMPLETED'
-    ERROR     = b'ERROR'
-    RUNNING   = b'RUNNING'
-    START     = b'START'
-    STARTING  = b'STARTING'
-    STOPPED   = b'STOPPED'
-    STOPPING  = b'STOPPING'
+    COMPLETED = 'COMPLETED'
+    ERROR     = 'ERROR'
+    RUNNING   = 'RUNNING'
+    START     = 'START'
+    STARTING  = 'STARTING'
+    STOPPED   = 'STOPPED'
+    STOPPING  = 'STOPPING'
+
+class ByteStatesClass:
+    def __getattr__(self, name):
+        return getattr(States,name).encode('utf-8')
+
+BStates = ByteStatesClass()
+
+

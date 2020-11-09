@@ -12,7 +12,7 @@ from flowlib.executor import get_executor
 from flowlib.flowd_utils import get_log_format
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
-from flowlib.constants import States
+from flowlib.constants import States, BStates
 
 
 class HealthProbe:
@@ -68,7 +68,7 @@ class HealthProbe:
 
     def start(self):
         assert self.future is None
-        self.logger.info(f'Stopping probe for {self.workflow.id}')
+        self.logger.info(f'Starting probe for {self.workflow.id}')
         self.running = True
         self.future = self.executor.submit(self)
 
@@ -127,7 +127,7 @@ class HealthManager:
         for event in watch_iter:
             self.logger.info(f'wait_for_up(): Got {type(event)} to key {event.key}')
             crnt_state = self.etcd.get(f'{workflow.key_prefix}/state')[0]
-            if (crnt_state is None) or (crnt_state != States.STARTING):
+            if (crnt_state is None) or (crnt_state != BStates.STARTING):
                 self.logger.info(f'wait_for_up(): Workflow {workflow.id} is no '
                                   'longer starting up, cancelling further '
                                   'monitoring.')
