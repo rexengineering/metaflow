@@ -41,81 +41,83 @@ class Workflow:
     def start(self):
         etcd = get_etcd(is_not_none=True)
         state_key = f'{self.key_prefix}/state'
-        if not etcd.put_if_not_exists(state_key, States.STARTING):
-            if not etcd.replace(state_key, States.STOPPED, States.STARTING):
-                raise RuntimeError(f'{self.id} is not in a startable state')
-        print("starting here")
-        orchestrator = self.properties.orchestrator
-        if orchestrator == 'docker':
-            docker_compose_input = StringIO()
-            self.process.to_docker(docker_compose_input)
-            ctl_input = docker_compose_input.getvalue()
-            docker_result = subprocess.run(
-                ['docker', 'stack', 'deploy', '--compose-file', '-', self.id_hash],
-                input=ctl_input, capture_output=True, text=True,
-            )
-            if docker_result.stdout:
-                logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
-            if docker_result.returncode != 0:
-                logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(state_key, States.STARTING, States.ERROR)
-        elif orchestrator in {'kubernetes', 'istio'}:
-            kubernetes_input = StringIO()
-            if orchestrator == 'kubernetes':
-                self.process.to_kubernetes(kubernetes_input, self.id_hash)
+        if BStates.RUNNING != etcd.get(state_key)[0]:
+            if not etcd.put_if_not_exists(state_key, States.STARTING):
+                if not etcd.replace(state_key, States.STOPPED, States.STARTING):
+                    raise RuntimeError(f'{self.id} is not in a startable state')
+            print("starting here")
+            orchestrator = self.properties.orchestrator
+            if orchestrator == 'docker':
+                docker_compose_input = StringIO()
+                self.process.to_docker(docker_compose_input)
+                ctl_input = docker_compose_input.getvalue()
+                docker_result = subprocess.run(
+                    ['docker', 'stack', 'deploy', '--compose-file', '-', self.id_hash],
+                    input=ctl_input, capture_output=True, text=True,
+                )
+                if docker_result.stdout:
+                    logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
+                if docker_result.returncode != 0:
+                    logging.error(f'Error from Docker:\n{docker_result.stderr}')
+                    etcd.replace(state_key, States.STARTING, States.ERROR)
+            elif orchestrator in {'kubernetes', 'istio'}:
+                kubernetes_input = StringIO()
+                if orchestrator == 'kubernetes':
+                    self.process.to_kubernetes(kubernetes_input, self.id_hash)
+                else:
+                    print("calling to istio")
+                    self.process.to_istio(kubernetes_input, self.id_hash)
+                    print("done with to istio")
+                ctl_input = kubernetes_input.getvalue()
+                kubectl_result = subprocess.run(
+                    ['kubectl', 'apply',
+                    '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
+                    input=ctl_input, capture_output=True, text=True,
+                )
+                print("done applying")
+                if kubectl_result.stdout:
+                    logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
+                if kubectl_result.returncode != 0:
+                    logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
+                    etcd.replace(state_key, States.STARTING, States.ERROR)
             else:
-                print("calling to istio")
-                self.process.to_istio(kubernetes_input, self.id_hash)
-                print("done with to istio")
-            ctl_input = kubernetes_input.getvalue()
-            kubectl_result = subprocess.run(
-                ['kubectl', 'apply',
-                 '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
-                input=ctl_input, capture_output=True, text=True,
-            )
-            print("done applying")
-            if kubectl_result.stdout:
-                logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
-            if kubectl_result.returncode != 0:
-                logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
-                etcd.replace(state_key, States.STARTING, States.ERROR)
-        else:
-            raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
+                raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def stop(self):
         etcd = get_etcd(is_not_none=True)
         state_key = f'{self.key_prefix}/state'
-        if not transition_state(etcd, state_key, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
-            raise RuntimeError(f'{self.id} is not in a stoppable state')
-        orchestrator = self.properties.orchestrator
-        if orchestrator == 'docker':
-            docker_result = subprocess.run(
-                ['docker', 'stack', 'rm', self.id_hash], capture_output=True, text=True,
-            )
-            if docker_result.returncode == 0:
-                logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
+        if BStates.STOPPED != etcd.get(state_key)[0]:
+            if not transition_state(etcd, state_key, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
+                raise RuntimeError(f'{self.id} is not in a stoppable state')
+            orchestrator = self.properties.orchestrator
+            if orchestrator == 'docker':
+                docker_result = subprocess.run(
+                    ['docker', 'stack', 'rm', self.id_hash], capture_output=True, text=True,
+                )
+                if docker_result.returncode == 0:
+                    logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
+                else:
+                    logging.error(f'Error from Docker:\n{docker_result.stderr}')
+                    etcd.replace(state_key, States.STOPPING, States.ERROR)
+            elif orchestrator in {'kubernetes', 'istio'}:
+                kubernetes_stream = StringIO()
+                if orchestrator == 'kubernetes':
+                    self.process.to_kubernetes(kubernetes_stream, self.id_hash)
+                else:
+                    self.process.to_istio(kubernetes_stream, self.id_hash)
+                ctl_input = kubernetes_stream.getvalue()
+                kubectl_result = subprocess.run(
+                    ['kubectl', 'delete',
+                    '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
+                    input=ctl_input, capture_output=True, text=True,
+                )
+                if kubectl_result.stdout:
+                    logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
+                if kubectl_result.returncode != 0:
+                    logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
+                    etcd.replace(state_key, States.STOPPING, States.ERROR)
             else:
-                logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(state_key, States.STOPPING, States.ERROR)
-        elif orchestrator in {'kubernetes', 'istio'}:
-            kubernetes_stream = StringIO()
-            if orchestrator == 'kubernetes':
-                self.process.to_kubernetes(kubernetes_stream, self.id_hash)
-            else:
-                self.process.to_istio(kubernetes_stream, self.id_hash)
-            ctl_input = kubernetes_stream.getvalue()
-            kubectl_result = subprocess.run(
-                ['kubectl', 'delete',
-                 '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
-                input=ctl_input, capture_output=True, text=True,
-            )
-            if kubectl_result.stdout:
-                logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
-            if kubectl_result.returncode != 0:
-                logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
-                etcd.replace(state_key, States.STOPPING, States.ERROR)
-        else:
-            raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
+                raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
 
 class WorkflowInstance:
