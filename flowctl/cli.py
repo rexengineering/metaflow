@@ -3,9 +3,9 @@ import logging
 import os
 
 from .actions import apply_action, delete_action, ps_action, run_action, \
-    start_action, stop_action
+    start_action, stop_action, setstate_action
 
-ACTIONS = ('apply', 'delete', 'ps', 'run', 'start', 'stop')
+ACTIONS = ('apply', 'delete', 'ps', 'run', 'start', 'stop', 'setstate')
 
 
 def add_action(action_name, subparsers, action_map):

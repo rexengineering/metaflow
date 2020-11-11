@@ -10,6 +10,7 @@ service FlowDaemon {
     rpc RunWorkflow (RunRequest) returns (FlowdResult); // flowctl run
     rpc StartWorkflow (StartRequest) returns (FlowdResult); // flowctl start
     rpc StopWorkflow (StopRequest) returns (FlowdResult); // flowctl stop
+    rpc SetState (SetStateRequest) returns (FlowdResult); // flowctl setstate 
 }
 
 message FlowdResult {
@@ -56,5 +57,12 @@ message StartRequest {
 message StopRequest {
     RequestKind kind = 1;
     repeated string ids = 2;
+    // FIXME: Figure out any additional flags and/or arguments.
+}
+
+message SetStateRequest {
+    string state = 1;
+    RequestKind kind = 2;
+    repeated string ids = 3;
     // FIXME: Figure out any additional flags and/or arguments.
 }
