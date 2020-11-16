@@ -6,6 +6,7 @@ import logging
 import subprocess
 from typing import Union
 import uuid
+from hashlib import sha1
 
 import requests
 import xmltodict
@@ -20,13 +21,12 @@ class Workflow:
     def __init__(self, process : bpmn.BPMNProcess, id=None):
         self.process = process
         if id is None:
-            uid = uuid.uuid1().hex
-            self.id = f'{process.id}-{uid}'
+            self.id = self.process.id
         else:
             self.id = id
-        self.id_hash = '%016x' % c_size_t(hash(self.id)).value
         self.key_prefix = f'/rexflow/workflows/{self.id}'
         self.properties = process.properties
+        self.id_hash = self.properties.id_hash
 
     @classmethod
     def from_id(cls, id):
@@ -43,7 +43,6 @@ class Workflow:
         if not etcd.put_if_not_exists(state_key, 'STARTING'):
             if not etcd.replace(state_key, 'STOPPED', 'STARTING'):
                 raise RuntimeError(f'{self.id} is not in a startable state')
-        print("starting here")
         orchestrator = self.properties.orchestrator
         if orchestrator == 'docker':
             docker_compose_input = StringIO()
@@ -63,16 +62,12 @@ class Workflow:
             if orchestrator == 'kubernetes':
                 self.process.to_kubernetes(kubernetes_input, self.id_hash)
             else:
-                print("calling to istio")
                 self.process.to_istio(kubernetes_input, self.id_hash)
-                print("done with to istio")
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'apply',
-                 '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
+                ['kubectl', 'create', '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
-            print("done applying")
             if kubectl_result.stdout:
                 logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
             if kubectl_result.returncode != 0:
@@ -104,8 +99,7 @@ class Workflow:
                 self.process.to_istio(kubernetes_stream, self.id_hash)
             ctl_input = kubernetes_stream.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'delete',
-                 '-n', self.process.get_namespace(self.id_hash), '-f', '-'],
+                ['kubectl', 'delete', '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
             if kubectl_result.stdout:
@@ -142,7 +136,7 @@ class WorkflowInstance:
                 A boolean value indicating an OK response.
             '''
             task = process.component_map[task_id]
-            call_props = task.call_properties()
+            call_props = task.call_properties
             serialization = call_props.serialization.lower()
             eval_args = [literal_eval(arg) for arg in args]
             if serialization == 'json':
@@ -158,8 +152,8 @@ class WorkflowInstance:
                 raise ValueError(f'{method} is not a supported method.')
             request = getattr(requests, method)
             response = request(
-                task.k8s_url(),
-                headers={'X-Flow-ID':self.id, 'Content-Type':mime_type},
+                task.k8s_url,
+                headers={'X-Flow-ID':self.id, 'X-Rexflow-Wf-Id': self.parent.id, 'Content-Type':mime_type},
                 data=data
             )
             if response.ok:

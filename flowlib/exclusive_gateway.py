@@ -33,66 +33,32 @@ class BPMNXGateway(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
     def __init__(self, gateway : OrderedDict, process : OrderedDict=None, global_props=None):
+        super().__init__(gateway, process, global_props)
         self.jsonpath = ""
         self.operator = ""
         self.comparison_value = ""
         self.true_forward_componentid = None
         self.false_forward_componentid = None
-        self._namespace = global_props.namespace
-
-
         self._gateway = gateway
-        self._proc = process
-        self._global_props = global_props
-        self.id = gateway['@id'] # type: str
 
-        # FIXME: This is Zeebe specific.  Need to provide override if coming from
-        # some other modeling tool.
-        self.annotations = []
-        if not self._proc:
-            raise "You must properly annotate your Exclusive gateway!"
+        assert 'jsonpath' in self._annotation, "XGateway: Must specify jsonpath to compare."
+        assert 'value' in self._annotation, "XGatewway: Must specify `value` to compare to."
+        assert 'operator' in self._annotation, "XGatewway: Must specify `operator` (==, <, >)"
 
-        self.annotations = [a for a in get_annotations(process, self.id)]
-        assert len(self.annotations) == 1
-        self.annotation = self.annotations[0]['rexflow']
         self.jsonpath = self.annotation['jsonpath']
         self.comparison_value = self.annotation['value']
         self.operator = self.annotation['operator']
+        assert self.operator in ['==', '<', '>'], "XGatewway: Must specify `operator` (==, <, >)"
 
         # We've got the annotation. From here, let's find out the name of the resulting
         # gateway service.
         self.name = f"{XGATEWAY_SVC_PREFIX}-{self.annotation['gateway_name']}"
         assert ('service' not in self.annotation), "service-name must be auto-inferred for X-Gateways"
 
-        self._service_properties = ServiceProperties(self.name)
-        self._call_properties = CallProperties()  # default: POST to '/'
-        self._health_properties = HealthProperties()  # default: GET to '/'
-
         self._service_properties.update({
-            "host": self.name,
             "port": XGATEWAY_LISTEN_PORT,
+            "host": self.name,
         })
-
-        # Ok, now we know what to call our service (for k8s deployment) AND how to deploy it. TODO's are:
-        # 1. Figure out what the URL's are for the next two steps in service (using the )
-        # 2. Store the conditional decision config in Env Vars for the Deployment.
-        # Both of these things will be done in the to_kubernetes() function.
-
-    #@property
-    def health_properties(self) -> HealthProperties:
-        return self._health_properties
-
-    #@property
-    def call_properties(self) -> CallProperties:
-        return self._call_properties
-
-    #@property
-    def service_properties(self) -> ServiceProperties:
-        return self._service_properties
-
-    #@property
-    def namespace(self) -> str:
-        return self._namespace
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
@@ -147,9 +113,9 @@ class BPMNXGateway(BPMNComponent):
         # Ok, now we're ready to go for creating k8s specs.
         k8s_objects = []
 
-        service_name = self.service_properties().name
+        service_name = self.service_properties.host
         dns_safe_name = service_name.replace('_', '-')
-        port = self.service_properties().port
+        port = self.service_properties.port
         
         # SVC Account
         service_account = {
@@ -226,11 +192,11 @@ class BPMNXGateway(BPMNComponent):
                                     {'name': 'REXFLOW_XGW_COMPARISON_VALUE', 'value': self.comparison_value},
                                     {
                                         'name': 'REXFLOW_XGW_TRUE_URL',
-                                        'value': component_map[self.true_forward_componentid].k8s_url(),
+                                        'value': component_map[self.true_forward_componentid].k8s_url,
                                     },
                                     {
                                         'name': 'REXFLOW_XGW_FALSE_URL',
-                                        'value': component_map[self.false_forward_componentid].k8s_url(),
+                                        'value': component_map[self.false_forward_componentid].k8s_url,
                                     },
                                 ]
                             },

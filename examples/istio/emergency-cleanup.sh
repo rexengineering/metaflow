@@ -1,11 +1,28 @@
 #!/bin/bash
 
+kubectl config use-context docker-desktop
 cd ../.. && docker build -t flowd -f deploy/Dockerfile.flowd . && docker build -t healthd -f deploy/Dockerfile.healthd .
 kubectl config set-context --current --namespace=default
-kubectl delete --ignore-not-found services collect secret-sauce profit xgateway-did-apply
-kubectl delete --ignore-not-found deployments collect secret-sauce profit xgateway-did-apply
-kubectl delete --ignore-not-found serviceaccounts collect secret-sauce profit xgateway-did-apply
-kubectl delete --ignore-not-found virtualservices.networking.istio.io collect secret-sauce profit xgateway-did-apply
-kubectl delete --ignore-not-found envoyfilters.networking.istio.io hijack-collect hijack-secret-sauce hijack-profit
+
+function findall()
+  {
+  kubectl get $1 | grep -E '(catch|throw|collect|secret-sauce|did-apply|profit)' | cut -d ' ' -f1
+  }
+function cleanup()
+  {
+  for s in $(findall $1) ; do  kubectl delete $1 $s ; done
+  }
+cleanup svc
+cleanup deployment
+cleanup serviceaccount
+cleanup envoyfilter
+cleanup virtualservice
+
+
+kubectl delete envoyfilter -nmy-ns --all
+
+kubectl delete ns --ignore-not-found conditional events no-sauce gnomes-v1 throw
 
 kubectl delete po --all -nrexflow
+
+

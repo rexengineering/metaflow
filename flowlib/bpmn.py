@@ -17,6 +17,8 @@ from .task import BPMNTask
 from .exclusive_gateway import BPMNXGateway
 from .start_event import BPMNStartEvent
 from .end_event import BPMNEndEvent
+from .throw_event import BPMNThrowEvent
+from .catch_event import BPMNCatchEvent
 
 from .bpmn_util import (
     iter_xmldict_for_key,
@@ -33,20 +35,30 @@ from .bpmn_util import (
 
 class BPMNProcess:
     def __init__(self, process : OrderedDict):
-        self.namespace = "default"  # TODO: Read from BPMN Spec
         self._process = process
-        self.id = process['@id']
         entry_point = process['bpmn:startEvent']
-        assert isinstance(entry_point, OrderedDict)  # TODO: verify that this means there's only 1 start event
+        assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
         self.entry_point =  entry_point
-        self.annotations = list(get_annotations(process, self.entry_point['@id']))
-        self.properties = WorkflowProperties(self.annotations)
+        annotations = list(get_annotations(process, self.entry_point['@id']))
+        assert len(annotations) == 1, "Must have only one annotation for start event."
+        self.annotation = annotations[0]
+        self.properties = WorkflowProperties(self.annotation)
+        assert self.properties.id, "You must annotate StartEvent with a Workflow `id`."
+
+        self.namespace = self.properties.namespace
+        self.namespace_shared = self.properties.namespace_shared
+        self.id = self.properties.id
 
         # needed for calculation of some BPMN Components
         self._digraph = raw_proc_to_digraph(process)
 
         # Maps an Id (eg. "Event_25dst7" or "Gateway_2sh38s") to a BPMNComponent Object.
         self.component_map = {} # type: Mapping[str, BPMNComponent]
+
+        # NOTE: As per `README.namespacing.md`, if we are in a shared namespace then we
+        # append a small hash to the end of every k8s object in order to avoid conflicts.
+        # The `id_hash` and `namespace_shared` have already been computed when we
+        # created the WorkflowProperties object (see self.properties).
 
         # Now, create all of the BPMN Components.
         # Start with Tasks:
@@ -75,9 +87,30 @@ class BPMNProcess:
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
 
+        # Throw Events.
+        # For now, to avoid forcing the user of REXFlow to have to annotate each event
+        # as either a Throw or Catch, we will infer based on the following rule:
+        # If there is an incoming edge to the Event in self.to_digraph, then
+        # it's a Throw event. Else, it's a Catch event.
+        self.throws = []
+        for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
+            if 'bpmn:incoming' in event:
+                bpmn_throw = BPMNThrowEvent(event, process, self.properties)
+                self.throws.append(bpmn_throw)
+                self.component_map[event['@id']] = bpmn_throw
+
+        self.catches = []
+        for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
+            if 'bpmn:incoming' not in event:
+                bpmn_catch = BPMNCatchEvent(event, process, self.properties)
+                self.catches.append(bpmn_catch)
+                self.component_map[event['@id']] = bpmn_catch
+
         self.all_components = []
-        self.all_components.extend(self.tasks)
+        self.all_components.extend([t for t in self.tasks if not t.is_preexisting])
         self.all_components.extend(self.xgateways)
+        self.all_components.extend(self.throws)
+        self.all_components.extend(self.catches)
         # don't yet add start/end events to self.all_components because we don't want
         # healthchecks for them (they are just virtual components at this point)
 
@@ -112,12 +145,6 @@ class BPMNProcess:
             result = self._digraph
         return result
 
-    def get_namespace(self, id_hash:str = None):
-        namespace = self.properties.namespace
-        if ((namespace != 'default') and (id_hash is not None) and (len(id_hash) > 3)):
-            namespace = f'{namespace}-{id_hash[:4]}'
-        return namespace
-
     def to_kubernetes(self, stream:IOBase = None, id_hash:str = None, **kws):
         # No longer used
         raise NotImplementedError("REXFlow requires Istio.")
@@ -126,6 +153,17 @@ class BPMNProcess:
         if stream is None:
             stream = sys.stdout
         results = []
+        if self.namespace != 'default':
+            results.append(
+                {
+                    'apiVersion': 'v1',
+                    'kind': 'Namespace',
+                    'metadata': {
+                        'name': self.namespace,
+                    },
+                }
+            )
+
         for bpmn_component in self.component_map.keys():
             results.extend(
                 self.component_map[bpmn_component].to_kubernetes(id_hash, self.component_map, self._digraph)

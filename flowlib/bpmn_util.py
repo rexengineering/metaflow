@@ -1,9 +1,15 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
+from ctypes import c_size_t
 from typing import Any, Iterator, List, Mapping, Optional, Set
 import yaml
 import xmltodict
+from hashlib import sha1
+
+
+def calculate_id_hash(wf_id: str) -> str:
+    return sha1(wf_id.encode()).hexdigest()[:8]
 
 
 def iter_xmldict_for_key(odict : OrderedDict, key : str):
@@ -74,32 +80,65 @@ def parse_events(process: OrderedDict):
 
 
 class ServiceProperties:
-    def __init__(self, service_name):
-        self.name = service_name
+    def __init__(self, annotations: dict=None):
         self._host = None
         self._port = None
         self._protocol = None
-        self._container = None
+        self._container_name = None
+        self._id_hash = None
+        self._is_hash_used = False
+        self._namespace = None
+        if annotations:
+            self.update(annotations)
+
+    @property
+    def namespace(self):
+        assert self._namespace is not None, "Namespace should be set by now."
+        return self._namespace
+
+    @property
+    def host_without_hash(self):
+        '''Returns the hostname for this K8s Service with the trailing id hash
+        stripped (if the id hash exists). 
+        '''
+        return self._host
 
     @property
     def host(self):
-        return self._host if self._host is not None else self.name
+        '''Returns the host for the K8s Service corresponding to the owning
+        BPMNComponent object. Note: if the Service is in a shared namespace,
+        then the host returned will include the id hash at the end.
+        '''
+        host = self._host
+        if self._is_hash_used:
+            assert self._id_hash, "The ID hash of the ServiceProperties should be set by now."
+            host += f'-{self._id_hash}'
+        return host
 
     @property
     def port(self):
+        '''Returns the port upon which this service listens.
+        '''
         return self._port if self._port is not None else 80
 
     @property
     def protocol(self):
+        '''Returns the protocol with which to communicate with this Service.
+        '''
         return self._protocol if self._protocol is not None else 'HTTP'
 
     @property
     def container(self):
-        return self._container if self._container is not None else self.name
+        '''Returns the docker image name for this k8s Service. Useful when creating
+        Deployment objects.
+        '''
+        return self._container_name
 
     def update(self, annotations):
         if 'host' in annotations:
             self._host = annotations['host']
+            if self._container_name is None:
+                self._container_name = self._host
         if 'port' in annotations:
             self._port = int(annotations['port'])
         if 'orchestrator' in annotations:
@@ -107,7 +146,11 @@ class ServiceProperties:
         if 'protocol' in annotations:
             self._protocol = annotations['protocol']
         if 'container' in annotations:
-            self._container = annotations['container']
+            self._container_name = annotations['container']
+        if 'id_hash' in annotations:
+            self._id_hash = annotations['id_hash']
+        if 'hash_used' in annotations:
+            self._is_hash_used = annotations['hash_used']
 
 
 class CallProperties:
@@ -176,16 +219,30 @@ class HealthProperties:
 
 class WorkflowProperties:
     def __init__(self, annotations=None):
-        self._orchestrator = None
+        self._orchestrator = 'istio'  # default to istio...
+        self._id = ''
         self._namespace = None
+        self._namespace_shared = False
+        self._id_hash = ''
         if annotations is not None:
-            for annotation in annotations:
-                if 'rexflow' in annotation:
-                    self.update(annotation['rexflow'])
+            if 'rexflow' in annotations:
+                self.update(annotations['rexflow'])
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def id_hash(self):
+        return self._id_hash
 
     @property
     def namespace(self):
         return self._namespace if self._namespace is not None else 'default'
+
+    @property
+    def namespace_shared(self):
+        return self._namespace_shared
 
     @property
     def orchestrator(self):
@@ -196,8 +253,20 @@ class WorkflowProperties:
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
             self._orchestrator = annotations['orchestrator']
+
+        if 'namespace_shared' in annotations:
+            self._namespace_shared = annotations['namespace_shared']
+
         if 'namespace' in annotations:
+            assert self._namespace_shared, "Can only specify namespace name if it's a pre-existing, shared NS."
             self._namespace = annotations['namespace']
+
+        if 'id' in annotations:
+            self._id = annotations['id']
+            self._id_hash = calculate_id_hash(self._id)
+            if not self._namespace_shared:
+                self._namespace = self._id
+
 
 
 class BPMNComponent:
@@ -216,8 +285,43 @@ class BPMNComponent:
     BPMNTask object (it could've been a gateway, event, etc) know at which URL
     to reach the next component in the workflow.
     '''
-    def __init__(self, component: OrderedDict, process : OrderedDict, workflow_properties : WorkflowProperties):
-        pass
+    def __init__(self, spec: OrderedDict, process: OrderedDict, workflow_properties: WorkflowProperties):
+        self.id = spec['@id']
+
+        annotations = [a for a in list(get_annotations(process, self.id)) if 'rexflow' in a]
+        assert len(annotations) == 1, "Must provide exactly one 'rexflow' annotation for each BPMN Component"
+        self._annotation = annotations[0]['rexflow']
+
+        # Set default values. The constructors of child classes may override these values.
+        # For example, a BPMNTask that calls a preexisting microservice should override
+        # the value `self._is_preexisting`.
+        self._is_preexisting = False
+        self._is_in_shared_ns = workflow_properties.namespace_shared
+        self._namespace = workflow_properties.namespace
+        self._health_properties = HealthProperties()
+        self._service_properties = ServiceProperties()
+        self._call_properties = CallProperties()
+        self._global_props = workflow_properties
+        self._proc = process
+
+        if 'preexisting' in self._annotation:
+            self._is_preexisting = self._annotation['preexisting']
+
+        service_update = {
+            'hash_used': (self._global_props.namespace_shared and not self._is_preexisting),
+            'id_hash': workflow_properties.id_hash
+        }
+        self._service_properties.update(service_update)
+
+        if 'call' in self._annotation:
+            self._call_properties.update(self._annotation['call'])
+        if 'health' in self._annotation:
+            self._health_properties.update(self._annotation['health'])
+        if 'service' in self._annotation:
+            self._service_properties.update(self._annotation['service'])
+
+
+
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any], digraph: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
@@ -242,61 +346,85 @@ class BPMNComponent:
         '''
         raise NotImplementedError("Method must be overriden.")
 
-    #@property
+    @property
     def namespace(self) -> str:
-        raise NotImplementedError("Method must be overriden.")
+        '''Returns the k8s namespace in which the corresponding k8s deployment for this
+        BPMNComponent sits.
+        '''
+        return self._namespace
 
-    #@property
+    @property
+    def is_in_shared_ns(self) -> bool:
+        '''Returns True if the k8s object corresponding to this BPMNComponent sits in
+        a shared k8s namespace, as opposed to a namespace that is dedicated solely
+        to this Workflow Deployment.
+        '''
+        return self._is_in_shared_ns
+
+    @property
+    def is_preexisting(self) -> bool:
+        '''Returns True if the k8s object corresponding to this BPMNComponent was
+        deployed separately from the Workflow; i.e. it was pre-existing.
+        '''
+        return self._is_preexisting
+
+    @property
     def health_properties(self) -> HealthProperties:
-        raise NotImplementedError("Method must be overriden.")
+        '''Returns the HealthProperties object for this BPMNComponent.
+        '''
+        return self._health_properties
 
-    #@property
+    @property
     def call_properties(self) -> CallProperties:
-        raise NotImplementedError("Method must be overriden.")
+        '''Returns the CallProperties object for this BPMNComponent.
+        '''
+        return self._call_properties
 
-    #@property
+    @property
     def service_properties(self) -> ServiceProperties:
-        raise NotImplementedError("Method must be overriden.")
+        '''Returns the ServiceProperties object for this BPMNComponent.
+        '''
+        return self._service_properties
 
-    #@property
+    @property
+    def workflow_properties(self) -> WorkflowProperties:
+        '''Returns the WorkflowProperties object for this BPMNComponent.
+        '''
+        return self._global_props
+
+    @property
     def k8s_url(self) -> str:
         '''Returns the fully-qualified host + path that is understood by the k8s
         kube-dns. For example, returns "http://my-service.my-namespace:my-port"
         '''
-        service_props = self.service_properties()
+        service_props = self.service_properties
         proto = service_props.protocol.lower()
         host = service_props.host
         port = service_props.port
-        return f'{proto}://{host}.{self.namespace()}:{port}{self.path()}'
+        return f'{proto}://{host}.{self.namespace}:{port}{self.path}'
 
-    #@property
+    @property
     def envoy_host(self) -> str:
-        '''Returns the Envoy Cluster Name for this service, for example
+        '''Returns the Envoy-readable hostname for this service, for example
         "my-service.my-namespace.svc.cluster.local"
         '''
-        service_props = self.service_properties()
+        service_props = self.service_properties
         host = service_props.host
-        return f'{host}.{self.namespace()}.svc.cluster.local'
+        return f'{host}.{self.namespace}.svc.cluster.local'
 
-    #@property
+    @property
+    def annotation(self) -> dict:
+        '''Returns the python dictionary representation of the rexflow annotation on the
+        BPMN diagram for this BPMNComponent.'''
+        return self._annotation
+
+    @property
     def path(self) -> str:
-        '''Returns the HTTP Path for this component.
+        '''Returns the HTTP Path to call this component. The path refers to calling
+        the BPMN component, and NOT the healthcheck.
         '''
-        call_props = self.call_properties()
+        call_props = self.call_properties
         path = call_props.path
         if not path.startswith('/'):
             path = '/' + path
         return path
-
-    @property
-    def url(self):
-        service_props = self.service_properties()
-        proto = service_props.protocol.lower()
-        host = service_props.host
-        host += f'.{self.namespace()}.svc.cluster.local'
-        port = service_props.port
-        call_props = self.call_properties()
-        path = call_props.path
-        if not path.startswith('/'):
-            path = '/' + path
-        return f'{proto}://{host}:{port}{path}'

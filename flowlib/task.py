@@ -20,7 +20,10 @@ from .bpmn_util import (
     CallProperties,
     ServiceProperties,
     HealthProperties,
+    WorkflowProperties,
     BPMNComponent,
+    get_annotations,
+    calculate_id_hash,
 )
 
 
@@ -30,62 +33,105 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task : OrderedDict, process : OrderedDict, global_props):
-        self._namespace = global_props.namespace
+    def __init__(self, task : OrderedDict, process : OrderedDict, global_props: WorkflowProperties):
+        super().__init__(task, process, global_props)
         self._task = task
-        self._proc = process
-        self._global_props = global_props
-        self.id = task['@id'] # type: str
-        self.name = task['@name'] # type: str
-        self._url = '' # type: str
-        # FIXME: This is Zeebe specific.  Need to provide override if coming from
-        # some other modeling tool. -- note from Jon
-        service_name = task['bpmn:extensionElements']['zeebe:taskDefinition']['@type']
 
-        self._service_properties = ServiceProperties(service_name)
-        self._call_properties = CallProperties()
-        self._health_properties = HealthProperties()
+        assert 'service' in self._annotation, "Must annotate Service Task with service information."
+        assert 'host' in self._annotation['service'], "Must annotate Service Task with service host."
 
-        self.annotations = []
-        if self._proc:
-            targets = [
-                association['@targetRef']
-                for association in iter_xmldict_for_key(self._proc, 'bpmn:association')
-                if association['@sourceRef'] == self.id
-            ]
-            self.annotations = [
-                yaml.safe_load(annotation['bpmn:text'].replace('\xa0', ''))
-                for annotation in iter_xmldict_for_key(self._proc, 'bpmn:textAnnotation')
-                if annotation['@id'] in targets and
-                    annotation['bpmn:text'].startswith('rexflow:')
-            ]
+        if self._is_preexisting:
+            assert 'namespace' in self._annotation['service'], "Must provide namespace of preexisting service."
+            self._namespace = self._annotation['service']['namespace']
+
+    def _generate_envoyfilter(self, component_map: Mapping[str, BPMNComponent], digraph: OrderedDict) -> list:
+        '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
+        FilterChain. This filter hijacks the response traffic and sends it to the next
+        step of the workflow (whether that's a gateway, Event, or another ServiceTask.)
+        '''
+        # service_name is the name of the k8s service to which this EnvoyFilter is applied.
+        # If it's a preexisting service, we look for the service's actual name (without the hash).
+        if self._is_preexisting:
+            service_name = self.service_properties.host_without_hash.replace('_', '-')
         else:
-            raise "Argh, somehow we didn't pass in a BPMN Process to this Task. Yuck!"
-        for annotation in self.annotations:
-            if 'rexflow' in annotation:
-                rexflow = annotation['rexflow']
-                if 'service' in rexflow:
-                    self._service_properties.update(rexflow['service'])
-                if 'call' in rexflow:
-                    self._call_properties.update(rexflow['call'])
-                if 'health' in rexflow:
-                    self._health_properties.update(rexflow['health'])
+            service_name = self.service_properties.host.replace("_", '-')
 
-    #@property
-    def health_properties(self) -> HealthProperties:
-        return self._health_properties
+        envoyfilter_name = self.service_properties.host.replace('_', '-')
 
-    #@property
-    def call_properties(self) -> CallProperties:
-        return self._call_properties
+        # We name the envoyfilter withhash if in a shared namespace and without hash
+        # if it's not in a shared namespace, regardless of whether service is preexisting.
+        # However, when the service is pre-existing, the service_properties.host does NOT
+        # include the id_hash. Therefore, we must append the id_hash to envoyfilter name
+        # IF the service is pre-existing.
+        if self._is_preexisting:
+            envoyfilter_name += '-' + self.workflow_properties.id_hash
 
-    #@property
-    def service_properties(self) -> ServiceProperties:
-        return self._service_properties
+        port = self.service_properties.port
+        namespace = self._namespace  # namespace in which the k8s objects live.
 
-    #@property
-    def namespace(self) -> str:
-        return self._namespace
+        upstreams = [] # type: list[Upstream]
+        forward_set = digraph.get(self.id, set())
+        for forward in forward_set:
+            bpmn_component = component_map[forward] # type: BPMNComponent
+            path = bpmn_component.call_properties.path
+            if not path.startswith('/'):
+                path = '/' + path
+            upstreams.append(
+                Upstream(
+                    bpmn_component.service_properties.host,
+                    bpmn_component.envoy_host,
+                    bpmn_component.service_properties.port,
+                    path,
+                    bpmn_component.call_properties.method
+                )
+            )
+        bavs_config = {
+            'forwards': [
+                self._make_forward(upstream) for upstream in upstreams
+            ],
+            'wf_id': self._global_props.id,
+        }
+        envoy_filter = {
+            'apiVersion': 'networking.istio.io/v1alpha3',
+            'kind': 'EnvoyFilter',
+            'metadata': {
+                'name': envoyfilter_name,
+                'namespace': namespace,
+            },
+            'spec': {
+                'workloadSelector': {'labels': {'app': service_name}},
+                'configPatches': [
+                    {
+                        'applyTo': 'HTTP_FILTER',
+                        'match': {
+                            'context': 'SIDECAR_INBOUND',
+                            'listener': {
+                                'portNumber': port,
+                                'filterChain': {
+                                    'filter': {
+                                        'name': 'envoy.http_connection_manager',
+                                        'subFilter': {'name': 'envoy.router'},
+                                    },
+                                },
+                            },
+                        },
+                        'patch': {
+                            'operation': 'INSERT_BEFORE',
+                            'value': {
+                                'name': 'bavs_filter',
+                                'typed_config': {
+                                    '@type': 'type.googleapis.com/udpa.type.v1.TypedStruct',
+                                    'type_url': 'type.googleapis.com/bavs.BAVSFilter',
+                                    'value': bavs_config,
+                                },
+                            },
+                        },
+                    },
+                ]
+            }
+        }
+        return envoy_filter
+
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
@@ -108,15 +154,21 @@ class BPMNTask(BPMNComponent):
            so that the developer may send traffic from his/her terminal into
            the cluster (i.e. the VS attaches to a Gateway).
         '''
+
         k8s_objects = []
+        k8s_objects.append(self._generate_envoyfilter(component_map, digraph))
+        if self._is_preexisting:
+            return k8s_objects
+
+        # Reminder: ServiceProperties.host() properly handles whether or not to include
+        # id hash.
+        service_name = self.service_properties.host
+        dns_safe_name = service_name.replace('_', '-')
 
         # k8s ServiceAccount
-        service_name = self.service_properties().name
-        # FIXME: The following is a workaround; need to add a full-on regex
-        # check of the service name and error on invalid spec.
-        dns_safe_name = service_name.replace('_', '-')
-        port = self.service_properties().port
+        port = self.service_properties.port
         namespace = self._namespace
+        assert self.namespace, "new-grad programmer error: namespace should be set by now."
         service_account = {
             'apiVersion': 'v1',
             'kind': 'ServiceAccount',
@@ -136,7 +188,7 @@ class BPMNTask(BPMNComponent):
             'kind': 'VirtualService',
             'metadata': {
                 'name': dns_safe_name,
-                'namespace': 'default',
+                'namespace': namespace,
             },
             'spec': {
                 'hosts': ['*'],
@@ -208,7 +260,7 @@ class BPMNTask(BPMNComponent):
                         'serviceAccountName': dns_safe_name,
                         'containers': [
                             {
-                                'image': self.service_properties().container,
+                                'image': self.service_properties.container,
                                 'imagePullPolicy': 'IfNotPresent',
                                 'name': dns_safe_name,
                                 'ports': [
@@ -223,69 +275,6 @@ class BPMNTask(BPMNComponent):
             },
         }
         k8s_objects.append(deployment)
-
-        # Now...the EnvoyFilters
-        upstreams = [] # type: list[Upstream]
-        forward_set = digraph.get(self.id, set())
-        for forward in forward_set:
-            bpmn_component = component_map[forward] # type: BPMNComponent
-            path = bpmn_component.call_properties().path
-            if not path.startswith('/'):
-                path = '/' + path
-            upstreams.append(
-                Upstream(
-                    bpmn_component.service_properties().name,
-                    bpmn_component.envoy_host(),
-                    bpmn_component.service_properties().port,
-                    path,
-                    bpmn_component.call_properties().method,
-                )
-            )
-        bavs_config = {
-            'forwards': [
-                self._make_forward(upstream) for upstream in upstreams
-            ],
-        }
-        envoy_filter = {
-            'apiVersion': 'networking.istio.io/v1alpha3',
-            'kind': 'EnvoyFilter',
-            'metadata': {
-                'name': f'hijack-{dns_safe_name}',
-                'namespace': namespace,
-            },
-            'spec': {
-                'workloadSelector': {'labels': {'app': dns_safe_name}},
-                'configPatches': [
-                    {
-                        'applyTo': 'HTTP_FILTER',
-                        'match': {
-                            'context': 'SIDECAR_INBOUND',
-                            'listener': {
-                                'portNumber': port,
-                                'filterChain': {
-                                    'filter': {
-                                        'name': 'envoy.http_connection_manager',
-                                        'subFilter': {'name': 'envoy.router'},
-                                    },
-                                },
-                            },
-                        },
-                        'patch': {
-                            'operation': 'INSERT_BEFORE',
-                            'value': {
-                                'name': 'bavs_filter',
-                                'typed_config': {
-                                    '@type': 'type.googleapis.com/udpa.type.v1.TypedStruct',
-                                    'type_url': 'type.googleapis.com/bavs.BAVSFilter',
-                                    'value': bavs_config,
-                                },
-                            },
-                        },
-                    },
-                ]
-            }
-        }
-        k8s_objects.append(envoy_filter)
 
         if self._global_props.namespace is not None:
             service_account['metadata']['namespace'] = self._global_props.namespace

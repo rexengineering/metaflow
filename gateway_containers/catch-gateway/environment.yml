@@ -1,0 +1,27 @@
+name: catch-gateway
+channels:
+  - defaults
+  - rexchange
+  - conda-forge
+dependencies:
+  - python>=3.7
+  - boto3
+  - python
+  - gunicorn
+  - gunicorn=20.0.4
+  - gevent=1.4.0
+  - pip
+  - gevent
+  - requests
+  - quart
+  - pip:
+    - quart
+    - flask-restx==0.2.0
+    - pydantic==1.6.1
+    - psycopg2-binary==2.8.5
+    - flask-migrate==2.5.3
+    - pytest-env==0.6.2
+    - marshmallow-jsonschema==0.10.0
+    - marshmallow-sqlalchemy==0.23.1
+    - pydantic-sqlalchemy==0.0.5
+

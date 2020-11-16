@@ -28,21 +28,23 @@ class BPMNStartEvent(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
     def __init__(self, task : OrderedDict, process : OrderedDict, global_props):
+        # Note: We don't call the super constructor.
+        # TODO: separate this code out from Flowd
         self._namespace = global_props.namespace
 
-    #@property
+    @property
     def health_properties(self) -> HealthProperties:
         raise "who goes there"
 
-    #@property
+    @property
     def call_properties(self) -> CallProperties:
         raise "who goes there"
 
-    #@property
+    @property
     def service_properties(self) -> ServiceProperties:
         raise "who goes there"
 
-    #@property
+    @property
     def namespace(self) -> str:
         return self._namespace
 
@@ -50,6 +52,7 @@ class BPMNStartEvent(BPMNComponent):
         # Don't do anything since Flowd is already deployed.
         return []
 
+    @property
     def k8s_url(self) -> str:
         '''Returns the fully-qualified host + path that is understood by the k8s
         kube-dns. For example, returns "http://my-service.my-namespace:my-port"
@@ -57,8 +60,10 @@ class BPMNStartEvent(BPMNComponent):
         # Need to override this since it's flowd.
         return "http://flowd.rexflow:9002"
 
+    @property
     def path(self):
         return '/'
 
+    @property
     def envoy_host(self) -> str:
         return "flowd.rexflow.svc.cluster.local"

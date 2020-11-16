@@ -26,22 +26,21 @@ class HealthProbe:
         self.logger = logging.getLogger()
         self.etcd = get_etcd()
         self.executor = get_executor()
-        health_properties = task.health_properties()
-        service_properties = task.service_properties()
+        health_properties = task.health_properties
+        service_properties = task.service_properties
         protocol = service_properties.protocol.lower()
         host = service_properties.host
         port = service_properties.port
         path = (health_properties.path
                 if health_properties.path.startswith('/')
                 else f'/{health_properties.path}')
-        if on_kubernetes:
-            namespace = self.workflow.process.get_namespace(self.workflow.id_hash)
-            host = f'{host}.{namespace}.svc.cluster.local'
-        self.url = f'{protocol}://{host}:{port}{path}'
+        if not on_kubernetes:
+            assert False, "TODO: We need to update support for non-k8s stuff."
+        self.url = self.task.k8s_url
 
     def __call__(self):
         self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
-        health_properties = self.task.health_properties()
+        health_properties = self.task.health_properties
         result = ''
         while self.running:
             time.sleep(health_properties.period)

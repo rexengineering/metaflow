@@ -23,11 +23,16 @@ def handler(request):
     process = bpmn.BPMNProcess(spec['bpmn:definitions']['bpmn:process'])
     assert process.id != 'flow', 'Your process name cannot be "flow", as it is a reserved prefix.'
     workflow_obj = workflow.Workflow(process)
-    result[process.id] = workflow_obj.id
+    result["wf_id"] = workflow_obj.id
     if len(process.tasks) <= 0:
         logging.warn('No service tasks found in BPMN specification.')
     etcd = get_etcd(is_not_none=True)
     workflow_prefix = f'/rexflow/workflows/{workflow_obj.id}'
+    
+    # check that the WF hasn't already been applied, and raise an error if not.
+    previous_application = etcd.get(f'{workflow_prefix}/proc')[0]
+    assert not previous_application, "Workflow ID already exists!"
+
     etcd.put(workflow_prefix + '/proc', process.to_xml())
     if request.stopped:
         state_key = f'{workflow_prefix}/state'

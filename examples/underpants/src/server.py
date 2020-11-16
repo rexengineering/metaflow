@@ -19,7 +19,7 @@ def serve():
         if random() > 0.5:
             response = jsonify({'underpants': 'Collected.'})
         else:
-            response = jsonify({"underpants": "Not collected ):"})
+            response = jsonify({"underpants": "Collected."})
     else:
         response = request.get_json(force=True, silent=True)
         if response is not None:

@@ -17,7 +17,6 @@ def conditional():
     incoming_json = request.json
     value_to_compare = incoming_json  # we will whittle this down to an actual value
     comparison_result = False  # placeholder for scoping
-    print(incoming_json)
 
     for split in SPLITS:
         if split in value_to_compare:
@@ -42,7 +41,7 @@ def conditional():
     url = REXFLOW_XGW_TRUE_URL if comparison_result else REXFLOW_XGW_FALSE_URL
 
     # TODO: How about some error handling right here...
-    requests.post(url, json=incoming_json, headers={'x-flow-id': request.headers['x-flow-id']})
+    requests.post(url, json=incoming_json, headers={'x-flow-id': request.headers['x-flow-id'], 'x-rexflow-wf-id': request.headers['x-rexflow-wf-id']})
     return "The faith of knowing deep inside your heart, that Heaven holds"
 
 

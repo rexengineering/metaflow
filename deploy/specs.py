@@ -1,3 +1,5 @@
+import os
+
 rexflow_namespace_spec = {
     'apiVersion': 'v1',
     'kind': 'Namespace',
@@ -107,7 +109,11 @@ mk_flowd_deployment_spec = lambda etcd_host : {
                      'imagePullPolicy': 'IfNotPresent',
                      'name': 'flowd',
                      'ports': [{'containerPort': 9001}, {'containerPort': 9002}],
-                     'env': [{'name': 'ETCD_HOST', 'value': etcd_host}]}
+                     'env': [
+                         {'name': 'ETCD_HOST', 'value': etcd_host},
+                         {'name': 'AWS_ACCESS_KEY_ID', 'value': os.environ['AWS_ACCESS_KEY_ID']},
+                         {'name': 'AWS_SECRET_ACCESS_KEY', 'value': os.environ['AWS_SECRET_ACCESS_KEY']},
+                    ]}
                 ],
                 'serviceAccountName': 'flowd'}
         }

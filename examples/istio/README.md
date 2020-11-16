@@ -162,6 +162,50 @@ Other times, the girls' lockerroom is well-guarded and the mischievous
 underpants gnomes fail to collect the underpants. Therefore, the business
 plan fails with `{'underpants': 'Not collected.'}`.
 
+### Running TheForce (Example including Exclusive Gateway and Throw/Catch Events)
+You must first build the needed containers:
+```
+cd .../rexflow/gateway-containers/exclusive-gateway
+make build
+cd .../rexflow/gateway-containers/throw-gateway
+make build
+cd .../rexflow/gateway-containers/catch-gateway
+make build
+```
+
+Next, inspect `theforce.bpmn` in Zeebe Modeler. You'll see that we first collect
+underpants, and then raise an event that says "look, we just collected underpants!"
+Next, we catch an event when someone has thrown underpatns back to us (through another
+kinesis stream). Depending on whether sauce has been `applied`, we either profit or
+do not profit.
+
+So what catches the underpants and throws them back? Do this:
+```
+cd .../rexflow/gateway-containers/throw-gateway
+make conda
+conda activate throw-gateway
+cd .../rexflow/examples/istio
+python catch_daemon.py
+```
+The `catch_daemon.py` will listen for events and provide a simple toy interface for you
+to throw events back into our wf diagram.
+
+In another terminal (while the catch daemon is running), run
+```
+conda activate rexflow # or whatever environment you used to install Jon's prereqs
+python -m flowctl apply theforce.bpmn
+python -m flowctl run jedi '{}'
+python -m flowctl ps -o | jq .  # Should be RUNNING
+```
+Now, enter some value into the `catch_daemon.py` stdin. If you want to profit, 
+"applied" is the secret value that triggers profit. Next, run
+```
+python -m flowctl ps -o | jq .
+```
+You should see that the WF Instance has completed. Do it a few times with different
+values to see what's going on.
+
+
 ### Summary/TL;DR
 
 ```console
