@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from . import flow_pb2 as flow__pb2
+import flow_pb2 as flow__pb2
 
 
 class FlowDaemonStub(object):

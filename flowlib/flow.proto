@@ -23,6 +23,10 @@ message ApplyRequest {
     bool stopped = 2;
 }
 
+message RestartRequest {
+    string id = 1;
+}
+
 enum RequestKind {
     DEPLOYMENT = 0;
     INSTANCE = 1;
