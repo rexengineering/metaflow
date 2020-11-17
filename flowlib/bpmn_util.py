@@ -136,9 +136,9 @@ class ServiceProperties:
 
     def update(self, annotations):
         if 'host' in annotations:
-            self._host = annotations['host']
+            self._host = annotations['host'].replace('_', '-')
             if self._container_name is None:
-                self._container_name = self._host
+                self._container_name = annotations['host']
         if 'port' in annotations:
             self._port = int(annotations['port'])
         if 'orchestrator' in annotations:
