@@ -26,6 +26,9 @@ def serve():
             logging.info(response)
             if mode == 'secret_sauce':
                 response['sauce'] = 'Applied.'
+            elif mode == 'unreliable_sauce':
+                assert random() > 0.5
+                response['sauce'] = 'Applied.'
             elif mode == 'profit':
                 response['cashflow'] = 'Positive!'
             else:
