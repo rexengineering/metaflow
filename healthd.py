@@ -26,14 +26,6 @@ class HealthProbe:
         self.logger = logging.getLogger()
         self.etcd = get_etcd()
         self.executor = get_executor()
-        health_properties = task.health_properties
-        service_properties = task.service_properties
-        protocol = service_properties.protocol.lower()
-        host = service_properties.host
-        port = service_properties.port
-        path = (health_properties.path
-                if health_properties.path.startswith('/')
-                else f'/{health_properties.path}')
         if not on_kubernetes:
             assert False, "TODO: We need to update support for non-k8s stuff."
         self.url = self.task.k8s_url
