@@ -176,7 +176,38 @@ class WorkflowInstance:
                 logging.error('Failed to transition from STARTING -> RUNNING.')
 
     def retry(self):
-        return {'state': 'hellothere'}
+        # mark running
+        etcd = get_etcd()
+        if not etcd.replace(f'{self.key_prefix}/state', 'ERROR', 'RUNNING'):
+            logging.error('Failed to transition from ERROR -> RUNNING.')
+
+        # get headers
+        headers = json.loads(etcd.get(f'{self.key_prefix}/headers')[0].decode())
+
+        # next, get the json
+        payload = json.loads(etcd.get(f'{self.key_prefix}/payload')[0].decode())
+
+        # now, start the thing again.
+        response = requests.post(
+            f"http://{headers['X-Rexflow-Original-Host']}{headers['X-Rexflow-Original-Path']}",
+            json=payload,
+            headers={
+                'X-B3-Sampled': headers['X-B3-Sampled'],
+                'X-Envoy-Internal': headers['X-Envoy-Internal'],
+                'X-B3-Spanid': headers['X-B3-Spanid'],
+                'X-Flow-Id': self.id,
+                'X-Rexflow-Error-After': headers['X-Rexflow-Error-After'],
+                'X-Rexflow-Wf-Id': self.parent.id, 
+            }
+        )
+
+        # If failed, make error again.
+        if not response.ok:
+            if not etcd.replace(f'{self.key_prefix}/state', 'RUNNING', 'ERROR'):
+                logging.error('Failed to transition from RUNNING -> ERROR.')
+            return {"the Force": "Not with us."}
+
+        return {'the Force': 'with us'}
 
     def stop(self):
         raise NotImplementedError('Lazy developer error!')
