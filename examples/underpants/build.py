@@ -18,7 +18,7 @@ DOCKER_TEMPLATE = '''FROM underpants_base:latest
 ENV SERVER_MODE {}
 '''
 
-SERVER_MODES = {'collect', 'secret_sauce', 'profit'}
+SERVER_MODES = {'collect', 'secret-sauce', 'profit'}
 
 if __name__ == '__main__':
     if '--clean' in sys.argv:

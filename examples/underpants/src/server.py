@@ -24,7 +24,7 @@ def serve():
         response = request.get_json(force=True, silent=True)
         if response is not None:
             logging.info(response)
-            if mode == 'secret_sauce':
+            if mode == 'secret-sauce':
                 response['sauce'] = 'Applied.'
             elif mode == 'profit':
                 response['cashflow'] = 'Positive!'

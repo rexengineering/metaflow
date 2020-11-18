@@ -50,7 +50,7 @@ spec:
     spec:
       serviceAccountName: my-secret-sauce
       containers:
-      - image: secret_sauce
+      - image: secret-sauce
         imagePullPolicy: IfNotPresent
         name: my-secret-sauce
         ports:
