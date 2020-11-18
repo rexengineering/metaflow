@@ -175,5 +175,8 @@ class WorkflowInstance:
             if not etcd.replace(f'{self.key_prefix}/state', 'STARTING', 'RUNNING'):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
 
+    def retry(self):
+        return {'state': 'hellothere'}
+
     def stop(self):
         raise NotImplementedError('Lazy developer error!')

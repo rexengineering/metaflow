@@ -7,6 +7,7 @@ service FlowDaemon {
     rpc ApplyWorkflow (ApplyRequest) returns (FlowdResult); // flowctl apply
     rpc DeleteWorkflow (DeleteRequest) returns (FlowdResult); // flowctl delete
     rpc PSQuery (PSRequest) returns (FlowdResult); // flowctl ps
+    rpc RestartWorkflow (RestartRequest) returns (FlowdResult); // flowctl restart
     rpc RunWorkflow (RunRequest) returns (FlowdResult); // flowctl run
     rpc StartWorkflow (StartRequest) returns (FlowdResult); // flowctl start
     rpc StopWorkflow (StopRequest) returns (FlowdResult); // flowctl stop
@@ -24,7 +25,7 @@ message ApplyRequest {
 }
 
 message RestartRequest {
-    string id = 1;
+    string wf_instance_id = 1;
 }
 
 enum RequestKind {
