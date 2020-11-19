@@ -158,6 +158,7 @@ class CallProperties:
         self._path = None
         self._method = None
         self._serialization = None
+        self._total_attempts = None
 
     @property
     def path(self) -> str:
@@ -170,6 +171,16 @@ class CallProperties:
     @property
     def serialization(self) -> str:
         return self._serialization if self._serialization is not None else 'JSON'
+
+    @property
+    def total_attempts(self) -> int:
+        '''
+        Returns total number of times to attempt calling this service, including retries.
+        i.e. `total_attempts == 1` implies zero retries, `total_attempts == 3` implies two
+        retries.
+        '''
+        assert self._total_attempts is not None, "_total_attempts should be set by now."
+        return self._total_attempts
 
     def update(self, annotations:Mapping[str, Any]) -> None:
         if 'path' in annotations:
@@ -224,6 +235,7 @@ class WorkflowProperties:
         self._namespace = None
         self._namespace_shared = False
         self._id_hash = ''
+        self._retry_total_attempts = 2
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -243,6 +255,10 @@ class WorkflowProperties:
     @property
     def namespace_shared(self):
         return self._namespace_shared
+
+    @property
+    def retry_total_attempts(self):
+        return self._retry_total_attempts
 
     @property
     def orchestrator(self):
@@ -267,6 +283,9 @@ class WorkflowProperties:
             if not self._namespace_shared:
                 self._namespace = self._id
 
+        if 'retry' in annotations:
+            if 'total_attempts' in annotations['retry']:
+                self._retry_total_attempts = annotations['retry']['total_attempts']
 
 
 class BPMNComponent:
