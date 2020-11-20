@@ -3,6 +3,7 @@ import socket
 
 import kubernetes.client
 import kubernetes.client.rest
+import os
 
 from . import specs
 
@@ -86,6 +87,10 @@ class Deployer:
             'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
             specs.healthd_virtual_service_spec)
 
+        os.system("kubectl create ns kafka")
+        os.system("kubectl apply -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
+        os.system("kubectl apply -f https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
+
     def delete(self, _):
         self.delete_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
@@ -108,3 +113,8 @@ class Deployer:
         self.delete_namespaced_deployment('rexflow-etcd', 'rexflow')
         self.delete_namespaced_service_account('rexflow-etcd', 'rexflow')
         self.delete_namespace('rexflow')
+
+        os.system("kubectl delete -f https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
+        os.system("kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
+        os.system("kubectl delete ns kafka")
+
