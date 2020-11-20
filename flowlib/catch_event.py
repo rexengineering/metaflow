@@ -124,7 +124,11 @@ class BPMNCatchEvent(BPMNComponent):
             },
             {
                 "name": "REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS",
-                "value": str(target.call_properties.total_attempts) if target else "",
+                "value": str(target.call_properties.total_attempts) if target else "2",
+            },
+            {
+                "name": "REXFLOW_CATCHGATEWAY_FAIL_URL",
+                "value": "http://flowd.rexflow:9002/instancefail",
             },
 
             # We need AWS creds to access boto3. For now, we pass in this janky way (note:

@@ -186,18 +186,20 @@ class WorkflowInstance:
 
         # next, get the json
         payload = json.loads(etcd.get(f'{self.key_prefix}/payload')[0].decode())
+        headers_to_send = {
+            'X-Flow-Id': self.id,
+            'X-Rexflow-Wf-Id': self.parent.id, 
+        }
+
+        for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:
+            if k in headers:
+                headers_to_send[k] = headers[k]
 
         # now, start the thing again.
         response = requests.post(
             f"http://{headers['X-Rexflow-Original-Host']}{headers['X-Rexflow-Original-Path']}",
             json=payload,
-            headers={
-                'X-B3-Sampled': headers['X-B3-Sampled'],
-                'X-Envoy-Internal': headers['X-Envoy-Internal'],
-                'X-B3-Spanid': headers['X-B3-Spanid'],
-                'X-Flow-Id': self.id,
-                'X-Rexflow-Wf-Id': self.parent.id, 
-            }
+            headers=headers_to_send,
         )
 
         # If failed, make error again.

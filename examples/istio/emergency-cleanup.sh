@@ -6,7 +6,7 @@ kubectl config set-context --current --namespace=default
 
 function findall()
   {
-  kubectl get $1 | grep -E '(catch|throw|collect|secret-sauce|did-apply|profit)' | cut -d ' ' -f1
+  kubectl get $1 | grep -E '(catch|throw|collect|sauce|did-apply|profit)' | cut -d ' ' -f1
   }
 function cleanup()
   {

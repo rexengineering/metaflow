@@ -118,7 +118,7 @@ class BPMNThrowEvent(BPMNComponent):
             },
             {
                 "name": "REXFLOW_THROWGATEWAY_FORWARD_URL",
-                "value": target.k8s_url,
+                "value": target.k8s_url if target else None,
             },
             {
                 "name": "REXFLOW_THROWGATEWAY_TOTAL_ATTEMPTS",

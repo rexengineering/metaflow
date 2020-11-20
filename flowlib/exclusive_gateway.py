@@ -208,7 +208,7 @@ class BPMNXGateway(BPMNComponent):
                                     },
                                     {
                                         'name': 'REXFLOW_XGW_FAIL_URL',
-                                        'value': 'http://rexflow.flowd:9002/instancefail'
+                                        'value': 'http://flowd.rexflow:9002/instancefail'
                                     },
                                 ]
                             },

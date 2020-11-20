@@ -11,6 +11,7 @@ from typing import Any
 from quart import Quart, request
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
+from urllib.parse import urlparse
 
 import boto3
 from botocore.exceptions import ClientError
@@ -25,6 +26,8 @@ from code.executor import get_executor
 
 QUEUE = os.environ['REXFLOW_CATCHGATEWAY_QUEUE']
 FORWARD_URL = os.getenv('REXFLOW_CATCHGATEWAY_FORWARD_URL', '')
+TOTAL_ATTEMPTS = int(os.environ['REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS'])
+FAIL_URL = os.environ['REXFLOW_CATCHGATEWAY_FAIL_URL']
 
 
 class EventCatchPoller:
@@ -68,16 +71,39 @@ class EventCatchPoller:
         while True:  # iterate through all records in stream
             if not self.running:
                 break
-            response = self.kinesis_client.get_records(
+            kin_response = self.kinesis_client.get_records(
                 ShardIterator=self.get_iterator(self.stream_info['Shards'][0]),  # assume only 1 shard for now
                 Limit=1000,
             )
-            for record in response['Records']:
+            for record in kin_response['Records']:
+                print("Got a record: ", record, flush=True)
                 yield record
-            self.shard_it = response['NextShardIterator']
-            if self.shard_it is None or response['MillisBehindLatest'] == 0:
+            self.shard_it = kin_response['NextShardIterator']
+            if self.shard_it is None or kin_response['MillisBehindLatest'] == 0:
                 break
             time.sleep(1)
+
+    def make_call_(self, event, flow_id, wf_id):
+        next_headers = {
+            'x-flow-id': str(flow_id),
+            'x-rexflow-wf-id': str(wf_id),
+        }
+        success = False
+        for _ in range(TOTAL_ATTEMPTS):
+            try:
+                svc_response = requests.post(FORWARD_URL, headers=next_headers, json=event)
+                svc_response.raise_for_status()
+                success = True
+                break
+            except Exception:
+                print(f"failed making a call to {FORWARD_URL} on wf {flow_id}", flush=True)
+
+        if not success:
+            # Notify Flowd that we failed.
+            o = urlparse(FORWARD_URL)
+            next_headers['x-rexflow-original-host'] = o.netloc
+            next_headers['x-rexflow-original-path'] = o.path
+            requests.post(FAIL_URL, json=event, headers=next_headers)
 
     def __call__(self):
         while True:  # do forever
@@ -89,7 +115,7 @@ class EventCatchPoller:
                     self._seq_num = record['SequenceNumber']
                     flow_id = event.pop('x-flow-id')
                     wf_id = event.pop('x-rexflow-wf-id')
-                    requests.post(FORWARD_URL, headers={'x-flow-id': str(flow_id), 'x-rexflow-wf-id': str(wf_id)}, json=event)
+                    self.make_call_(event, flow_id, wf_id)
             except Exception as e:
                 import traceback
                 # For some reason, being in a ThreadpoolExecutor suppresses stacktraces, which

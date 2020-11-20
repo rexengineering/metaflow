@@ -48,7 +48,7 @@
     <bpmn:textAnnotation id="TextAnnotation_18mql5m">
       <bpmn:text>rexflow:
     service:
-        host: profit
+        host: unreliable_sauce
         port: 5000</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1yz0l60" sourceRef="Task_1mrtiy4" targetRef="TextAnnotation_18mql5m" />
@@ -60,7 +60,7 @@
     <bpmn:association id="Association_057this" sourceRef="Event_1cptoky" targetRef="TextAnnotation_06yt33r" />
     <bpmn:textAnnotation id="TextAnnotation_0dqtqab">
       <bpmn:text>rexflow:
-  queue: saucedpants
+  queue: stolenpants
   gateway_name: saucedpants</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1dz7dfo" sourceRef="Event_0md6xnm" targetRef="TextAnnotation_0dqtqab" />
@@ -114,7 +114,7 @@
         <dc:Bounds x="270" y="43" width="120" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
-        <dc:Bounds x="740" y="87" width="128" height="68" />
+        <dc:Bounds x="740" y="87" width="128" height="82" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_06yt33r_di" bpmnElement="TextAnnotation_06yt33r">
         <dc:Bounds x="400" y="73" width="120" height="82" />
@@ -132,7 +132,7 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
         <di:waypoint x="776" y="197" />
-        <di:waypoint x="791" y="155" />
+        <di:waypoint x="786" y="169" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_057this_di" bpmnElement="Association_057this">
         <di:waypoint x="450" y="219" />
