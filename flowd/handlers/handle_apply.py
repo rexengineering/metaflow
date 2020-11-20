@@ -31,7 +31,7 @@ def handler(request):
     
     # check that the WF hasn't already been applied, and raise an error if not.
     previous_application = etcd.get(f'{workflow_prefix}/proc')[0]
-    assert not previous_application, "Workflow ID already exists!"
+    # assert not previous_application, "Workflow ID already exists!"
 
     etcd.put(workflow_prefix + '/proc', process.to_xml())
     if request.stopped:

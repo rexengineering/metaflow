@@ -179,8 +179,7 @@ class CallProperties:
         i.e. `total_attempts == 1` implies zero retries, `total_attempts == 3` implies two
         retries.
         '''
-        assert self._total_attempts is not None, "_total_attempts should be set by now."
-        return self._total_attempts
+        return self._total_attempts if self._total_attempts else 2
 
     def update(self, annotations:Mapping[str, Any]) -> None:
         if 'path' in annotations:
@@ -189,6 +188,8 @@ class CallProperties:
             self._method = annotations['method']
         if 'serialization' in annotations:
             self._serialization = annotations['serialization']
+        if 'retry' in annotations:
+            self._total_attempts = annotations['retry']['total_attempts']
 
 
 class HealthProperties:
@@ -332,15 +333,16 @@ class BPMNComponent:
         }
         self._service_properties.update(service_update)
 
+        # Set the default Retry Policy, which may or may not be overriden by each
+        # individual BPMNComponent.
+        self._call_properties.update({'retry': {'total_attempts': self._global_props._retry_total_attempts}})
+
         if 'call' in self._annotation:
             self._call_properties.update(self._annotation['call'])
         if 'health' in self._annotation:
             self._health_properties.update(self._annotation['health'])
         if 'service' in self._annotation:
             self._service_properties.update(self._annotation['service'])
-
-
-
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any], digraph: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,

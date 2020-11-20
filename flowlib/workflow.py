@@ -196,7 +196,6 @@ class WorkflowInstance:
                 'X-Envoy-Internal': headers['X-Envoy-Internal'],
                 'X-B3-Spanid': headers['X-B3-Spanid'],
                 'X-Flow-Id': self.id,
-                'X-Rexflow-Error-After': headers['X-Rexflow-Error-After'],
                 'X-Rexflow-Wf-Id': self.parent.id, 
             }
         )

@@ -27,7 +27,7 @@ def serve():
             if mode == 'secret_sauce':
                 response['sauce'] = 'Applied.'
             elif mode == 'unreliable_sauce':
-                assert random() > 0.5
+                assert random() > 0.8
                 response['sauce'] = 'Applied.'
             elif mode == 'profit':
                 response['cashflow'] = 'Positive!'

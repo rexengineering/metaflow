@@ -104,12 +104,13 @@ class BPMNThrowEvent(BPMNComponent):
         # `targets` should be list of URL's. component_map[foo] returns a BPMNComponent, and
         # BPMNComponent.k8s_url returns the k8s FQDN + http path for the next task.
         targets = [
-            component_map[component_id].k8s_url
+            component_map[component_id]
             for component_id in digraph.get(self.id, set())
         ]
 
         assert len(targets) <= 1  # Multiplexing will require a Parallel Gateway.
         target = targets[0] if len(targets) else None
+
         env_config = [
             {
                 "name": "REXFLOW_THROWGATEWAY_QUEUE",
@@ -117,7 +118,11 @@ class BPMNThrowEvent(BPMNComponent):
             },
             {
                 "name": "REXFLOW_THROWGATEWAY_FORWARD_URL",
-                "value": target,
+                "value": target.k8s_url,
+            },
+            {
+                "name": "REXFLOW_THROWGATEWAY_TOTAL_ATTEMPTS",
+                "value": str(target.call_properties.total_attempts) if target else "",
             },
 
             # We need AWS creds to access boto3. For now, we pass in this janky way (note:

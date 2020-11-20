@@ -107,7 +107,7 @@ class BPMNCatchEvent(BPMNComponent):
         # `targets` should be list of URL's. component_map[foo] returns a BPMNComponent, and
         # BPMNComponent.k8s_url() returns the k8s FQDN + http path for the next task.
         targets = [
-            component_map[component_id].k8s_url
+            component_map[component_id]
             for component_id in digraph.get(self.id, set())
         ]
 
@@ -120,7 +120,11 @@ class BPMNCatchEvent(BPMNComponent):
             },
             {
                 "name": "REXFLOW_CATCHGATEWAY_FORWARD_URL",
-                "value": target,
+                "value": target.k8s_url,
+            },
+            {
+                "name": "REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS",
+                "value": str(target.call_properties.total_attempts) if target else "",
             },
 
             # We need AWS creds to access boto3. For now, we pass in this janky way (note:
