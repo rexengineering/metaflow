@@ -13,8 +13,7 @@ from hypercorn.config import Config
 from hypercorn.asyncio import serve
 from urllib.parse import urlparse
 
-import boto3
-from botocore.exceptions import ClientError
+from confluent_kafka import Consumer
 import json
 import os
 import re
@@ -24,10 +23,19 @@ import time
 from quart import jsonify
 from code.executor import get_executor
 
-QUEUE = os.environ['REXFLOW_CATCHGATEWAY_QUEUE']
+KAFKA_HOST = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_HOST']
+KAFKA_TOPIC = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_TOPIC']
+KAFKA_GROUP_ID = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_GROUP_ID']
 FORWARD_URL = os.getenv('REXFLOW_CATCHGATEWAY_FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.environ['REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS'])
 FAIL_URL = os.environ['REXFLOW_CATCHGATEWAY_FAIL_URL']
+
+
+kafka = Consumer({
+    'bootstrap.servers': KAFKA_HOST,
+    'group.id': KAFKA_GROUP_ID,
+    'auto.offset.reset': 'earliest'
+})
 
 
 class EventCatchPoller:
