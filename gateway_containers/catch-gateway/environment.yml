@@ -24,4 +24,5 @@ dependencies:
     - marshmallow-jsonschema==0.10.0
     - marshmallow-sqlalchemy==0.23.1
     - pydantic-sqlalchemy==0.0.5
+    - confluent_kafka
 

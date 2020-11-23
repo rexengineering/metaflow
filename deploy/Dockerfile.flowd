@@ -4,7 +4,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 EXPOSE 9001/tcp 9002/tcp
 RUN apt update && \
-    apt install -y curl
+    apt install -y curl emacs
 RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x ./kubectl && \
     mv ./kubectl /usr/local/bin/kubectl

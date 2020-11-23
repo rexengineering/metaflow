@@ -31,6 +31,7 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 
 THROW_GATEWAY_LISTEN_PORT = 5000
 THROW_GATEWAY_SVC_PREFIX = "throw"
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 class BPMNThrowEvent(BPMNComponent):
     '''Wrapper for BPMN service event metadata.
@@ -113,7 +114,7 @@ class BPMNThrowEvent(BPMNComponent):
 
         env_config = [
             {
-                "name": "REXFLOW_THROWGATEWAY_QUEUE",
+                "name": "REXFLOW_THROWGATEWAY_KAFKA_TOPIC",
                 "value": self.queue_name,
             },
             {
@@ -137,6 +138,10 @@ class BPMNThrowEvent(BPMNComponent):
                 "name": "AWS_SECRET_ACCESS_KEY",
                 "value": os.environ["AWS_SECRET_ACCESS_KEY"]
             },
+            {
+                "name": 'REXFLOW_THROWGATEWAY_KAFKA_HOST',
+                "value": KAFKA_HOST,
+            }
         ]
 
         # k8s Deployment

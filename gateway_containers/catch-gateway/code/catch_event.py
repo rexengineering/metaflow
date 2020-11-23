@@ -36,19 +36,15 @@ kafka = Consumer({
     'group.id': KAFKA_GROUP_ID,
     'auto.offset.reset': 'earliest'
 })
+kafka.subscribe([KAFKA_TOPIC])
 
 
 class EventCatchPoller:
-    def __init__(self, queue_name: str, forward_url: str):
-        self.queue_name = queue_name
+    def __init__(self, forward_url: str):
         self.forward_url = forward_url
-        self._seq_num = None
-        self.kinesis_client = boto3.client('kinesis', region_name='us-west-2')
-        self.stream_info = self.kinesis_client.describe_stream(StreamName=QUEUE)['StreamDescription']
         self.running = False
         self.future = None
         self.executor = get_executor()
-        self.shard_it = None
 
     def start(self):
         assert self.future is None
@@ -59,37 +55,10 @@ class EventCatchPoller:
         assert self.future is not None
         self.running = False
 
-    def get_iterator(self, shard):
-        if self.shard_it:
-            return self.shard_it
-        shard_id = shard['ShardId']
-        resp = self.kinesis_client.get_shard_iterator(
-            StreamName=self.queue_name,
-            ShardId=shard_id,
-            ShardIteratorType='LATEST',
-        )
-        self.shard_it = resp['ShardIterator']
-        return self.shard_it
+    def get_event(self):
+        msg = kafka.poll()
 
-    def get_events(self):
-        # This is a toy demo prototype since we are not going to be using Kinesis in our
-        # production system. Therefore, I do not bother with the Kinesis-specific work of
-        # coordinating between multiple readers of the same queue.
-
-        while True:  # iterate through all records in stream
-            if not self.running:
-                break
-            kin_response = self.kinesis_client.get_records(
-                ShardIterator=self.get_iterator(self.stream_info['Shards'][0]),  # assume only 1 shard for now
-                Limit=1000,
-            )
-            for record in kin_response['Records']:
-                print("Got a record: ", record, flush=True)
-                yield record
-            self.shard_it = kin_response['NextShardIterator']
-            if self.shard_it is None or kin_response['MillisBehindLatest'] == 0:
-                break
-            time.sleep(1)
+        return msg
 
     def make_call_(self, event, flow_id, wf_id):
         next_headers = {
@@ -118,12 +87,16 @@ class EventCatchPoller:
             if not self.running:
                 break
             try:
-                for record in self.get_events():
-                    event = json.loads(record['Data'])
-                    self._seq_num = record['SequenceNumber']
-                    flow_id = event.pop('x-flow-id')
-                    wf_id = event.pop('x-rexflow-wf-id')
-                    self.make_call_(event, flow_id, wf_id)
+                msg = self.get_event()
+                if not msg:
+                    continue
+                data = msg.value()
+                # For now, we insist upon only JSON.
+                event_json = json.loads(data.decode())
+                headers = dict(msg.headers())
+                assert 'x-flow-id' in headers
+                assert 'x-rexflow-wf-id' in headers
+                self.make_call_(event_json, headers['x-flow-id'].decode(), headers['x-rexflow-wf-id'].decode())
             except Exception as e:
                 import traceback
                 # For some reason, being in a ThreadpoolExecutor suppresses stacktraces, which
@@ -168,7 +141,7 @@ class QuartApp:
 class EventCatchApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
-        self.manager = EventCatchPoller(QUEUE, FORWARD_URL)
+        self.manager = EventCatchPoller(FORWARD_URL)
         self.app.route('/', methods=['GET'])(self.health_check)
         self.app.route('/', methods=['POST'])(self.forward_call)
 

@@ -8,7 +8,7 @@ import requests
 from urllib.parse import urlparse
 
 
-KAFKA_HOST = os.environ['REXFLOW_THROWGATEEWAY_KAFKA_HOST']
+KAFKA_HOST = os.environ['REXFLOW_THROWGATEWAY_KAFKA_HOST']
 KAFKA_TOPIC = os.environ['REXFLOW_THROWGATEWAY_KAFKA_TOPIC']
 FORWARD_URL = os.getenv('REXFLOW_THROWGATEWAY_FORWARD_URL', '')
 
@@ -16,7 +16,7 @@ TOTAL_ATTEMPTS_STR = os.getenv('REXFLOW_THROWGATEWAY_TOTAL_ATTEMPTS', '')
 TOTAL_ATTEMPTS = int(TOTAL_ATTEMPTS_STR) if TOTAL_ATTEMPTS_STR else 2
 FAIL_URL = os.getenv('REXFLOW_CATCHGATEWAY_FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 
-kafka = Producer({'bootstrap.servers': 'my-cluster-kafka-bootstrap.kafka:9092'})
+kafka = Producer({'bootstrap.servers': 'REXFLOW_THROWGATEWAY_KAFKA_HOST'})
 
 
 def send_to_stream(incoming_json, flow_id, wf_id):
@@ -31,22 +31,9 @@ def send_to_stream(incoming_json, flow_id, wf_id):
     kafka.produce(
         KAFKA_TOPIC,
         json.dumps(payload).encode('utf-8'),
-        delivery_report=lambda err, msg: print("error" if err is not None else "good!", flush=True),
         headers=headers,
-        # delivery_report=lambda err, msg: delivery_callback(incoming_json, flow_id, wf_id, err, msg)
     )
-    kafka.poll(0)  # hack, this sort of gets the delivery callback to be called.
-
-def delivery_callback(incoming_json, flow_id, wf_id, err, msg):
-    """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush(). """
-    if err is not None:
-        print('Message delivery failed: {}'.format(err), flush=True)
-        requests.post(
-            FAIL_URL,
-            headers={'x-flow-id': flow_id, 'x-rexflow-wf-id': wf_id, 'x-kafka-topic': msg.topic()},
-            json=incoming_json,
-        )
+    kafka.poll(0)  # good practice: flush the toilet
 
 def make_call_(event):
     headers = {
@@ -77,6 +64,9 @@ def make_call_(event):
 @app.route('/', methods=['POST'])
 def throw_event():
     incoming_json = request.json
+    from pprint import pprint as pp
+    pp(incoming_json)
+    print("wfid: ", request.headers['x-rexflow-wf-id'], "\ninstance:", request.headers['x-flow-id'], flush=True)
     send_to_stream(incoming_json, request.headers['x-flow-id'], request.headers['x-rexflow-wf-id'])
     if FORWARD_URL:
         make_call_(incoming_json)
