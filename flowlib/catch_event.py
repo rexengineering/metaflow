@@ -116,27 +116,27 @@ class BPMNCatchEvent(BPMNComponent):
         target = targets[0] if len(targets) else ''
         env_config = [
             {
-                "name": "REXFLOW_CATCHGATEWAY_KAFKA_HOST",
+                "name": "KAFKA_HOST",
                 "value": KAFKA_HOST,
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_KAFKA_TOPIC",
+                "name": "KAFKA_TOPIC",
                 "value": self.queue_name,
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_KAFKA_GROUP_ID",
+                "name": "KAFKA_GROUP_ID",
                 "value": dns_safe_name,
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_FORWARD_URL",
+                "name": "FORWARD_URL",
                 "value": target.k8s_url,
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS",
+                "name": "TOTAL_ATTEMPTS",
                 "value": str(target.call_properties.total_attempts) if target else "2",
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_FAIL_URL",
+                "name": "FAIL_URL",
                 "value": "http://flowd.rexflow:9002/instancefail",
             },
         ]

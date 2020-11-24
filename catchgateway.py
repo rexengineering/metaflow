@@ -21,15 +21,14 @@ import requests
 import time
 
 from quart import jsonify
-from code.executor import get_executor
-from code.workflow import WorkflowInstance
+from flowlib.executor import get_executor
 
-KAFKA_HOST = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_HOST']
-KAFKA_TOPIC = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_TOPIC']
-KAFKA_GROUP_ID = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_GROUP_ID']
-FORWARD_URL = os.getenv('REXFLOW_CATCHGATEWAY_FORWARD_URL', '')
-TOTAL_ATTEMPTS = int(os.environ['REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS'])
-FAIL_URL = os.environ['REXFLOW_CATCHGATEWAY_FAIL_URL']
+KAFKA_HOST = os.environ['KAFKA_HOST']
+KAFKA_TOPIC = os.environ['KAFKA_TOPIC']
+KAFKA_GROUP_ID = os.environ['KAFKA_GROUP_ID']
+FORWARD_URL = os.getenv('FORWARD_URL', '')
+TOTAL_ATTEMPTS = int(os.environ['TOTAL_ATTEMPTS'])
+FAIL_URL = os.environ['FAIL_URL']
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('REXFLOW_WF_ID', None)
@@ -163,7 +162,7 @@ class EventCatchApp(QuartApp):
         )
         if FUNCTION == "CATCH":
             return "For my ally is the Force, and a powerful ally it is."
-        return jsonify({"wf_id": instance.id})
+        return "TODO"
 
     def _shutdown(self):
         self.manager.stop()
