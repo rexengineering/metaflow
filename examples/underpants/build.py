@@ -4,7 +4,6 @@ import subprocess
 
 import docker
 
-
 BASE_DOCKERFILE = '''FROM python:3.8-slim
 WORKDIR /code
 COPY requirements.txt .
@@ -16,9 +15,11 @@ CMD [ "python", "./server.py"]
 
 DOCKER_TEMPLATE = '''FROM underpants_base:latest
 ENV SERVER_MODE {}
+ENV SLEEP_TIME {}
 '''
 
-SERVER_MODES = {'collect', 'secret_sauce', 'unreliable_sauce', 'profit'}
+SERVER_MODES = {'collect', 'secret-sauce', 'profit', 'unreliable-sauce'}
+SLEEP_TIME = 0
 
 if __name__ == '__main__':
     if '--clean' in sys.argv:
@@ -32,5 +33,6 @@ if __name__ == '__main__':
         mk_docker_cmd('underpants_base:latest'), input=BASE_DOCKERFILE, text=True)
     for mode in SERVER_MODES:
         subprocess.run(
-            mk_docker_cmd(f'{mode}:latest'), input=DOCKER_TEMPLATE.format(mode),
+            mk_docker_cmd(f'{mode}:latest'), input=DOCKER_TEMPLATE.format(mode,SLEEP_TIME),
             text=True)
+

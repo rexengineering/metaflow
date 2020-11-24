@@ -2,6 +2,7 @@ import logging
 
 from flowlib import flow_pb2
 from flowlib.etcd_utils import get_etcd, get_keys_from_prefix, EtcdDict
+from flowlib.constants import BStates, WorkflowKeys, WorkflowInstanceKeys
 
 
 def handler(request : flow_pb2.DeleteRequest):
@@ -16,7 +17,7 @@ def handler(request : flow_pb2.DeleteRequest):
     request_kind = request.kind
     if request_kind == flow_pb2.RequestKind.DEPLOYMENT:
         for workflow_id in request.ids:
-            prefix = f'/rexflow/workflows/{workflow_id}'
+            prefix = WorkflowKeys.key_of(workflow_id)
             workflow = EtcdDict.from_root(prefix)
             if len(workflow) <= 0:
                 message = f'Workflow deployment {workflow_id} was not found.'
@@ -24,7 +25,7 @@ def handler(request : flow_pb2.DeleteRequest):
                 result[workflow_id] = dict(result=-1, message=message)
                 continue
             workflow_state = workflow['state']
-            if workflow_state not in {b'ERROR', b'STOPPED'}:
+            if workflow_state not in {BStates.ERROR, BStates.STOPPED}:
                 message = f'Workflow deployment {workflow_id} is not in the ERROR or STOPPED state.'
                 logging.warn(message)
                 result[workflow_id] = dict(result=-2, message=message)
@@ -43,16 +44,16 @@ def handler(request : flow_pb2.DeleteRequest):
                 result[workflow_id] = dict(result=-3, message=message)
     elif request_kind == flow_pb2.RequestKind.INSTANCE:
         for instance_id in request.ids:
-            prefix = f'/rexflow/instances/{instance_id}'
+            prefix = WorkflowInstanceKeys.key_of(instance_id)
             keys = get_keys_from_prefix(prefix)
             if len(keys) <= 0:
                 message = f'Workflow instance {instance_id} was not found.'
                 logging.warn(message)
                 result[instance_id] = dict(result=-1, message=message)
                 continue
-            state_key = f'{prefix}/state'
+            state_key = WorkflowInstanceKeys.state_path(instance_id)
             instance_state = etcd.get(state_key)[0]
-            good_states = {b'STOPPED', b'ERROR', b'COMPLETED'}
+            good_states = {BStates.STOPPED, BStates.ERROR, BStates.COMPLETED}
             logging.debug(instance_state)
             if instance_state not in good_states:
                 message = f'Workflow instance {instance_id} is not in the '\
