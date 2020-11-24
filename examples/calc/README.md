@@ -22,7 +22,7 @@ Running the Example
     ```console
     % WF_PROC=CalcProcess-5dc0f6bcf37b11ea9ac2acde48001122
     ```
-* Run a worflow instance using `flowctl run`.
+* Run a workflow instance using `flowctl run`.
     ```console
     % python -m flowctl run $WF_PROC 1 2 3
     2020-09-10 10:37:16,798|flowctl|INFO|run_action.py:35|Got response: 0, "Ok", {"CalcProcess-5dc0f6bcf37b11ea9ac2acde48001122": "flow-8188a784f37b11ea9ac2acde48001122"}
