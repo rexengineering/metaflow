@@ -61,7 +61,7 @@ class WorkflowInstanceKeys:
         self.state         = self.state_key(id)
         self.headers       = self.headers_key(id)
         self.payload       = self.payload_key(id)
-        self.was_error_key = self.was_error_key(id)
+        self.error_key     = self.was_error_key(id)
 
     @classmethod
     def key_of(cls, id):
