@@ -22,6 +22,7 @@ import time
 
 from quart import jsonify
 from code.executor import get_executor
+from code.workflow import WorkflowInstance
 
 KAFKA_HOST = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_HOST']
 KAFKA_TOPIC = os.environ['REXFLOW_CATCHGATEWAY_KAFKA_TOPIC']
@@ -30,13 +31,18 @@ FORWARD_URL = os.getenv('REXFLOW_CATCHGATEWAY_FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.environ['REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS'])
 FAIL_URL = os.environ['REXFLOW_CATCHGATEWAY_FAIL_URL']
 
+FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
+WF_ID = os.getenv('REXFLOW_WF_ID', None)
 
-kafka = Consumer({
-    'bootstrap.servers': KAFKA_HOST,
-    'group.id': KAFKA_GROUP_ID,
-    'auto.offset.reset': 'earliest'
-})
-kafka.subscribe([KAFKA_TOPIC])
+
+kafka = None
+if KAFKA_TOPIC:    
+    kafka = Consumer({
+        'bootstrap.servers': KAFKA_HOST,
+        'group.id': KAFKA_GROUP_ID,
+        'auto.offset.reset': 'earliest'
+    })
+    kafka.subscribe([KAFKA_TOPIC])
 
 
 class EventCatchPoller:
@@ -155,13 +161,16 @@ class EventCatchApp(QuartApp):
             headers={'x-flow-id': request.headers['x-flow-id'], 'x-rexflow-wf-id': request.headers['x-rexflow-wf-id']},
             json=incoming_json,
         )
-        return "For my ally is the Force, and a powerful ally it is."
+        if FUNCTION == "CATCH":
+            return "For my ally is the Force, and a powerful ally it is."
+        return jsonify({"wf_id": instance.id})
 
     def _shutdown(self):
         self.manager.stop()
 
     def run(self):
-        self.manager.start()
+        if kafka is not None:
+            self.manager.start()
         super().run()
 
 
