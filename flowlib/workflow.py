@@ -15,8 +15,12 @@ import yaml
 from . import bpmn
 from .executor import get_executor
 from .etcd_utils import get_etcd, transition_state
-
-
+from .constants import (
+    BStates,
+    States,
+    WorkflowKeys,
+    WorkflowInstanceKeys,
+)
 class Workflow:
     def __init__(self, process : bpmn.BPMNProcess, id=None):
         self.process = process
@@ -24,14 +28,14 @@ class Workflow:
             self.id = self.process.id
         else:
             self.id = id
-        self.key_prefix = f'/rexflow/workflows/{self.id}'
+        self.keys = WorkflowKeys(self.id)
         self.properties = process.properties
         self.id_hash = self.properties.id_hash
 
     @classmethod
     def from_id(cls, id):
         etcd = get_etcd(is_not_none=True)
-        proc_key = f'/rexflow/workflows/{id}/proc'
+        proc_key = WorkflowKeys.proc_key(id)
         proc_bytes = etcd.get(proc_key)[0]
         proc_odict = xmltodict.parse(proc_bytes)['bpmn:process']
         process = bpmn.BPMNProcess(proc_odict)
@@ -39,9 +43,8 @@ class Workflow:
 
     def start(self):
         etcd = get_etcd(is_not_none=True)
-        state_key = f'{self.key_prefix}/state'
-        if not etcd.put_if_not_exists(state_key, 'STARTING'):
-            if not etcd.replace(state_key, 'STOPPED', 'STARTING'):
+        if not etcd.put_if_not_exists(self.keys.state, States.STARTING):
+            if not etcd.replace(self.keys.state, States.STOPPED, States.STARTING):
                 raise RuntimeError(f'{self.id} is not in a startable state')
         orchestrator = self.properties.orchestrator
         if orchestrator == 'docker':
@@ -56,7 +59,7 @@ class Workflow:
                 logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
             if docker_result.returncode != 0:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(state_key, 'STARTING', 'ERROR')
+                etcd.replace(self.keys.state, States.STARTING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
             kubernetes_input = StringIO()
             if orchestrator == 'kubernetes':
@@ -72,14 +75,13 @@ class Workflow:
                 logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
             if kubectl_result.returncode != 0:
                 logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
-                etcd.replace(state_key, 'STARTING', 'ERROR')
+                etcd.replace(self.keys.state, States.STARTING, States.ERROR)
         else:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def stop(self):
         etcd = get_etcd(is_not_none=True)
-        state_key = f'{self.key_prefix}/state'
-        if not transition_state(etcd, state_key, (b'RUNNING', b'ERROR'), b'STOPPING'):
+        if not transition_state(etcd, self.keys.state, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
         orchestrator = self.properties.orchestrator
         if orchestrator == 'docker':
@@ -90,7 +92,7 @@ class Workflow:
                 logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
             else:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(state_key, 'STOPPING', 'ERROR')
+                etcd.replace(self.keys.state, States.STOPPING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
             kubernetes_stream = StringIO()
             if orchestrator == 'kubernetes':
@@ -106,7 +108,7 @@ class Workflow:
                 logging.info(f'Got following output from Kubernetes:\n{kubectl_result.stdout}')
             if kubectl_result.returncode != 0:
                 logging.error(f'Error from Kubernetes:\n{kubectl_result.stderr}')
-                etcd.replace(state_key, 'STOPPING', 'ERROR')
+                etcd.replace(self.keys.state, States.STOPPING, States.ERROR)
         else:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
@@ -119,10 +121,10 @@ class WorkflowInstance:
             self.parent = parent
         if id is None:
             uid = uuid.uuid1().hex
-            self.id = f'flow-{uid}'
+            self.id = f'{self.parent.id}-{uid}'
         else:
             self.id = id
-        self.key_prefix = f'/rexflow/instances/{self.id}'
+        self.keys = WorkflowInstanceKeys(self.id)
 
     def start(self, *args):
         process = self.parent.process
@@ -169,23 +171,24 @@ class WorkflowInstance:
         all_ok = all(result for result in results)
         etcd = get_etcd(is_not_none=True)
         if not all_ok:
-            if not etcd.replace(f'{self.key_prefix}/state', 'STARTING', 'ERROR'):
+            if not etcd.replace(self.keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
         else:
-            if not etcd.replace(f'{self.key_prefix}/state', 'STARTING', 'RUNNING'):
+            if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
 
     def retry(self):
         # mark running
         etcd = get_etcd()
-        if not etcd.replace(f'{self.key_prefix}/state', 'ERROR', 'RUNNING'):
+
+        if not etcd.replace(self.keys.state, States.ERROR, States.RUNNING):
             logging.error('Failed to transition from ERROR -> RUNNING.')
 
         # get headers
-        headers = json.loads(etcd.get(f'{self.key_prefix}/headers')[0].decode())
+        headers = json.loads(etcd.get(self.keys.headers)[0].decode())
 
         # next, get the json
-        payload = json.loads(etcd.get(f'{self.key_prefix}/payload')[0].decode())
+        payload = json.loads(etcd.get(self.keys.payload)[0].decode())
         headers_to_send = {
             'X-Flow-Id': self.id,
             'X-Rexflow-Wf-Id': self.parent.id, 
@@ -204,7 +207,7 @@ class WorkflowInstance:
 
         # If failed, make error again.
         if not response.ok:
-            if not etcd.replace(f'{self.key_prefix}/state', 'RUNNING', 'ERROR'):
+            if not etcd.replace(self.keys.state, States.RUNNING, States.ERROR):
                 logging.error('Failed to transition from RUNNING -> ERROR.')
             return {"the Force": "Not with us."}
 

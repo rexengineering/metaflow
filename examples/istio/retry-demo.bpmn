@@ -49,7 +49,7 @@
     <bpmn:textAnnotation id="TextAnnotation_04roe2e">
       <bpmn:text>rexflow:
     service:
-        host: unreliable_sauce
+        host: unreliable-sauce
         port: 5000
     call:
         retry:

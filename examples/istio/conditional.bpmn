@@ -25,7 +25,7 @@
     <bpmn:sequenceFlow id="SequenceFlow_16qxrei" sourceRef="Task_1mrtiy4" targetRef="EndEvent_1pxdd1k" />
     <bpmn:serviceTask id="Task_1nyu98k" name="Dot dot dot...">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="secret_sauce" />
+        <zeebe:taskDefinition type="secret-sauce" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1ncgijo</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_0wlepjp</bpmn:outgoing>

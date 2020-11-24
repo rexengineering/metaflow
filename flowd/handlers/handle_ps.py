@@ -2,6 +2,7 @@ import logging
 
 from flowlib import flow_pb2
 from flowlib import etcd_utils
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
 
 
 class PSHandlers:
@@ -10,7 +11,7 @@ class PSHandlers:
 
     def handle_single_deployment(self, deployment_id):
         return etcd_utils.get_dict_from_prefix(
-            f'/rexflow/workflows/{deployment_id}',
+            WorkflowKeys.key_of(deployment_id),
             keys={'state'},
             value_transformer=lambda bstr: bstr.decode('utf-8')
         )
@@ -24,13 +25,13 @@ class PSHandlers:
     def handle_all_deployments(self):
         all_ids = set(
             key.split('/')[3]
-            for key in etcd_utils.get_keys_from_prefix('/rexflow/workflows/')
+            for key in etcd_utils.get_keys_from_prefix(WorkflowKeys.ROOT)
         )
         return self.handle_some_deployments(all_ids)
 
     def handle_single_instance(self, instance_id):
         return etcd_utils.get_dict_from_prefix(
-            f'/rexflow/instances/{instance_id}',
+            WorkflowInstanceKeys.key_of(instance_id),
             value_transformer=lambda bstr: bstr.decode('utf-8')
         )
 
@@ -43,7 +44,7 @@ class PSHandlers:
     def handle_all_instances(self):
         all_ids = set(
             key.split('/')[3]
-            for key in etcd_utils.get_keys_from_prefix('/rexflow/instances/')
+            for key in etcd_utils.get_keys_from_prefix(WorkflowInstanceKeys.ROOT)
         )
         return self.handle_some_instances(all_ids)
 
