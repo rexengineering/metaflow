@@ -1,22 +1,32 @@
 from confluent_kafka import Producer
 
+import asyncio
+import logging
+import signal
+from typing import Any
+
+from quart import Quart, request
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
+from urllib.parse import urlparse
+
 import json
-from code import app
-from flask import request
 import os
 import requests
 from urllib.parse import urlparse
 
+from flowlib.quart_app import QuartApp
 
-KAFKA_HOST = os.environ['REXFLOW_THROWGATEWAY_KAFKA_HOST']
-KAFKA_TOPIC = os.environ['REXFLOW_THROWGATEWAY_KAFKA_TOPIC']
-FORWARD_URL = os.getenv('REXFLOW_THROWGATEWAY_FORWARD_URL', '')
 
-TOTAL_ATTEMPTS_STR = os.getenv('REXFLOW_THROWGATEWAY_TOTAL_ATTEMPTS', '')
+KAFKA_HOST = os.environ['KAFKA_HOST']
+KAFKA_TOPIC = os.environ['KAFKA_TOPIC']
+FORWARD_URL = os.getenv('FORWARD_URL', '')
+
+TOTAL_ATTEMPTS_STR = os.getenv('TOTAL_ATTEMPTS', '')
 TOTAL_ATTEMPTS = int(TOTAL_ATTEMPTS_STR) if TOTAL_ATTEMPTS_STR else 2
-FAIL_URL = os.getenv('REXFLOW_CATCHGATEWAY_FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
+FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 
-kafka = Producer({'bootstrap.servers': 'REXFLOW_THROWGATEWAY_KAFKA_HOST'})
+kafka = Producer({'bootstrap.servers': KAFKA_HOST})
 
 
 def send_to_stream(incoming_json, flow_id, wf_id):
@@ -61,18 +71,31 @@ def make_call_(event):
         requests.post(FAIL_URL, json=event, headers=headers)
 
 
-@app.route('/', methods=['POST'])
-def throw_event():
-    incoming_json = request.json
-    from pprint import pprint as pp
-    pp(incoming_json)
-    print("wfid: ", request.headers['x-rexflow-wf-id'], "\ninstance:", request.headers['x-flow-id'], flush=True)
-    send_to_stream(incoming_json, request.headers['x-flow-id'], request.headers['x-rexflow-wf-id'])
-    if FORWARD_URL:
-        make_call_(incoming_json)
-    return "For my ally is the Force, and a powerful ally it is."
+class EventThrowApp(QuartApp):
+    def __init__(self, **kws):
+        super().__init__(__name__, **kws)
+        self.app.route('/', methods=['GET'])(self.health_check)
+        self.app.route('/', methods=['POST'])(self.throw_event)
+
+    def health_check(self):
+        kafka.poll(0)
+        return "May the Force be with you."
+
+    async def throw_event(self):
+        incoming_json = await request.get_json()
+        send_to_stream(incoming_json, request.headers['x-flow-id'], request.headers['x-rexflow-wf-id'])
+        if FORWARD_URL:
+            make_call_(incoming_json)
+        return "For my ally is the Force, and a powerful ally it is."
 
 
-@app.route('/', methods=['GET'])
-def health():
-    return "May the Force be with you."
+    def run(self):
+        super().run()
+
+
+if __name__ == '__main__':
+    # Two startup modes:
+    # Hot (re)start - Data already exists in etcd, reconstruct probes.
+    # Cold start - No workflow and/or probe data are in etcd.
+    app = EventThrowApp(bind='0.0.0.0:5000')
+    app.run()
