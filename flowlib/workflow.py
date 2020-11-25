@@ -114,23 +114,41 @@ class Workflow:
 
 
 class WorkflowInstance:
+    '''NOTE as of this commit:
+
+    This class does NOT get instantiated by the Start Event, because it requires the
+    creation of a Workflow Object. Doing this requires significant computation over the
+    BPMN XML, which is slow for large WF's. Rather, the Start Event already knows where
+    to send the first request. Furthermore, the Start Event uses the
+    `WorkflowInstanceKeys` object to determine which keys to manipulate in Etcd.
+    This class is instantiated by Flowd and used for:
+    1. Running a WF instance by calling the Start service
+    2. Potentially other dashboarding uses in the future (not yet implemented).
+    '''
     def __init__(self, parent : Union[str, Workflow], id:str=None):
         if isinstance(parent, str):
             self.parent = Workflow.from_id(parent)
         else:
             self.parent = parent
-        if id is None:
-            uid = uuid.uuid1().hex
-            self.id = f'{self.parent.id}-{uid}'
-        else:
-            self.id = id
+        self.id = id
         self.keys = WorkflowInstanceKeys(self.id)
 
+    @staticmethod
+    def new_instance_id(parent_id: str):
+        '''
+        Constructs a new WF Instance Id given a parent WF id. Should ONLY be
+        called by the Start Service.
+        '''
+        uid = uuid.uuid1().hex
+        return f'{parent_id}-{uid}'
+
     def start(self, *args):
+        '''Starts the WF and returns the resulting ID. NOTE: Now, WF Id's are
+        created by the Start Event.
+        '''
         process = self.parent.process
-        digraph = process.digraph
         executor_obj = get_executor()
-        def start_task(task_id : str):
+        def start_wf(task_id : str):
             '''
             Arguments:
                 task_id - Task ID in the BPMN spec.
@@ -162,20 +180,22 @@ class WorkflowInstance:
                 logging.info(f"Response for {task_id} in {self.id} was OK.")
             else:
                 logging.error(f"Response for {task_id} in {self.id} was not OK.  (status code {response.status_code})")
-            return response.ok
-        targets = [target_id
-            for target_id in digraph[process.entry_point['@id']]
-            if target_id.startswith('Task') # TODO: Handle other vertex types...
-        ]
-        results = executor_obj.map(start_task, targets)
-        all_ok = all(result for result in results)
+            return response
+        target = process.entry_point['@id']
+        future = executor_obj.submit(start_wf, target)
+
         etcd = get_etcd(is_not_none=True)
-        if not all_ok:
+        response = future.result()
+
+        if not response.ok:
             if not etcd.replace(self.keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
+            return {"instance_id": "Error"}
         else:
             if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
+            print(response, flush=True)
+            return response.json()
 
     def retry(self):
         # mark running

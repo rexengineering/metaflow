@@ -19,7 +19,6 @@ from .start_event import BPMNStartEvent
 from .end_event import BPMNEndEvent
 from .throw_event import BPMNThrowEvent
 from .catch_event import BPMNCatchEvent
-from .constants import WorkflowKeys
 
 from .bpmn_util import (
     iter_xmldict_for_key,
@@ -118,7 +117,7 @@ class BPMNProcess:
     @classmethod
     def from_workflow_id(cls, workflow_id):
         etcd = get_etcd(is_not_none=True)
-        process_xml = etcd.get(WorkflowKeys.proc_key(workflow_id))[0]
+        process_xml = etcd.get(f'/rexflow/workflows/{workflow_id}/proc')[0]
         process_dict = xmltodict.parse(process_xml)['bpmn:process']
         process = cls(process_dict)
         return process

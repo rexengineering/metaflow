@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 from typing import Any, Iterator, List, Mapping, Optional, Set
+import os
 
 import yaml
 import xmltodict
@@ -23,47 +24,105 @@ from .bpmn_util import (
     BPMNComponent,
 )
 
+from .k8s_utils import (
+    create_deployment,
+    create_service,
+    create_serviceaccount,
+    create_rexflow_ingress_vs,
+)
+
+
+START_EVENT_PREFIX = 'start'
+START_EVENT_LISTEN_PORT = '5000'
+START_EVENT_CONTAINER = 'catch-gateway:1.0.0'
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+
 
 class BPMNStartEvent(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task : OrderedDict, process : OrderedDict, global_props):
-        # Note: We don't call the super constructor.
-        # TODO: separate this code out from Flowd
+    def __init__(self, event : OrderedDict, process : OrderedDict, global_props):
+        super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
+        self._service_name = f"{START_EVENT_PREFIX}-{self._global_props.id}"
+        self._queue = None
 
-    @property
-    def health_properties(self) -> HealthProperties:
-        raise "who goes there"
+        self._service_properties.update({
+            'host': self._service_name,
+            'port': START_EVENT_LISTEN_PORT,
+            'container': START_EVENT_CONTAINER,
+        })
 
-    @property
-    def call_properties(self) -> CallProperties:
-        raise "who goes there"
-
-    @property
-    def service_properties(self) -> ServiceProperties:
-        raise "who goes there"
-
-    @property
-    def namespace(self) -> str:
-        return self._namespace
+        # Check if we listen to a kafka topic to start events.
+        if 'queue' in self._annotation:
+            self._queue = self._annotation['queue']
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
-        # Don't do anything since Flowd is already deployed.
-        return []
+        assert self._namespace, "new-grad programmer error: namespace should be set by now."
 
-    @property
-    def k8s_url(self) -> str:
-        '''Returns the fully-qualified host + path that is understood by the k8s
-        kube-dns. For example, returns "http://my-service.my-namespace:my-port"
-        '''
-        # Need to override this since it's flowd.
-        return "http://flowd.rexflow:9002"
+        k8s_objects = []
+        dns_safe_name = self.service_properties.host.replace('_', '-')
+        port = self.service_properties.port
+        namespace = self._namespace
 
-    @property
-    def path(self):
-        return '/'
+        forward_set = list(digraph.get(self.id, set()))
+        assert len(forward_set) == 1
+        task = component_map[forward_set[0]]
 
-    @property
-    def envoy_host(self) -> str:
-        return "flowd.rexflow.svc.cluster.local"
+        deployment_env_config = [
+            {
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "REXFLOW_CATCH_START_FUNCTION",
+                "value": "START",
+            },
+            {
+                "name": "WF_ID",
+                "value": self._global_props.id,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": task.call_properties.total_attempts
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": task.k8s_url,
+            },
+            {
+                "name": "FAIL_URL",
+                "value": "http://flowd.rexflow:9002/instancefail",
+            },
+            {
+                "name": "KAFKA_GROUP_ID",
+                "value": dns_safe_name,
+            },
+            {
+                "name": "ETCD_HOST",
+                "value": os.environ['ETCD_HOST'],
+            }
+        ]
+        if self._queue is not None:
+            deployment_env_config.append({
+                "name": "KAFKA_TOPIC",
+                "value": self._queue,
+            })
+
+        k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
+        k8s_objects.append(create_service(namespace, dns_safe_name, port))
+        k8s_objects.append(create_deployment(
+            namespace,
+            dns_safe_name,
+            self.service_properties.container,
+            port,
+            deployment_env_config,
+        ))
+        k8s_objects.append(create_rexflow_ingress_vs(
+            namespace,
+            dns_safe_name,
+            uri_prefix=f'/{dns_safe_name}',
+            dest_port=port,
+            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
+        ))
+        return k8s_objects

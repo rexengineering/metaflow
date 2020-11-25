@@ -66,7 +66,7 @@ class Deployer:
         self.create_namespaced_service(
             'rexflow', specs.flowd_service_specs['rexflow'])
         self.create_namespaced_deployment(
-            'rexflow', specs.mk_flowd_deployment_spec('rexflow-etcd'))
+            'rexflow', specs.mk_flowd_deployment_spec('rexflow-etcd.rexflow'))
         self.create_namespaced_role_binding(
             'default', specs.flowd_edit_default_spec)
         # healthd
@@ -75,7 +75,7 @@ class Deployer:
         self.create_namespaced_service(
             'rexflow', specs.healthd_service_spec)
         self.create_namespaced_deployment(
-            'rexflow', specs.mk_healthd_deployment_spec('rexflow-etcd'))
+            'rexflow', specs.mk_healthd_deployment_spec('rexflow-etcd.rexflow'))
         # Gateway and virtual services
         self.create_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'gateways',

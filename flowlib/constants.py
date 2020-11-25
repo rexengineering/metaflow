@@ -62,6 +62,7 @@ class WorkflowInstanceKeys:
         self.headers       = self.headers_key(id)
         self.payload       = self.payload_key(id)
         self.error_key     = self.was_error_key(id)
+        self.parent        = self.parent_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -90,3 +91,7 @@ class WorkflowInstanceKeys:
     @classmethod
     def was_error_key(cls, id):
         return f'{cls.key_of(id)}/wasError'
+
+    @classmethod
+    def parent_key(cls, id):
+        return f'{cls.key_of(id)}/parent'
