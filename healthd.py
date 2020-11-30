@@ -7,12 +7,12 @@ from quart import jsonify
 import requests
 
 from flowlib.bpmn_util import BPMNComponent
-from flowlib.etcd_utils import get_etcd, get_next_level
+from flowlib.etcd_utils import get_etcd, get_next_level, get_keys_from_prefix
 from flowlib.executor import get_executor
 from flowlib.flowd_utils import get_log_format
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
-from flowlib.constants import States, BStates, WorkflowKeys
+from flowlib.constants import States, BStates, WorkflowKeys, WorkflowInstanceKeys
 
 
 class HealthProbe:
@@ -88,10 +88,10 @@ class HealthManager:
         watch_iter, self.cancel_watch = self.etcd.watch_prefix(WorkflowKeys.ROOT)
         for event in watch_iter:
             key = event.key.decode('utf-8')
+            value = event.value.decode('utf-8')
             if key.endswith('/state'):
                 workflow_id = key.split('/')[3]
                 if isinstance(event, PutEvent):
-                    value = event.value.decode('utf-8')
                     if value == States.STARTING:
                         assert workflow_id not in self.workflows.keys()
                         workflow = Workflow.from_id(workflow_id)
@@ -105,7 +105,7 @@ class HealthManager:
                         future = self.executor.submit(self.wait_for_up, workflow)
                     elif value == States.STOPPING:
                         workflow = self.workflows[workflow_id]
-                        future = self.executor.submit(self.wait_for_down, workflow)
+                        future = self.executor.submit(self.stop_workflow, workflow)
                 elif isinstance(event, DeleteEvent):
                     self.logger.info(f'{workflow_id} DELETE event - {value}')
                     for probe in self.probes[workflow_id].values():
@@ -155,6 +155,57 @@ class HealthManager:
                     return result
         return False
 
+    def stop_workflow(self, workflow : Workflow):
+        '''
+        Stopping a workflow means we need to wait for all the instances for that
+        workflow to COMPLETE or ERROR. Then we need to delete the deployment for
+        the workflow, and finally wait for all those tasks to go DOWN before
+        finally marking the workflow as STOPPED.
+
+        TODO: Do we need to enforce a timeout?
+        '''
+        self.logger.info(f'stop_workflow {workflow.id}')
+        # the prefix key for instances will the hive root plus the workflow.id and a terminating
+        # hyphen. This should pull all instance keys for a given workflow.
+        instance_prefix = f'{WorkflowInstanceKeys.key_of(workflow.id)}-'
+
+        instances = get_keys_from_prefix(instance_prefix)
+        # count the number of state values that are NOT
+        # either COMPLETED or ERROR.
+        alive = []
+        for inst_key in instances:
+            if inst_key.endswith('/state'):
+                state = self.etcd.get(inst_key)[0]
+                if state not in (BStates.COMPLETED, BStates.ERROR):
+                    self.logger.info(f'stop_workflow detected unfinished instance {inst_key} in state {state}')
+                    alive.append(inst_key)
+
+        while len(alive) > 0:
+            self.logger.info(f'{len(alive)} instances still live!')
+            time.sleep(5)
+            for inst_key in alive:
+                state = self.etcd.get(inst_key)[0]
+                if state in (BStates.COMPLETED, BStates.ERROR):
+                    self.logger.info(f'Instance {inst_key} has now completed with state {state}')
+                    alive.remove(inst_key)
+
+        # if len(alive) > 0:
+        #     watch_iter, cancel = self.etcd.watch_prefix(instance_prefix)
+        #     for event in watch_iter:
+        #         key = event.key.decode('utf-8') #'/'.join(event.key.decode('utf-8').split('/')[:-1])  # strip last node from key path
+        #         if key.endswith('/state'):
+        #             val = event.value.decode('utf-8')
+        #             self.logger.info(f'stop_workflow: Got key {key} {val} {key in alive}')
+        #             if key in alive and val in (States.COMPLETED, States.ERROR):
+        #                 alive.remove(key)
+        #                 self.logger.info(f'{len(alive)} instances still live!')
+        #                 if len(alive) == 0:
+        #                     cancel()
+
+        self.logger.info(f'Removing workflow {workflow.id}')
+        workflow.remove()
+        return self.wait_for_down(workflow)
+
     def start(self):
         for workflow in self.workflows.values():
             probes = {
@@ -169,7 +220,7 @@ class HealthManager:
             if workflow_state == States.STARTING:
                 self.executor.submit(self.wait_for_up, workflow)
             elif workflow_state == States.STOPPING:
-                self.executor.submit(self.wait_for_down, workflow)
+                self.executor.submit(self.stop_workflow, workflow)
         self.future = self.executor.submit(self)
 
     def stop(self):

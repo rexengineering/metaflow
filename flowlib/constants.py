@@ -74,3 +74,15 @@ class WorkflowInstanceKeys:
     @classmethod
     def result_key(cls, id):
         return f'{cls.key_of(id)}/result'
+
+'''
+Accept a key in the form of <workflow_id>-<guid>
+and return a tuple of (workflow_id,guid)
+
+It's assumed that the instance_id has no occurance of '-'
+othwerise this breaks.
+'''
+def split_key(instance_id : str):
+    parts = instance_id.split('-');
+    return ('-'.join(parts[0:-1]), '-'.join(parts[-1]))
+
