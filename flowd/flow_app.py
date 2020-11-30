@@ -15,7 +15,7 @@ class FlowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
-        self.app.route('/', methods=('POST',))(self.root_route)
+        # self.app.route('/', methods=('POST',))(self.root_route)
         self.app.route('/instancefail', methods=('POST',))(self.fail_route)
 
     async def root_route(self):
@@ -48,6 +48,7 @@ class FlowApp(QuartApp):
     async def fail_route(self):
         # When there is a flow ID in the headers, store the result in etcd and
         # change the state to ERROR.
+        print("HOOOOLLLLLLLYYYYY BUCKETS", flush=True)
         if 'X-Flow-Id' in request.headers:
             flow_id = request.headers['X-Flow-Id']
 

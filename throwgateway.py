@@ -16,17 +16,32 @@ import requests
 from urllib.parse import urlparse
 
 from flowlib.quart_app import QuartApp
+from flowlib.etcd_utils import (
+    get_etcd,
+    transition_state,
+)
+from flowlib.constants import (
+    WorkflowInstanceKeys,
+    BStates,
+    States,
+)
 
 
 KAFKA_HOST = os.environ['KAFKA_HOST']
-KAFKA_TOPIC = os.environ['KAFKA_TOPIC']
+KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 
 TOTAL_ATTEMPTS_STR = os.getenv('TOTAL_ATTEMPTS', '')
 TOTAL_ATTEMPTS = int(TOTAL_ATTEMPTS_STR) if TOTAL_ATTEMPTS_STR else 2
 FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
+FUNCTION = os.getenv('REXFLOW_THROW_END_FUNCTION', 'THROW')
+WF_ID = os.getenv('WF_ID', None)
+END_EVENT_NAME = os.getenv('END_EVENT_NAME', None)
 
-kafka = Producer({'bootstrap.servers': KAFKA_HOST})
+
+kafka = None
+if KAFKA_TOPIC:    
+    kafka = Producer({'bootstrap.servers': KAFKA_HOST})
 
 
 def send_to_stream(incoming_json, flow_id, wf_id):
@@ -71,6 +86,48 @@ def make_call_(event):
         requests.post(FAIL_URL, json=event, headers=headers)
 
 
+def complete_instance(instance_id, wf_id, payload):
+    assert wf_id == WF_ID, "Did we call the wrong End Event???"
+    etcd = get_etcd()
+    state_key = WorkflowInstanceKeys.state_key(instance_id)
+    payload_key = WorkflowInstanceKeys.payload_key(instance_id)
+    was_error_key = WorkflowInstanceKeys.was_error_key(instance_id)
+    headers_key = WorkflowInstanceKeys.headers_key(instance_id)
+    result_key = WorkflowInstanceKeys.result_key(instance_id)
+    end_event_key = WorkflowInstanceKeys.end_event_key(instance_id)
+
+    # We insist that only ONE End Event is reached. Therefore, there should
+    # be no result key.
+    if etcd.put_if_not_exists(result_key, payload):
+        # The following code block checks to see if this WF Instance was 'restart'ed.
+        # If it was `restart`ed, we should see a previous `payload` and `headers` key.
+        previous_payload = etcd.get(payload_key)
+        if previous_payload[0]:
+            etcd.delete(headers_key)
+            etcd.delete(payload_key)
+            etcd.put(was_error_key, BStates.TRUE)
+
+        # Mark the WF Instance with the name of the End Event that terminated it.
+        if END_EVENT_NAME:
+            etcd.put(end_event_key, END_EVENT_NAME)
+
+        # Now, all we have to do is update the state.
+        good_states = {BStates.STARTING, BStates.RUNNING}
+        if not transition_state(etcd, state_key, good_states, BStates.COMPLETED):
+            logging.error(
+                f'Race on {state_key}; state changed out of known'
+                    ' good state before state transition could occur!'
+            )
+            etcd.put(state_key, BStates.ERROR)
+    else:
+        # This means that A Bad Thing has happened, and we should transition
+        # the Instance to the Error state.
+        logging.error(f'Race on {state_key}; somehow we ended up at End Event twice!')
+        etcd.put(state_key, BStates.ERROR)
+        assert False, "somehow it was already completed?"
+    return 'Great shot kid, that was one in a million!'
+
+
 class EventThrowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
@@ -82,10 +139,27 @@ class EventThrowApp(QuartApp):
         return "May the Force be with you."
 
     async def throw_event(self):
-        incoming_json = await request.get_json()
-        send_to_stream(incoming_json, request.headers['x-flow-id'], request.headers['x-rexflow-wf-id'])
+        print("call to throw_event", flush=True)
+        data = await request.data
+        incoming_json = json.loads(data.decode())
+        from pprint import pprint as pp
+        pp(incoming_json)
+        print("Data:", data, flush=True)
+        if kafka is not None:
+            send_to_stream(
+                incoming_json,
+                request.headers['x-flow-id'],
+                request.headers['x-rexflow-wf-id']
+            )
         if FORWARD_URL:
             make_call_(incoming_json)
+        if FUNCTION == 'END':
+            complete_instance(
+                request.headers['x-flow-id'],
+                request.headers['x-rexflow-wf-id'],
+                data
+            )
+        print("hello there, we're about to return goodness!", flush=True)
         return "For my ally is the Force, and a powerful ally it is."
 
 
