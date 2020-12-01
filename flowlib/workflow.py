@@ -83,7 +83,12 @@ class Workflow:
         etcd = get_etcd(is_not_none=True)
         if not transition_state(etcd, self.keys.state, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
+
+    def remove(self):
+        logging.info(f'Removing deployment for workflow {self.id}')
+        etcd = get_etcd(is_not_none=True)
         orchestrator = self.properties.orchestrator
+        logging.info(f'orchestrator is {orchestrator}')
         if orchestrator == 'docker':
             docker_result = subprocess.run(
                 ['docker', 'stack', 'rm', self.id_hash], capture_output=True, text=True,
