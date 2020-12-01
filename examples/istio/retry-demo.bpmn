@@ -53,7 +53,7 @@
         port: 5000
     call:
         retry:
-            total_attempts: 1</bpmn:text>
+            total_attempts: 100</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1i25pe6" sourceRef="Task_1nyu98k" targetRef="TextAnnotation_04roe2e" />
     <bpmn:textAnnotation id="TextAnnotation_18mql5m">
