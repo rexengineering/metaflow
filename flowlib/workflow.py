@@ -106,7 +106,7 @@ class Workflow:
                 self.process.to_istio(kubernetes_stream, self.id_hash)
             ctl_input = kubernetes_stream.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'delete', '-f', '-'],
+                ['kubectl', 'delete', '--ignore-not-found', '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
             if kubectl_result.stdout:
