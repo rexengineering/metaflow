@@ -3,6 +3,7 @@ import logging
 from flowlib import flow_pb2
 from flowlib.etcd_utils import get_etcd, get_keys_from_prefix, EtcdDict
 from flowlib.constants import BStates, WorkflowKeys, WorkflowInstanceKeys
+from flowlib.workflow import Workflow
 
 
 def handler(request : flow_pb2.DeleteRequest):
@@ -34,14 +35,19 @@ def handler(request : flow_pb2.DeleteRequest):
             # down completes.
             # FIXME: Do we need some sort of DELETING state, or other lock
             # on the deployment?
-            elif etcd.delete_prefix(prefix):
-                message = f'Successfully deleted {workflow_id}.'
-                logging.info(message)
-                result[workflow_id] = dict(result=0, message=message)
             else:
-                message = f'Failed to fully remove {workflow_id} from the backing store.'
-                logging.error(message)
-                result[workflow_id] = dict(result=-3, message=message)
+                wf = Workflow.from_id(workflow_id)
+                wf.remove()
+                # FIXME: Should deleting a workflow also delete all workflow
+                # instance history as well?
+                if etcd.delete_prefix(prefix):
+                    message = f'Successfully deleted {workflow_id}.'
+                    logging.info(message)
+                    result[workflow_id] = dict(result=0, message=message)
+                else:
+                    message = f'Failed to fully remove {workflow_id} from the backing store.'
+                    logging.error(message)
+                    result[workflow_id] = dict(result=-3, message=message)
     elif request_kind == flow_pb2.RequestKind.INSTANCE:
         for instance_id in request.ids:
             prefix = WorkflowInstanceKeys.key_of(instance_id)
