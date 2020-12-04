@@ -108,7 +108,7 @@ class BPMNThrowEvent(BPMNComponent):
         k8s_objects.append(create_deployment(
             self._namespace,
             dns_safe_name,
-            'catch-gateway:1.0.0',
+            'throw-gateway:1.0.0',
             port,
             env_config,
         ))
