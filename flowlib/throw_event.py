@@ -26,6 +26,11 @@ from .bpmn_util import (
     get_annotations
 )
 
+from .k8s_utils import (
+    create_deployment,
+    create_service,
+    create_serviceaccount,
+)
 
 Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 
@@ -63,39 +68,6 @@ class BPMNThrowEvent(BPMNComponent):
         dns_safe_name = service_name.replace('_', '-')
 
         port = self.service_properties.port
-        service_account = {
-            'apiVersion': 'v1',
-            'kind': 'ServiceAccount',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-        }
-        k8s_objects.append(service_account)
-
-        # k8s Service
-        service = {
-            'apiVersion': 'v1',
-            'kind': 'Service',
-            'metadata': {
-                'name': dns_safe_name,
-                'labels': {
-                    'app': dns_safe_name,
-                },
-            },
-            'spec': {
-                'ports': [
-                    {
-                        'name': 'http',
-                        'port': port,
-                        'targetPort': port,
-                    }
-                ],
-                'selector': {
-                    'app': dns_safe_name,
-                },
-            },
-        }
-        k8s_objects.append(service)
 
         # Here's the tricky part: we need to configure the Environment Variables for the container
         # There are two goals:
@@ -131,50 +103,14 @@ class BPMNThrowEvent(BPMNComponent):
             }
         ]
 
-        # k8s Deployment
-        deployment = {
-            'apiVersion': 'apps/v1',
-            'kind': 'Deployment',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-            'spec': {
-                'replicas': 1, # FIXME: Make this a property one can set in the BPMN.
-                'selector': {
-                    'matchLabels': {
-                        'app': dns_safe_name,
-                    },
-                },
-                'template': {
-                    'metadata': {
-                        'labels': {
-                            'app': dns_safe_name,
-                        },
-                    },
-                    'spec': {
-                        'serviceAccountName': dns_safe_name,
-                        'containers': [
-                            {
-                                'image': 'throw-gateway:1.0.0',
-                                'imagePullPolicy': 'IfNotPresent',
-                                'name': dns_safe_name,
-                                'ports': [
-                                    {
-                                        'containerPort': port,
-                                    },
-                                ],
-                                'env': env_config,
-                            },
-                        ],
-                    },
-                },
-            },
-        }
-        k8s_objects.append(deployment)
-
-        if self._global_props.namespace is not None:
-            service_account['metadata']['namespace'] = self._global_props.namespace
-            service['metadata']['namespace'] = self._global_props.namespace
-            deployment['metadata']['namespace'] = self._global_props.namespace
+        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
+        k8s_objects.append(create_service(self._namespace, dns_safe_name, port))
+        k8s_objects.append(create_deployment(
+            self._namespace,
+            dns_safe_name,
+            'catch-gateway:1.0.0',
+            port,
+            env_config,
+        ))
 
         return k8s_objects
