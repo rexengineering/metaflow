@@ -100,6 +100,10 @@ class BPMNEndEvent(BPMNComponent):
                 "name": "END_EVENT_NAME",
                 "value": self._service_name,
             },
+            {
+                "name": "KAFKA_GROUP_ID",
+                "value": dns_safe_name,
+            }
         ]
         if self._queue is not None:
             deployment_env_config.append({
