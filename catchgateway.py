@@ -33,8 +33,10 @@ from flowlib.constants import (
     BStates,
 )
 
-KAFKA_HOST = os.environ['KAFKA_HOST']
+
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
+KAFKA_GROUP_ID = os.environ['KAFKA_GROUP_ID']
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.environ['TOTAL_ATTEMPTS'])
 FAIL_URL = os.environ['FAIL_URL']
@@ -73,7 +75,7 @@ class EventCatchPoller:
         msg = kafka.poll()
         return msg
 
-    def create_instance(self, incoming_data, headers=None):
+    def create_instance(self, incoming_data, content_type):
         instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
         etcd = get_etcd()
         keys = WorkflowInstanceKeys(instance_id)
@@ -87,6 +89,7 @@ class EventCatchPoller:
             incoming_data,
             instance_id,
             WF_ID,
+            content_type,
         )
         if first_task_response is not None:
             if not etcd.replace(keys.state, States.STARTING, BStates.RUNNING):
@@ -96,14 +99,15 @@ class EventCatchPoller:
                 logging.error('Failed to transition from STARTING -> RUNNING.')
         return {"id": instance_id}
 
-    def make_call_(self, event, flow_id, wf_id):
+    def make_call_(self, data, flow_id, wf_id, content_type):
         next_headers = {
             'x-flow-id': str(flow_id),
             'x-rexflow-wf-id': str(wf_id),
+            'content-type': content_type,
         }
         for _ in range(TOTAL_ATTEMPTS):
             try:
-                svc_response = requests.post(FORWARD_URL, headers=next_headers, json=event)
+                svc_response = requests.post(FORWARD_URL, headers=next_headers, data=data)
                 svc_response.raise_for_status()
                 return svc_response
             except Exception:
@@ -113,7 +117,7 @@ class EventCatchPoller:
         o = urlparse(FORWARD_URL)
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
-        requests.post(FAIL_URL, json=event, headers=next_headers)
+        requests.post(FAIL_URL, data=data, headers=next_headers)
 
     def __call__(self):
         while True:  # do forever
@@ -124,15 +128,18 @@ class EventCatchPoller:
                 if not msg:
                     continue
                 data = msg.value()
-                # For now, we insist upon only JSON.
-                event_json = json.loads(data.decode())
                 headers = dict(msg.headers())
                 if FUNCTION == 'CATCH':
                     assert 'x-flow-id' in headers
                     assert 'x-rexflow-wf-id' in headers
-                    self.make_call_(event_json, headers['x-flow-id'].decode(), headers['x-rexflow-wf-id'].decode())
+                    self.make_call_(
+                        data.decode(),
+                        flow_id=headers['x-flow-id'].decode(),
+                        wf_id=headers['x-rexflow-wf-id'].decode(),
+                        content_type=headers['content-type'].decode(),
+                    )
                 else:
-                    self.create_instance(event_json, headers)
+                    self.create_instance(data, headers['content-type'])
             except Exception as e:
                 import traceback
                 # For some reason, being in a ThreadpoolExecutor suppresses stacktraces, which
@@ -159,16 +166,32 @@ class EventCatchApp(QuartApp):
     async def catch_event(self):
         response = "For my ally is the Force, and a powerful ally it is."
 
-        incoming_json = await request.get_json()
+        data = await request.data
         if FUNCTION == 'START':
-            response = self.manager.create_instance(incoming_json, request.headers)
+            response = self.manager.create_instance(data, request.headers['content-type'])
         else:
             self.manager.make_call_(
-                incoming_json,
+                data,
                 request.headers['x-flow-id'],
                 request.headers['x-rexflow-wf-id'],
+                request.headers['content-type'],
             )
         return response
+
+    async def forward_call(self):
+        data = await request.data
+        requests.post(
+            FORWARD_URL,
+            headers={
+                'x-flow-id': request.headers['x-flow-id'],
+                'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
+                'content-type': request.headers['content-type'],
+            },
+            data=data,
+        )
+        if FUNCTION == "CATCH":
+            return "For my ally is the Force, and a powerful ally it is."
+        return "TODO"
 
     def _shutdown(self):
         self.manager.stop()
