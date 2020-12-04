@@ -18,8 +18,8 @@ from urllib.parse import urlparse
 from flowlib.quart_app import QuartApp
 
 
-KAFKA_HOST = os.environ['KAFKA_HOST']
-KAFKA_TOPIC = os.environ['KAFKA_TOPIC']
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 
 TOTAL_ATTEMPTS_STR = os.getenv('TOTAL_ATTEMPTS', '')
@@ -29,26 +29,24 @@ FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 kafka = Producer({'bootstrap.servers': KAFKA_HOST})
 
 
-def send_to_stream(incoming_json, flow_id, wf_id):
-    cp = incoming_json.copy()
-    payload = incoming_json
+def send_to_stream(data, flow_id, wf_id, content_type):
     headers = {
         'x-flow-id': flow_id,
         'x-rexflow-wf-id': wf_id,
+        'content-type': content_type,
     }
-    cp['x-flow-id'] = flow_id
-    cp['x-rexflow-wf-id'] = wf_id
     kafka.produce(
         KAFKA_TOPIC,
-        json.dumps(payload).encode('utf-8'),
+        data,
         headers=headers,
     )
     kafka.poll(0)  # good practice: flush the toilet
 
-def make_call_(event):
+def make_call_(data):
     headers = {
         'x-flow-id': request.headers['x-flow-id'],
         'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
+        'content-type': request.headers['content-type'],
     }
     if 'x-b3-trace-id' in request.headers:
         headers['x-b3-trace-id'] = request.headers['x-b3-trace-id']
@@ -56,7 +54,7 @@ def make_call_(event):
     success = False
     for _ in range(TOTAL_ATTEMPTS):
         try:
-            next_response = requests.post(FORWARD_URL, headers=headers, json=event)
+            next_response = requests.post(FORWARD_URL, headers=headers, data=data)
             next_response.raise_for_status()
             success = True
             break
@@ -68,7 +66,7 @@ def make_call_(event):
         o = urlparse(FORWARD_URL)
         headers['x-rexflow-original-host'] = o.netloc
         headers['x-rexflow-original-path'] = o.path
-        requests.post(FAIL_URL, json=event, headers=headers)
+        requests.post(FAIL_URL, data=data, headers=headers)
 
 
 class EventThrowApp(QuartApp):
@@ -82,10 +80,15 @@ class EventThrowApp(QuartApp):
         return "May the Force be with you."
 
     async def throw_event(self):
-        incoming_json = await request.get_json()
-        send_to_stream(incoming_json, request.headers['x-flow-id'], request.headers['x-rexflow-wf-id'])
+        data = await request.data
+        send_to_stream(
+            data,
+            request.headers['x-flow-id'],
+            request.headers['x-rexflow-wf-id'],
+            request.headers['content-type'],
+        )
         if FORWARD_URL:
-            make_call_(incoming_json)
+            make_call_(data)
         return "For my ally is the Force, and a powerful ally it is."
 
 
@@ -94,8 +97,5 @@ class EventThrowApp(QuartApp):
 
 
 if __name__ == '__main__':
-    # Two startup modes:
-    # Hot (re)start - Data already exists in etcd, reconstruct probes.
-    # Cold start - No workflow and/or probe data are in etcd.
     app = EventThrowApp(bind='0.0.0.0:5000')
     app.run()

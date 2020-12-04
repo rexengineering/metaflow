@@ -24,8 +24,8 @@ from quart import jsonify
 from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
 
-KAFKA_HOST = os.environ['KAFKA_HOST']
-KAFKA_TOPIC = os.environ['KAFKA_TOPIC']
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
 KAFKA_GROUP_ID = os.environ['KAFKA_GROUP_ID']
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.environ['TOTAL_ATTEMPTS'])
@@ -63,18 +63,18 @@ class EventCatchPoller:
 
     def get_event(self):
         msg = kafka.poll()
-
         return msg
 
-    def make_call_(self, event, flow_id, wf_id):
+    def make_call_(self, data, flow_id, wf_id, content_type):
         next_headers = {
             'x-flow-id': str(flow_id),
             'x-rexflow-wf-id': str(wf_id),
+            'content-type': content_type,
         }
         success = False
         for _ in range(TOTAL_ATTEMPTS):
             try:
-                svc_response = requests.post(FORWARD_URL, headers=next_headers, json=event)
+                svc_response = requests.post(FORWARD_URL, headers=next_headers, data=data)
                 svc_response.raise_for_status()
                 success = True
                 break
@@ -86,7 +86,7 @@ class EventCatchPoller:
             o = urlparse(FORWARD_URL)
             next_headers['x-rexflow-original-host'] = o.netloc
             next_headers['x-rexflow-original-path'] = o.path
-            requests.post(FAIL_URL, json=event, headers=next_headers)
+            requests.post(FAIL_URL, data=data, headers=next_headers)
 
     def __call__(self):
         while True:  # do forever
@@ -97,12 +97,15 @@ class EventCatchPoller:
                 if not msg:
                     continue
                 data = msg.value()
-                # For now, we insist upon only JSON.
-                event_json = json.loads(data.decode())
                 headers = dict(msg.headers())
                 assert 'x-flow-id' in headers
                 assert 'x-rexflow-wf-id' in headers
-                self.make_call_(event_json, headers['x-flow-id'].decode(), headers['x-rexflow-wf-id'].decode())
+                self.make_call_(
+                    data.decode(),
+                    flow_id=headers['x-flow-id'].decode(),
+                    wf_id=headers['x-rexflow-wf-id'].decode(),
+                    content_type=headers['content-type'].decode(),
+                )
             except Exception as e:
                 import traceback
                 # For some reason, being in a ThreadpoolExecutor suppresses stacktraces, which
@@ -123,11 +126,15 @@ class EventCatchApp(QuartApp):
         return "May the Force be with you."
 
     async def forward_call(self):
-        incoming_json = await request.get_json()
+        data = await request.data
         requests.post(
             FORWARD_URL,
-            headers={'x-flow-id': request.headers['x-flow-id'], 'x-rexflow-wf-id': request.headers['x-rexflow-wf-id']},
-            json=incoming_json,
+            headers={
+                'x-flow-id': request.headers['x-flow-id'],
+                'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
+                'content-type': request.headers['content-type'],
+            },
+            data=data,
         )
         if FUNCTION == "CATCH":
             return "For my ally is the Force, and a powerful ally it is."
