@@ -74,17 +74,17 @@
     </bpmn:textAnnotation>
     <bpmn:association id="Association_189jawh" sourceRef="Activity_0bekv98" targetRef="TextAnnotation_02eute1" />
     <bpmn:association id="Association_0ahotq6" sourceRef="Event_0w7y6jt" targetRef="TextAnnotation_0dqtqab" />
-    <bpmn:textAnnotation id="TextAnnotation_1h8bt4i">
+    <bpmn:textAnnotation id="TextAnnotation_1ov6vvr">
       <bpmn:text>rexflow:
   service:
-    host: events</bpmn:text>
+    host: end-events</bpmn:text>
     </bpmn:textAnnotation>
-    <bpmn:association id="Association_0eldy4r" sourceRef="EndEvent_1pxdd1k" targetRef="TextAnnotation_1h8bt4i" />
+    <bpmn:association id="Association_0xfwgko" sourceRef="EndEvent_1pxdd1k" targetRef="TextAnnotation_1ov6vvr" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
-      <bpmndi:BPMNShape id="TextAnnotation_1h8bt4i_di" bpmnElement="TextAnnotation_1h8bt4i">
-        <dc:Bounds x="1010" y="190" width="100" height="54" />
+      <bpmndi:BPMNShape id="TextAnnotation_1ov6vvr_di" bpmnElement="TextAnnotation_1ov6vvr">
+        <dc:Bounds x="970" y="140" width="100" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_09ozihg_di" bpmnElement="Flow_09ozihg">
         <di:waypoint x="628" y="297" />
@@ -175,9 +175,9 @@
         <di:waypoint x="611" y="279" />
         <di:waypoint x="619" y="148" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_0eldy4r_di" bpmnElement="Association_0eldy4r">
-        <di:waypoint x="1001" y="283" />
-        <di:waypoint x="1030" y="244" />
+      <bpmndi:BPMNEdge id="Association_0xfwgko_di" bpmnElement="Association_0xfwgko">
+        <di:waypoint x="994" y="280" />
+        <di:waypoint x="1009" y="208" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
