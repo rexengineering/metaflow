@@ -33,7 +33,6 @@ def serve():
             if mode == 'secret-sauce':
                 response['sauce'] = 'Applied.'
             elif mode == 'unreliable-sauce':
-                sleep(0.1)
                 assert False
                 response['sauce'] = 'Applied.'
             elif mode == 'profit':

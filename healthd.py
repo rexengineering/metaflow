@@ -26,7 +26,10 @@ class HealthProbe:
         self.logger = logging.getLogger()
         self.etcd = get_etcd()
         self.executor = get_executor()
-        self.url = self.task.k8s_url
+        health_path = self.task.health_properties.path
+        if not health_path.startswith('/'):
+            health_path = '/' + health_path
+        self.url = f'http://{self.task.envoy_host}:{self.task.service_properties.port}{health_path}'
 
     def __call__(self):
         self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
