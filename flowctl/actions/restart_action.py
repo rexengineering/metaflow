@@ -26,19 +26,10 @@ def restart_action(namespace : argparse.Namespace, *args, **kws):
     wf_instance_id = namespace.wf_instance_id
 
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
-        # response = flowd.RestartWorkflow(
-        #     flow_pb2.RestartRequest(wf_instance_id=str(namespace.wf_instance_id))
-        # )
-
-        # response = flowd.PSQuery(flow_pb2.PSRequest(
-        #     kind=flow_pb2.RequestKind.INSTANCE
-        # ))
-
         response = flowd.RestartWorkflow(flow_pb2.RestartRequest(
             wf_instance_id=wf_instance_id
         ))
 
-        print("got this far", flush=True)
     status = 0
     if response.status < 0:
         logging.error(

@@ -35,8 +35,6 @@ class FlowApp(QuartApp):
                         self.etcd.delete(headers_key)
                         self.etcd.delete(payload_key)
                         self.etcd.put(was_error_key, BStates.TRUE)
-
-                    print("hello there, about to put in request data", flush=True)
                     self.etcd.put(WorkflowInstanceKeys.result_key(flow_id), await request.data)
                 else:
                     logging.error(
