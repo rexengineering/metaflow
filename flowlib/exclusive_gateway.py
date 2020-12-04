@@ -24,6 +24,13 @@ from .bpmn_util import (
     BPMNComponent,
 )
 
+from .k8s_utils import (
+    create_deployment,
+    create_service,
+    create_serviceaccount,
+    create_rexflow_ingress_vs,
+)
+
 
 XGATEWAY_SVC_PREFIX = "xgateway"
 XGATEWAY_LISTEN_PORT = "5000"
@@ -116,111 +123,40 @@ class BPMNXGateway(BPMNComponent):
         service_name = self.service_properties.host
         dns_safe_name = service_name.replace('_', '-')
         port = self.service_properties.port
-        
-        # SVC Account
-        service_account = {
-            'apiVersion': 'v1',
-            'kind': 'ServiceAccount',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-        }
-        k8s_objects.append(service_account)
 
-        # SVC
-        service = {
-            'apiVersion': 'v1',
-            'kind': 'Service',
-            'metadata': {
-                'name': dns_safe_name,
-                'labels': {
-                    'app': dns_safe_name,
-                },
+        env_config = [
+            {'name': 'REXFLOW_XGW_JSONPATH', 'value': self.jsonpath},
+            {'name': 'REXFLOW_XGW_OPERATOR', 'value': self.operator},
+            {'name': 'REXFLOW_XGW_COMPARISON_VALUE', 'value': self.comparison_value},
+            {
+                'name': 'REXFLOW_XGW_TRUE_URL',
+                'value': component_map[self.true_forward_componentid].k8s_url,
             },
-            'spec': {
-                'ports': [
-                    {
-                        'name': 'http',
-                        'port': port,
-                        'targetPort': port,
-                    }
-                ],
-                'selector': {
-                    'app': dns_safe_name,
-                },
+            {
+                'name': 'REXFLOW_XGW_FALSE_URL',
+                'value': component_map[self.false_forward_componentid].k8s_url,
             },
-        }
-        k8s_objects.append(service)
+            {
+                'name': 'REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS',
+                'value': component_map[self.false_forward_componentid].call_properties.total_attempts,
+            },
+            {
+                'name': 'REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS',
+                'value': component_map[self.true_forward_componentid].call_properties.total_attempts,
+            },
+            {
+                'name': 'REXFLOW_XGW_FAIL_URL',
+                'value': 'http://flowd.rexflow:9002/instancefail'
+            },
+        ]
 
-        # K8s Deployment. This is the tricky part, since we must use the Environment
-        # variables to configure the behavior of the exclusive gateway service.
-        # component_map[self.true_forward_componentid].k8s_url,
-        deployment = {
-            'apiVersion': 'apps/v1',
-            'kind': 'Deployment',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-            'spec': {
-                'replicas': 1, # FIXME: Make this a property one can set in the BPMN.
-                'selector': {
-                    'matchLabels': {
-                        'app': dns_safe_name,
-                    },
-                },
-                'template': {
-                    'metadata': {
-                        'labels': {
-                            'app': dns_safe_name,
-                        },
-                    },
-                    'spec': {
-                        'serviceAccountName': dns_safe_name,
-                        'containers': [
-                            {
-                                'image': 'exclusive-gateway:1.0.0',
-                                'imagePullPolicy': 'IfNotPresent',
-                                'name': dns_safe_name,
-                                'ports': [
-                                    {
-                                        'containerPort': port,
-                                    },
-                                ],
-                                'env': [
-                                    {'name': 'REXFLOW_XGW_JSONPATH', 'value': self.jsonpath},
-                                    {'name': 'REXFLOW_XGW_OPERATOR', 'value': self.operator},
-                                    {'name': 'REXFLOW_XGW_COMPARISON_VALUE', 'value': self.comparison_value},
-                                    {
-                                        'name': 'REXFLOW_XGW_TRUE_URL',
-                                        'value': component_map[self.true_forward_componentid].k8s_url,
-                                    },
-                                    {
-                                        'name': 'REXFLOW_XGW_FALSE_URL',
-                                        'value': component_map[self.false_forward_componentid].k8s_url,
-                                    },
-                                    {
-                                        'name': 'REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS',
-                                        'value': component_map[self.false_forward_componentid].call_properties.total_attempts,
-                                    },
-                                    {
-                                        'name': 'REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS',
-                                        'value': component_map[self.true_forward_componentid].call_properties.total_attempts,
-                                    },
-                                    {
-                                        'name': 'REXFLOW_XGW_FAIL_URL',
-                                        'value': 'http://flowd.rexflow:9002/instancefail'
-                                    },
-                                ]
-                            },
-                        ],
-                    },
-                },
-            },
-        }
-        k8s_objects.append(deployment)
-        if self._namespace is not None:
-            service_account['metadata']['namespace'] = self._namespace
-            service['metadata']['namespace'] = self._namespace
-            deployment['metadata']['namespace'] = self._namespace
-
+        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
+        k8s_objects.append(create_service(self._namespace, dns_safe_name, port))
+        k8s_objects.append(create_deployment(
+            self._namespace,
+            dns_safe_name,
+            'exclusive-gateway:1.0.0',
+            port,
+            env_config,
+        ))
         return k8s_objects
