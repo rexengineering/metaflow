@@ -8,15 +8,12 @@ from flowlib.flowd_utils import get_flowd_connection
 __help__ = 'start one or more stopped workflow deployments or instances'
 
 
-def __refine_args__(parser : argparse.ArgumentParser):
+def __refine_args__(parser: argparse.ArgumentParser):
     # it gets very boring typing out the KIND types, so defining some useful shorthands
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         '-k', '--kind', action='store', default='INSTANCE',
-        help='Request kind, one of ' +
-             ', '.join(k for k in flow_pb2.RequestKind.keys()) +
-             'default is INSTANCE.',
-    )
+        help=f"Request kind, one of {', '.join(k for k in flow_pb2.RequestKind.keys())}, default is INSTANCE.")  # noqa
     group.add_argument(
         '-d', '--deployment', action='store_true',
         help='Shorthand to specify kind of type DEPLOYMENT.',
@@ -31,7 +28,7 @@ def __refine_args__(parser : argparse.ArgumentParser):
     return parser
 
 
-def start_action(namespace : argparse.Namespace, *args, **kws):
+def start_action(namespace: argparse.Namespace, *args, **kws):
     response = None
     if namespace.deployment:
         kind = flow_pb2.RequestKind.DEPLOYMENT

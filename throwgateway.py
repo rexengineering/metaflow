@@ -1,19 +1,11 @@
 from confluent_kafka import Producer
-
-import asyncio
 import logging
-import signal
-from typing import Any
 
-from quart import Quart, request, make_response
-from hypercorn.config import Config
-from hypercorn.asyncio import serve
+from quart import request, make_response
 from urllib.parse import urlparse
 
-import json
 import os
 import requests
-from urllib.parse import urlparse
 
 from flowlib.quart_app import QuartApp
 from flowlib.etcd_utils import (
@@ -23,7 +15,6 @@ from flowlib.etcd_utils import (
 from flowlib.constants import (
     WorkflowInstanceKeys,
     BStates,
-    States,
     TRACEID_HEADER,
 )
 
@@ -41,7 +32,7 @@ END_EVENT_NAME = os.getenv('END_EVENT_NAME', None)
 
 
 kafka = None
-if KAFKA_TOPIC:    
+if KAFKA_TOPIC:
     kafka = Producer({'bootstrap.servers': KAFKA_HOST})
 
 
@@ -57,6 +48,7 @@ def send_to_stream(data, flow_id, wf_id, content_type):
         headers=headers,
     )
     kafka.poll(0)  # good practice: flush the toilet
+
 
 def make_call_(data):
     headers = {
@@ -77,7 +69,10 @@ def make_call_(data):
             success = True
             break
         except Exception:
-            print(f"failed making a call to {FORWARD_URL} on wf {request.headers['x-flow-id']}", flush=True)
+            print(
+                f"failed making a call to {FORWARD_URL} on wf {request.headers['x-flow-id']}",
+                flush=True
+            )
 
     if not success:
         # Notify Flowd that we failed.
@@ -117,7 +112,7 @@ def complete_instance(instance_id, wf_id, payload):
         if not transition_state(etcd, state_key, good_states, BStates.COMPLETED):
             logging.error(
                 f'Race on {state_key}; state changed out of known'
-                    ' good state before state transition could occur!'
+                ' good state before state transition could occur!'
             )
             etcd.put(state_key, BStates.ERROR)
     else:
@@ -164,7 +159,6 @@ class EventThrowApp(QuartApp):
             resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
 
         return resp
-
 
     def run(self):
         super().run()

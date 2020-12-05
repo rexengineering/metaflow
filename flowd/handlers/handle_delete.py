@@ -5,7 +5,7 @@ from flowlib.etcd_utils import get_etcd, get_keys_from_prefix, EtcdDict
 from flowlib.constants import BStates, WorkflowKeys, WorkflowInstanceKeys
 
 
-def handler(request : flow_pb2.DeleteRequest):
+def handler(request: flow_pb2.DeleteRequest):
     '''
     Arguments:
         request: gRPC delete request object.
@@ -51,13 +51,13 @@ def handler(request : flow_pb2.DeleteRequest):
                 logging.warn(message)
                 result[instance_id] = dict(result=-1, message=message)
                 continue
-            state_key = WorkflowInstanceKeys.state_path(instance_id)
+            state_key = WorkflowInstanceKeys.state_key(instance_id)
             instance_state = etcd.get(state_key)[0]
             good_states = {BStates.STOPPED, BStates.ERROR, BStates.COMPLETED}
             logging.debug(instance_state)
             if instance_state not in good_states:
                 message = f'Workflow instance {instance_id} is not in the '\
-                           'COMPLETED, ERROR, or STOPPED state.'
+                    'COMPLETED, ERROR, or STOPPED state.'
                 logging.warn(message)
                 result[instance_id] = dict(result=-2, message=message)
             elif etcd.delete_prefix(prefix):

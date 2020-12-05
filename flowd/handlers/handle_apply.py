@@ -1,13 +1,10 @@
-from collections import OrderedDict as odict
 import logging
-import uuid
 
 import xmltodict
 
 from flowlib import bpmn, workflow
 from flowlib.etcd_utils import get_etcd
 from flowlib.constants import States
-from flowlib.workflow import Workflow
 
 
 def handler(request):

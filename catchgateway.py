@@ -3,25 +3,18 @@ This file runs as a daemon in the background. It constantly polls a kinesis
 stream for events that are published into the WF instance and calls the next
 step in the workflow with that data.
 '''
-import asyncio
 import logging
-import signal
-from typing import Any
 
-from quart import Quart, request
-from hypercorn.config import Config
-from hypercorn.asyncio import serve
+from quart import request
 from urllib.parse import urlparse
 
 from confluent_kafka import Consumer
 import json
 import os
-import re
 import requests
 import time
 import sys
 
-from quart import jsonify
 from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
 from flowlib import workflow
@@ -48,7 +41,7 @@ WF_ID = os.getenv('WF_ID', None)
 
 
 kafka = None
-if KAFKA_TOPIC:    
+if KAFKA_TOPIC:
     kafka = Consumer({
         'bootstrap.servers': KAFKA_HOST,
         'group.id': os.environ['KAFKA_GROUP_ID'],

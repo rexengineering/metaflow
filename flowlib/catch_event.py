@@ -2,11 +2,10 @@
 Implements the BPMNCatchEvent object, which inherits BPMNComponent.
 '''
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from typing import Mapping
 import os
 
-from .etcd_utils import get_etcd
 from .bpmn_util import BPMNComponent, WorkflowProperties
 
 from .k8s_utils import (
@@ -19,10 +18,11 @@ CATCH_GATEWAY_LISTEN_PORT = 5000
 CATCH_GATEWAY_SVC_PREFIX = "catch"
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
+
 class BPMNCatchEvent(BPMNComponent):
     '''Wrapper for BPMN service event metadata.
     '''
-    def __init__(self, event : OrderedDict, process : OrderedDict, global_props: WorkflowProperties):
+    def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
 
         assert 'queue' in self._annotation, \
@@ -35,7 +35,8 @@ class BPMNCatchEvent(BPMNComponent):
         # We've got the annotation. From here, let's find out the name of the resulting
         # gateway service.
         self.name = f"{CATCH_GATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
-        assert 'service' not in self._annotation, "Service Properties auto-inferred for Catch Gateways."
+        assert 'service' not in self._annotation, \
+            "Service Properties auto-inferred for Catch Gateways."
 
         self._service_properties.update({
             "host": self.name,

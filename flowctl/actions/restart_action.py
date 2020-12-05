@@ -15,7 +15,7 @@ def __refine_args__(parser: argparse.ArgumentParser):
 def restart_action(namespace: argparse.Namespace, *args, **kws):
     '''retry_action(namespace)
     Arguments:
-        namespace : argparse.Namespace - Argument map of command line inputs
+        namespace: argparse.Namespace - Argument map of command line inputs
     Returns toplevel exit code.
     '''
     response = None

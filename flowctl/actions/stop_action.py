@@ -12,10 +12,7 @@ def __refine_args__(parser: argparse.ArgumentParser):
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         '-k', '--kind', action='store', default='INSTANCE',
-        help='Request kind, one of ' +
-             ', '.join(k for k in flow_pb2.RequestKind.keys()) +
-             'default is INSTANCE.',
-    )
+        help=f"Request kind, one of {', '.join(k for k in flow_pb2.RequestKind.keys())}, default is INSTANCE.")  # noqa
     group.add_argument(
         '-d', '--deployment', action='store_true',
         help='Shorthand to specify kind of type DEPLOYMENT.',

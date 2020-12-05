@@ -8,8 +8,10 @@ from flowlib.constants import BStates, WorkflowInstanceKeys
 
 import json
 
+
 def header_to_dict(headers):
     return {h: headers[h] for h in headers.keys()}
+
 
 class FlowApp(QuartApp):
     def __init__(self, **kws):
@@ -34,13 +36,15 @@ class FlowApp(QuartApp):
                     incoming_json = await request.get_json()
                     try:
                         self.etcd.put(payload_key, json.dumps(incoming_json).encode())
-                        self.etcd.put(headers_key, json.dumps(header_to_dict(request.headers)).encode())
-                    except:
-                        import traceback; traceback.print_exc()
+                        self.etcd.put(
+                            headers_key,
+                            json.dumps(header_to_dict(request.headers)).encode()
+                        )
+                    except Exception:
                         logging.error(f"Was unable to save the data for flow_id {flow_id}.")
                 else:
                     logging.error(
                         f'Race on {state_key}; state changed out of known'
-                         ' good state before state transition could occur!'
+                        ' good state before state transition could occur!'
                     )
         return 'Another happy landing (:'

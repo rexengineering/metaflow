@@ -2,27 +2,11 @@
 Implements BPMNEndEvent object, which for now is just a pass-through to Flowd.
 '''
 
-from collections import OrderedDict, namedtuple
-from io import IOBase
-import logging
+from collections import OrderedDict
 import os
-import socket
-import subprocess
-import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from typing import Mapping
 
-import yaml
-import xmltodict
-
-from .envoy_config import get_envoy_config, Upstream
-from .etcd_utils import get_etcd
-from .bpmn_util import (
-    iter_xmldict_for_key,
-    CallProperties,
-    ServiceProperties,
-    HealthProperties,
-    BPMNComponent,
-)
+from .bpmn_util import BPMNComponent
 
 from .k8s_utils import (
     create_deployment,
@@ -40,12 +24,18 @@ KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 class BPMNEndEvent(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, event : OrderedDict, process : OrderedDict, global_props):
+    def __init__(self, event: OrderedDict, process: OrderedDict, global_props):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
-        assert 'service' in self._annotation, "Must provide service host annotation for all End Events."
-        assert 'host' in self._annotation['service'], "Must provide service host annotation for all End Events."
-        assert 'port' not in self._annotation['service'], "End Event Service Port is auto-configured."
+
+        assert 'service' in self._annotation, \
+            "Must provide service host annotation for all End Events."
+
+        assert 'host' in self._annotation['service'], \
+            "Must provide service host annotation for all End Events."
+
+        assert 'port' not in self._annotation['service'], \
+            "End Event Service Port is auto-configured."
 
         self._service_name = f"{END_EVENT_PREFIX}-{self._annotation['service']['host']}"
         self._queue = None
@@ -60,7 +50,8 @@ class BPMNEndEvent(BPMNComponent):
         if 'queue' in self._annotation:
             self._queue = self._annotation['queue']
 
-    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
+    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                      digraph: OrderedDict) -> list:
         assert self._namespace, "new-grad programmer error: namespace should be set by now."
 
         k8s_objects = []

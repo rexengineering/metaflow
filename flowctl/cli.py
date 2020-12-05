@@ -2,8 +2,15 @@ import argparse
 import logging
 import os
 
-from .actions import apply_action, delete_action, ps_action, run_action, \
-    start_action, stop_action, restart_action
+from .actions import (  # noqa
+    apply_action,  # noqa
+    delete_action,  # noqa
+    ps_action,  # noqa
+    run_action,  # noqa
+    start_action,  # noqa
+    stop_action,  # noqa
+    restart_action,  # noqa
+)  # noqa
 
 ACTIONS = ('apply', 'delete', 'ps', 'restart', 'run', 'start', 'stop')
 
@@ -38,7 +45,7 @@ def build_parser_and_action_map():
         '--log_level', nargs='?', default=logging.INFO, type=int,
         help=f'logging level (DEBUG={logging.DEBUG}, INFO={logging.INFO}...)'
     )
-    subparsers =  parser.add_subparsers(title='command')
+    subparsers = parser.add_subparsers(title='command')
     action_map = dict()
     for action in ACTIONS:
         add_action(action, subparsers, action_map)

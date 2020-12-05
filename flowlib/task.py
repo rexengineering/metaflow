@@ -3,28 +3,9 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict, namedtuple
-from io import IOBase
-import logging
-import socket
-import subprocess
-import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from typing import Mapping
 
-import yaml
-import xmltodict
-
-from .envoy_config import get_envoy_config, Upstream
-from .etcd_utils import get_etcd
-from .bpmn_util import (
-    iter_xmldict_for_key,
-    CallProperties,
-    ServiceProperties,
-    HealthProperties,
-    WorkflowProperties,
-    BPMNComponent,
-    get_annotations,
-    calculate_id_hash,
-)
+from .bpmn_util import WorkflowProperties, BPMNComponent
 
 from .k8s_utils import (
     create_deployment,
@@ -40,18 +21,23 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method', 'to
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task : OrderedDict, process : OrderedDict, global_props: WorkflowProperties):
+    def __init__(self, task: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(task, process, global_props)
         self._task = task
 
-        assert 'service' in self._annotation, "Must annotate Service Task with service information."
-        assert 'host' in self._annotation['service'], "Must annotate Service Task with service host."
+        assert 'service' in self._annotation, \
+            "Must annotate Service Task with service information."
+
+        assert 'host' in self._annotation['service'], \
+            "Must annotate Service Task with service host."
 
         if self._is_preexisting:
-            assert 'namespace' in self._annotation['service'], "Must provide namespace of preexisting service."
+            assert 'namespace' in self._annotation['service'], \
+                "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']
 
-    def _generate_envoyfilter(self, component_map: Mapping[str, BPMNComponent], digraph: OrderedDict) -> list:
+    def _generate_envoyfilter(self, component_map: Mapping[str, BPMNComponent],
+                              digraph: OrderedDict) -> list:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
         FilterChain. This filter hijacks the response traffic and sends it to the next
         step of the workflow (whether that's a gateway, Event, or another ServiceTask.)
@@ -142,8 +128,8 @@ class BPMNTask(BPMNComponent):
         }
         return envoy_filter
 
-
-    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
+    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                      digraph: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -179,7 +165,8 @@ class BPMNTask(BPMNComponent):
         port = self.service_properties.port
         namespace = self._namespace
         assert self.namespace, "new-grad programmer error: namespace should be set by now."
-        uri_prefix = (f'/{service_name}' if namespace == 'default' else f'/{namespace}/{service_name}')
+        uri_prefix = f'/{service_name}' if namespace == 'default' \
+            else f'/{namespace}/{service_name}'
 
         k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
         k8s_objects.append(create_service(namespace, dns_safe_name, port))
@@ -200,7 +187,7 @@ class BPMNTask(BPMNComponent):
 
         return k8s_objects
 
-    def _make_forward(self, upstream : Upstream):
+    def _make_forward(self, upstream: Upstream):
         return {
             'name': upstream.name,
             'cluster': upstream.name,

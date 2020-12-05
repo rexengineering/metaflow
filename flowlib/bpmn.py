@@ -4,10 +4,9 @@
 from collections import OrderedDict
 from io import IOBase
 import logging
-import socket
 import subprocess
 import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from typing import Mapping, Set
 
 import yaml
 import xmltodict
@@ -25,21 +24,17 @@ from .bpmn_util import (
     iter_xmldict_for_key,
     raw_proc_to_digraph,
     get_annotations,
-    parse_events,
-    HealthProperties,
-    CallProperties,
-    ServiceProperties,
     BPMNComponent,
     WorkflowProperties,
 )
 
 
 class BPMNProcess:
-    def __init__(self, process : OrderedDict):
+    def __init__(self, process: OrderedDict):
         self._process = process
         entry_point = process['bpmn:startEvent']
         assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
-        self.entry_point =  entry_point
+        self.entry_point = entry_point
         annotations = list(get_annotations(process, self.entry_point['@id']))
         assert len(annotations) == 1, "Must have only one annotation for start event."
         self.annotation = annotations[0]
@@ -126,7 +121,7 @@ class BPMNProcess:
     def to_xml(self):
         return xmltodict.unparse(OrderedDict([('bpmn:process', self._process)]))
 
-    def to_digraph(self, digraph : dict=None):
+    def to_digraph(self, digraph: dict = None):
         if digraph is None:
             digraph = dict()
         for sequence_flow in iter_xmldict_for_key(self._process, 'bpmn:sequenceFlow'):
@@ -146,11 +141,11 @@ class BPMNProcess:
             result = self._digraph
         return result
 
-    def to_kubernetes(self, stream:IOBase = None, id_hash:str = None, **kws):
+    def to_kubernetes(self, stream: IOBase = None, id_hash: str = None, **kws):
         # No longer used
         raise NotImplementedError("REXFlow requires Istio.")
 
-    def to_istio(self, stream:IOBase = None, id_hash:str = None, **kws):
+    def to_istio(self, stream: IOBase = None, id_hash: str = None, **kws):
         if stream is None:
             stream = sys.stdout
         results = []
@@ -167,7 +162,9 @@ class BPMNProcess:
 
         for bpmn_component in self.component_map.keys():
             results.extend(
-                self.component_map[bpmn_component].to_kubernetes(id_hash, self.component_map, self._digraph)
+                self.component_map[bpmn_component].to_kubernetes(
+                    id_hash, self.component_map, self._digraph
+                )
             )
 
         # This code below does manual sidecar injection. It is ONLY necessary
@@ -182,8 +179,10 @@ class BPMNProcess:
             input=temp_yaml, capture_output=True, text=True,
         )
         if istioctl_result.returncode == 0:
-            result = istioctl_result.stdout.replace(': Always', ': IfNotPresent'
-                ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
+            result = istioctl_result.stdout.replace(
+                ': Always',
+                ': IfNotPresent',
+            ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
             stream.write(result)
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')

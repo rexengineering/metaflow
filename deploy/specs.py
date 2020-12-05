@@ -1,5 +1,3 @@
-import os
-
 rexflow_namespace_spec = {
     'apiVersion': 'v1',
     'kind': 'Namespace',
@@ -94,7 +92,7 @@ flowd_service_specs = {
     },
 }
 
-mk_flowd_deployment_spec = lambda etcd_host : {
+mk_flowd_deployment_spec = lambda etcd_host : {  # noqa
     'apiVersion': 'apps/v1',
     'kind': 'Deployment',
     'metadata': {'name': 'flowd'},
@@ -104,17 +102,13 @@ mk_flowd_deployment_spec = lambda etcd_host : {
         'template': {
             'metadata': {'labels': {'app': 'flowd'}},
             'spec': {
-                'containers': [
-                    {'image': 'flowd',
-                     'imagePullPolicy': 'IfNotPresent',
-                     'name': 'flowd',
-                     'ports': [{'containerPort': 9001}, {'containerPort': 9002}],
-                     'env': [
-                         {'name': 'ETCD_HOST', 'value': etcd_host},
-                         {'name': 'AWS_ACCESS_KEY_ID', 'value': os.environ['AWS_ACCESS_KEY_ID']},
-                         {'name': 'AWS_SECRET_ACCESS_KEY', 'value': os.environ['AWS_SECRET_ACCESS_KEY']},
-                    ]}
-                ],
+                'containers': [{
+                    'image': 'flowd',
+                    'imagePullPolicy': 'IfNotPresent',
+                    'name': 'flowd',
+                    'ports': [{'containerPort': 9001}, {'containerPort': 9002}],
+                    'env': [{'name': 'ETCD_HOST', 'value': etcd_host}]
+                }],
                 'serviceAccountName': 'flowd'}
         }
     }
@@ -194,7 +188,7 @@ healthd_service_spec = {
     },
 }
 
-mk_healthd_deployment_spec = lambda etcd_host: {
+mk_healthd_deployment_spec = lambda etcd_host: {  # noqa
     'apiVersion': 'apps/v1',
     'kind': 'Deployment',
     'metadata': {'name': 'healthd'},
