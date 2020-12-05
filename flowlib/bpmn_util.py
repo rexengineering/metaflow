@@ -1,10 +1,8 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
-from ctypes import c_size_t
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from typing import Any, Mapping
 import yaml
-import xmltodict
 from hashlib import sha1
 
 
@@ -12,7 +10,7 @@ def calculate_id_hash(wf_id: str) -> str:
     return sha1(wf_id.encode()).hexdigest()[:8]
 
 
-def iter_xmldict_for_key(odict : OrderedDict, key : str):
+def iter_xmldict_for_key(odict: OrderedDict, key: str):
     '''Generator for iterating through an OrderedDict returned from xmltodict for a given key.
     '''
     value = odict.get(key)
@@ -80,7 +78,7 @@ def parse_events(process: OrderedDict):
 
 
 class ServiceProperties:
-    def __init__(self, annotations: dict=None):
+    def __init__(self, annotations: dict = None):
         self._host = None
         self._port = None
         self._protocol = None
@@ -99,7 +97,7 @@ class ServiceProperties:
     @property
     def host_without_hash(self):
         '''Returns the hostname for this K8s Service with the trailing id hash
-        stripped (if the id hash exists). 
+        stripped (if the id hash exists).
         '''
         return self._host
 
@@ -181,7 +179,7 @@ class CallProperties:
         '''
         return self._total_attempts if self._total_attempts else 2
 
-    def update(self, annotations:Mapping[str, Any]) -> None:
+    def update(self, annotations: Mapping[str, Any]) -> None:
         if 'path' in annotations:
             self._path = annotations['path']
         if 'method' in annotations:
@@ -275,7 +273,8 @@ class WorkflowProperties:
             self._namespace_shared = annotations['namespace_shared']
 
         if 'namespace' in annotations:
-            assert self._namespace_shared, "Can only specify namespace name if it's a pre-existing, shared NS."
+            assert self._namespace_shared, \
+                "Can only specify namespace name if it's a pre-existing, shared NS."
             self._namespace = annotations['namespace']
 
         if 'id' in annotations:
@@ -305,11 +304,16 @@ class BPMNComponent:
     BPMNTask object (it could've been a gateway, event, etc) know at which URL
     to reach the next component in the workflow.
     '''
-    def __init__(self, spec: OrderedDict, process: OrderedDict, workflow_properties: WorkflowProperties):
+    def __init__(self,
+                 spec: OrderedDict,
+                 process: OrderedDict,
+                 workflow_properties: WorkflowProperties):
         self.id = spec['@id']
 
         annotations = [a for a in list(get_annotations(process, self.id)) if 'rexflow' in a]
-        assert len(annotations) == 1, "Must provide exactly one 'rexflow' annotation for each BPMN Component"
+        assert len(annotations) == 1, \
+            "Must provide exactly one 'rexflow' annotation for each BPMN Component"
+
         self._annotation = annotations[0]['rexflow']
 
         # Set default values. The constructors of child classes may override these values.
@@ -335,7 +339,9 @@ class BPMNComponent:
 
         # Set the default Retry Policy, which may or may not be overriden by each
         # individual BPMNComponent.
-        self._call_properties.update({'retry': {'total_attempts': self._global_props._retry_total_attempts}})
+        self._call_properties.update(
+            {'retry': {'total_attempts': self._global_props._retry_total_attempts}}
+        )
 
         if 'call' in self._annotation:
             self._call_properties.update(self._annotation['call'])
@@ -344,7 +350,8 @@ class BPMNComponent:
         if 'service' in self._annotation:
             self._service_properties.update(self._annotation['service'])
 
-    def to_kubernetes(self, id_hash, component_map: Mapping[str, Any], digraph: OrderedDict) -> list:
+    def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
+                      digraph: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.

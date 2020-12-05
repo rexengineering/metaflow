@@ -3,36 +3,17 @@ Implements the BPMNCatchEvent object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict, namedtuple
-from io import IOBase
-import logging
-import socket
-import subprocess
-import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from typing import Mapping
 import os
 
-import yaml
-import xmltodict
-
-from .envoy_config import get_envoy_config, Upstream
 from .etcd_utils import get_etcd
-from .bpmn_util import (
-    iter_xmldict_for_key,
-    CallProperties,
-    ServiceProperties,
-    HealthProperties,
-    WorkflowProperties,
-    BPMNComponent,
-    get_annotations
-)
+from .bpmn_util import BPMNComponent, WorkflowProperties
 
 from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
 )
-
-Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 
 CATCH_GATEWAY_LISTEN_PORT = 5000
 CATCH_GATEWAY_SVC_PREFIX = "catch"
@@ -61,7 +42,8 @@ class BPMNCatchEvent(BPMNComponent):
             "port": CATCH_GATEWAY_LISTEN_PORT,
         })
 
-    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
+    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                      digraph: OrderedDict) -> list:
         k8s_objects = []
 
         # k8s ServiceAccount
@@ -75,7 +57,7 @@ class BPMNCatchEvent(BPMNComponent):
         # There are two goals:
         # 1. Tell the container which queue to publish to.
         # 2. Tell the container which (if any) service to forward its input to.
-        
+
         # `targets` should be list of URL's. component_map[foo] returns a BPMNComponent, and
         # BPMNComponent.k8s_url() returns the k8s FQDN + http path for the next task.
         targets = [
