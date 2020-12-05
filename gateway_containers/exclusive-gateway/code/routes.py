@@ -1,5 +1,5 @@
 from code import app
-from flask import request
+from flask import request, make_response
 import os
 import requests
 from urllib.parse import urlparse
@@ -15,6 +15,17 @@ REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPT
 REXFLOW_XGW_FAIL_URL = os.environ['REXFLOW_XGW_FAIL_URL']
 
 SPLITS = REXFLOW_XGW_JSONPATH.split('.')
+TRACEID_HEADER = 'x-b3-traceid'
+
+FORWARD_HEADERS = [
+    'x-request-id',
+    'x-b3-traceid',
+    'x-b3-spanid',
+    'x-b3-parentspanid',
+    'x-b3-sampled',
+    'x-b3-flags',
+    'x-ot-span-context',
+]
 
 @app.route('/', methods=['POST'])
 def conditional():
@@ -47,8 +58,12 @@ def conditional():
         'x-flow-id': request.headers['x-flow-id'],
         'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
     }
-    if 'x-b3-spanid' in request.headers:
-        headers['x-b3-spanid'] = request.headers['x-b3-spanid']
+    for h in FORWARD_HEADERS:
+        if h in request.headers:
+            headers[h] = request.headers[h]
+            print(h, headers[h], flush=True)
+        else:
+            print("didnt find ", h, flush=True)
 
     success = False
     for _ in range(REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS if comparison_result else REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS):
@@ -67,7 +82,10 @@ def conditional():
         headers['x-rexflow-original-path'] = o.path
         requests.post(REXFLOW_XGW_FAIL_URL, json=incoming_json, headers=headers)
 
-    return "The faith of knowing deep inside your heart, that Heaven holds"
+    resp = make_response("The faith of knowing deep inside your heart, that Heaven holds")
+    if TRACEID_HEADER in request.headers:
+        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
+    return resp
 
 
 @app.route('/', methods=['GET'])

@@ -19,6 +19,7 @@ import os
 import re
 import requests
 import time
+import sys
 
 from quart import jsonify
 from flowlib.executor import get_executor
@@ -31,6 +32,7 @@ from flowlib.constants import (
     WorkflowInstanceKeys,
     States,
     BStates,
+    TRACEID_HEADER,
 )
 
 
@@ -99,6 +101,29 @@ class EventCatchPoller:
                 logging.error('Failed to transition from STARTING -> RUNNING.')
         return {"id": instance_id}
 
+    def save_traceid(self, headers, flow_id):
+        trace_id = None
+        print("headers:", headers, flush=True)
+        if TRACEID_HEADER in headers:
+            trace_id = headers[TRACEID_HEADER]
+        elif TRACEID_HEADER.lower() in headers:
+            trace_id = headers[TRACEID_HEADER.lower()]
+
+        print("Trace id: ", trace_id, flush=True)
+        if trace_id:
+            etcd = get_etcd()
+            trace_key = WorkflowInstanceKeys.traceid_key(flow_id)
+            with etcd.lock(trace_key):
+                print("got lock", flush=True)
+                current_traces = []
+                current_trace_resp = etcd.get(trace_key)[0]
+                print("curr trace resp: ", current_trace_resp, flush=True)
+                if current_trace_resp:
+                    current_traces = json.loads(current_trace_resp.decode())
+                current_traces.append(trace_id)
+                current_traces = list(set(current_traces))
+                etcd.put(trace_key, json.dumps(current_traces).encode())
+
     def make_call_(self, data, flow_id, wf_id, content_type):
         next_headers = {
             'x-flow-id': str(flow_id),
@@ -109,6 +134,13 @@ class EventCatchPoller:
             try:
                 svc_response = requests.post(FORWARD_URL, headers=next_headers, data=data)
                 svc_response.raise_for_status()
+                try:
+                    self.save_traceid(svc_response.headers, flow_id)
+                except Exception:
+                    logging.error("failed to save trace id on WF Instance")
+                    import traceback
+                    traceback.print_exception(*sys.exc_info())
+                    print("got an error", flush=True)
                 return svc_response
             except Exception:
                 logging.error(f"failed making a call to {FORWARD_URL} on wf {flow_id}")

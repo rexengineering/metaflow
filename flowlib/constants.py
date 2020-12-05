@@ -21,6 +21,7 @@ class ByteStatesClass:
 BStates = ByteStatesClass()
 
 REXFLOW_ROOT = '/rexflow'
+TRACEID_HEADER = 'X-B3-Traceid'
 
 class WorkflowKeys:
     ROOT = f'{REXFLOW_ROOT}/workflows'
@@ -64,6 +65,7 @@ class WorkflowInstanceKeys:
         self.error_key     = self.was_error_key(id)
         self.parent        = self.parent_key(id)
         self.end_event     = self.end_event_key(id)
+        self.traceid       = self.traceid_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -100,3 +102,7 @@ class WorkflowInstanceKeys:
     @classmethod
     def end_event_key(cls, id):
         return f'{cls.key_of(id)}/end_event'
+
+    @classmethod
+    def traceid_key(cls, id):
+        return f'{cls.key_of(id)}/traceid'

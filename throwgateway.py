@@ -5,7 +5,7 @@ import logging
 import signal
 from typing import Any
 
-from quart import Quart, request
+from quart import Quart, request, make_response
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
 from urllib.parse import urlparse
@@ -24,6 +24,7 @@ from flowlib.constants import (
     WorkflowInstanceKeys,
     BStates,
     States,
+    TRACEID_HEADER,
 )
 
 
@@ -63,8 +64,10 @@ def make_call_(data):
         'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
         'content-type': request.headers['content-type'],
     }
-    if 'x-b3-trace-id' in request.headers:
-        headers['x-b3-trace-id'] = request.headers['x-b3-trace-id']
+    if TRACEID_HEADER in request.headers:
+        headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
+    elif TRACEID_HEADER.lower in request.headers:
+        headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
 
     success = False
     for _ in range(TOTAL_ATTEMPTS):
@@ -153,7 +156,14 @@ class EventThrowApp(QuartApp):
                 request.headers['x-rexflow-wf-id'],
                 data
             )
-        return "For my ally is the Force, and a powerful ally it is."
+        resp = await make_response("For my ally is the Force, and a powerful ally it is.")
+
+        if TRACEID_HEADER in request.headers:
+            resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
+        elif TRACEID_HEADER.lower in request.headers:
+            resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
+
+        return resp
 
 
     def run(self):
