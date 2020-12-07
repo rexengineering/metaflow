@@ -3,6 +3,7 @@ from flask import request, make_response
 import os
 import requests
 from urllib.parse import urlparse
+import logging
 
 
 REXFLOW_XGW_JSONPATH = os.environ['REXFLOW_XGW_JSONPATH']
@@ -61,9 +62,6 @@ def conditional():
     for h in FORWARD_HEADERS:
         if h in request.headers:
             headers[h] = request.headers[h]
-            print(h, headers[h], flush=True)
-        else:
-            print("didnt find ", h, flush=True)
 
     success = False
     for _ in range(REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS if comparison_result else REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS):
@@ -73,7 +71,7 @@ def conditional():
             success = True
             break
         except Exception:
-            print(f"failed making a call to {url} on wf {request.headers['x-flow-id']}", flush=True)
+            logging.error(f"failed making a call to {url} on wf {request.headers['x-flow-id']}")
 
     if not success:
         # Notify Flowd that we failed.
