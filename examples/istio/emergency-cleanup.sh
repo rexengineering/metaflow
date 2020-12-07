@@ -1,7 +1,7 @@
 #!/bin/bash
 
 kubectl config use-context docker-desktop
-cd ../.. && docker build -t flowd -f deploy/Dockerfile.flowd . && docker build -t healthd -f deploy/Dockerfile.healthd .
+cd ../.. && docker build -t flowd -f deploy/Dockerfile.flowd . && docker build -t healthd -f deploy/Dockerfile.healthd . && docker build -t catch-gateway:1.0.0 -f deploy/Dockerfile.catch . && docker build -t throw-gateway:1.0.0 -f deploy/Dockerfile.throw .
 kubectl config set-context --current --namespace=default
 
 function findall()

@@ -31,6 +31,7 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 
 CATCH_GATEWAY_LISTEN_PORT = 5000
 CATCH_GATEWAY_SVC_PREFIX = "catch"
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 class BPMNCatchEvent(BPMNComponent):
     '''Wrapper for BPMN service event metadata.
@@ -115,33 +116,28 @@ class BPMNCatchEvent(BPMNComponent):
         target = targets[0] if len(targets) else ''
         env_config = [
             {
-                "name": "REXFLOW_CATCHGATEWAY_QUEUE",
+                "name": "KAFKA_HOST",
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "KAFKA_TOPIC",
                 "value": self.queue_name,
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_FORWARD_URL",
+                "name": "KAFKA_GROUP_ID",
+                "value": dns_safe_name,
+            },
+            {
+                "name": "FORWARD_URL",
                 "value": target.k8s_url,
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_TOTAL_ATTEMPTS",
+                "name": "TOTAL_ATTEMPTS",
                 "value": str(target.call_properties.total_attempts) if target else "2",
             },
             {
-                "name": "REXFLOW_CATCHGATEWAY_FAIL_URL",
+                "name": "FAIL_URL",
                 "value": "http://flowd.rexflow:9002/instancefail",
-            },
-
-            # We need AWS creds to access boto3. For now, we pass in this janky way (note:
-            # we edited the `python -m deploy` to inject these vars to flowd). This is just
-            # a temporary hack to enable this until we figure out how to properly get this
-            # system on a real DevOps infrastructure.
-            {
-                "name": "AWS_ACCESS_KEY_ID",
-                "value": os.environ["AWS_ACCESS_KEY_ID"]
-            },
-            {
-                "name": "AWS_SECRET_ACCESS_KEY",
-                "value": os.environ["AWS_SECRET_ACCESS_KEY"]
             },
         ]
 

@@ -31,6 +31,7 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 
 THROW_GATEWAY_LISTEN_PORT = 5000
 THROW_GATEWAY_SVC_PREFIX = "throw"
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 class BPMNThrowEvent(BPMNComponent):
     '''Wrapper for BPMN service event metadata.
@@ -113,30 +114,21 @@ class BPMNThrowEvent(BPMNComponent):
 
         env_config = [
             {
-                "name": "REXFLOW_THROWGATEWAY_QUEUE",
+                "name": "KAFKA_TOPIC",
                 "value": self.queue_name,
             },
             {
-                "name": "REXFLOW_THROWGATEWAY_FORWARD_URL",
+                "name": "FORWARD_URL",
                 "value": target.k8s_url if target else None,
             },
             {
-                "name": "REXFLOW_THROWGATEWAY_TOTAL_ATTEMPTS",
+                "name": "TOTAL_ATTEMPTS",
                 "value": str(target.call_properties.total_attempts) if target else "",
             },
-
-            # We need AWS creds to access boto3. For now, we pass in this janky way (note:
-            # we edited the `python -m deploy` to inject these vars to flowd). This is just
-            # a temporary hack to enable this until we figure out how to properly get this
-            # system on a real DevOps infrastructure.
             {
-                "name": "AWS_ACCESS_KEY_ID",
-                "value": os.environ["AWS_ACCESS_KEY_ID"]
-            },
-            {
-                "name": "AWS_SECRET_ACCESS_KEY",
-                "value": os.environ["AWS_SECRET_ACCESS_KEY"]
-            },
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            }
         ]
 
         # k8s Deployment

@@ -10,3 +10,4 @@ quart
 grpcio-tools
 pudb
 pylint
+confluent-kafka
