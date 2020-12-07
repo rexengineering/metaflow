@@ -26,6 +26,13 @@ from .bpmn_util import (
     calculate_id_hash,
 )
 
+from .k8s_utils import (
+    create_deployment,
+    create_service,
+    create_serviceaccount,
+    create_rexflow_ingress_vs,
+)
+
 
 Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method', 'total_attempts'])
 
@@ -172,117 +179,24 @@ class BPMNTask(BPMNComponent):
         port = self.service_properties.port
         namespace = self._namespace
         assert self.namespace, "new-grad programmer error: namespace should be set by now."
-        service_account = {
-            'apiVersion': 'v1',
-            'kind': 'ServiceAccount',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-        }
-        k8s_objects.append(service_account)
-
         uri_prefix = (f'/{service_name}' if namespace == 'default' else f'/{namespace}/{service_name}')
-        service_fqdn = (dns_safe_name if namespace == 'default'
-                        else f'{dns_safe_name}.{namespace}.svc.cluster.local')
-        # VirtualService
-        # (I'm not sure why, but Jon had it in his code)
-        virtual_service = {
-            'apiVersion': 'networking.istio.io/v1alpha3',
-            'kind': 'VirtualService',
-            'metadata': {
-                'name': dns_safe_name,
-                'namespace': namespace,
-            },
-            'spec': {
-                'hosts': ['*'],
-                'gateways': ['rexflow-gateway'],
-                'http': [
-                    {
-                        'match': [{'uri': {'prefix': uri_prefix}}],
-                        'rewrite': {'uri': '/'},
-                        'route': [
-                            {
-                                'destination': {
-                                    'port': {'number': port},
-                                    'host': service_fqdn
-                                }
-                            }
-                        ]
-                    }
-                ]
-            }
-        }
-        k8s_objects.append(virtual_service)
 
-        # k8s Service
-        service = {
-            'apiVersion': 'v1',
-            'kind': 'Service',
-            'metadata': {
-                'name': dns_safe_name,
-                'labels': {
-                    'app': dns_safe_name,
-                },
-            },
-            'spec': {
-                'ports': [
-                    {
-                        'name': 'http',
-                        'port': port,
-                        'targetPort': port,
-                    }
-                ],
-                'selector': {
-                    'app': dns_safe_name,
-                },
-            },
-        }
-        k8s_objects.append(service)
-
-        # k8s Deployment
-        deployment = {
-            'apiVersion': 'apps/v1',
-            'kind': 'Deployment',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-            'spec': {
-                'replicas': 1, # FIXME: Make this a property one can set in the BPMN.
-                'selector': {
-                    'matchLabels': {
-                        'app': dns_safe_name,
-                    },
-                },
-                'template': {
-                    'metadata': {
-                        'labels': {
-                            'app': dns_safe_name,
-                        },
-                    },
-                    'spec': {
-                        'serviceAccountName': dns_safe_name,
-                        'containers': [
-                            {
-                                'image': self.service_properties.container,
-                                'imagePullPolicy': 'IfNotPresent',
-                                'name': dns_safe_name,
-                                'ports': [
-                                    {
-                                        'containerPort': port,
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                },
-            },
-        }
-        k8s_objects.append(deployment)
-
-        if self._global_props.namespace is not None:
-            service_account['metadata']['namespace'] = self._global_props.namespace
-            service['metadata']['namespace'] = self._global_props.namespace
-            deployment['metadata']['namespace'] = self._global_props.namespace
+        k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
+        k8s_objects.append(create_service(namespace, dns_safe_name, port))
+        k8s_objects.append(create_deployment(
+            namespace,
+            dns_safe_name,
+            self.service_properties.container,
+            port,
+            env=[],
+        ))
+        k8s_objects.append(create_rexflow_ingress_vs(
+            namespace,
+            dns_safe_name,
+            uri_prefix=uri_prefix,
+            dest_port=port,
+            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
+        ))
 
         return k8s_objects
 
