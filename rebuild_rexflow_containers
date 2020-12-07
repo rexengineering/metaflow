@@ -1,0 +1,16 @@
+#!/bin/bash
+
+docker build -t flowd -f deploy/Dockerfile.flowd .
+
+docker build -t healthd -f deploy/Dockerfile.healthd .
+
+docker build -t catch-gateway:1.0.0 -f deploy/Dockerfile.catch .
+
+docker build -t throw-gateway:1.0.0 -f deploy/Dockerfile.throw .
+
+# build the exclusive-gateway. TODO: refactor exclusive gateway to be more like
+# the others.
+cd gateway_containers/exclusive-gateway && make build
+
+
+

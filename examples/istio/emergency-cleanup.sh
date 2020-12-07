@@ -18,11 +18,6 @@ cleanup serviceaccount
 cleanup envoyfilter
 cleanup virtualservice
 
-
-kubectl delete envoyfilter -nmy-ns --all
-
-kubectl delete ns --ignore-not-found conditional events no-sauce gnomes-v1 throw
-
 kubectl delete po --all -nrexflow
 
 
