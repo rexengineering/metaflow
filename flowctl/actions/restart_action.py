@@ -21,8 +21,6 @@ def restart_action(namespace : argparse.Namespace, *args, **kws):
     Returns toplevel exit code.
     '''
     response = None
-    # # assert len(namespace.wf_instance_id) == 1
-    # import pdb; pdb.set_trace()
     wf_instance_id = namespace.wf_instance_id
 
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
