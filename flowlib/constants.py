@@ -1,6 +1,6 @@
 '''
 These are the valid states for a workflow and the workflow instances, specified here
-so that all parts necessarilly use the same values and to avoid embedding literal
+so that all parts necessarily use the same values and to avoid embedding literal
 constants everywhere.
 '''
 class States:
@@ -101,3 +101,8 @@ othwerise this breaks.
 def split_key(instance_id : str):
     parts = instance_id.split('-')
     return ('-'.join(parts[0:-1]), '-'.join(parts[-1]))
+
+def flow_result(status: int, message: str, **kwargs):
+    result = {'status': status, 'message': message}
+    result.update(kwargs)
+    return result

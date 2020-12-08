@@ -20,6 +20,7 @@ from .constants import (
     States,
     WorkflowKeys,
     WorkflowInstanceKeys,
+    flow_result,
 )
 class Workflow:
     def __init__(self, process : bpmn.BPMNProcess, id=None):
@@ -196,7 +197,7 @@ class WorkflowInstance:
         payload = json.loads(etcd.get(self.keys.payload)[0].decode())
         headers_to_send = {
             'X-Flow-Id': self.id,
-            'X-Rexflow-Wf-Id': self.parent.id, 
+            'X-Rexflow-Wf-Id': self.parent.id,
         }
 
         for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:
@@ -214,12 +215,14 @@ class WorkflowInstance:
         if response.ok:
             if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
+            status = 0
         else:
             if not etcd.replace(self.keys.state, States.STARTING, States.STOPPED):
                 logging.error('Failed to transition from RUNNING -> ERROR.')
             msg = "Retry failed."
+            status = -1
 
-        return {"Message": msg, "Status": response.status_code}
+        return flow_result(status, msg)
 
     def stop(self):
         raise NotImplementedError('Lazy developer error!')
