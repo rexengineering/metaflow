@@ -139,6 +139,18 @@ class BPMNXGateway(BPMNComponent):
                 'name': 'REXFLOW_XGW_FAIL_URL',
                 'value': 'http://flowd.rexflow:9002/instancefail'
             },
+            {
+                'name': 'REXFLOW_TRUE_TASK_ID',
+                'value': component_map[
+                    self.true_forward_componentid
+                ].id
+            },
+            {
+                'name': 'REXFLOW_FALSE_TASK_ID',
+                'value': component_map[
+                    self.false_forward_componentid
+                ].id
+            }
         ]
 
         k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))

@@ -36,6 +36,8 @@ FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.environ['TOTAL_ATTEMPTS'])
 FAIL_URL = os.environ['FAIL_URL']
 
+FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
+
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
 

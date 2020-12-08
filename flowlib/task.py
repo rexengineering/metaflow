@@ -15,7 +15,7 @@ from .k8s_utils import (
 )
 
 
-Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method', 'total_attempts'])
+Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method', 'total_attempts', 'task_id'])
 
 
 class BPMNTask(BPMNComponent):
@@ -77,6 +77,7 @@ class BPMNTask(BPMNComponent):
                     path,
                     bpmn_component.call_properties.method,
                     bpmn_component.call_properties.total_attempts,
+                    bpmn_component.id,
                 )
             )
         bavs_config = {
@@ -86,6 +87,7 @@ class BPMNTask(BPMNComponent):
             'wf_id': self._global_props.id,
             'flowd_envoy_cluster': 'outbound|9002||flowd.rexflow.svc.cluster.local',
             'flowd_path': '/instancefail',
+            'task_id': self.id,
         }
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',
@@ -196,4 +198,5 @@ class BPMNTask(BPMNComponent):
             'path': upstream.path,
             'method': upstream.method, # TODO: Test with methods other than POST
             'total_attempts': upstream.total_attempts,
+            'task_id': upstream.task_id,
         }

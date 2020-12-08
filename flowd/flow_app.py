@@ -9,10 +9,6 @@ from flowlib.constants import BStates, WorkflowInstanceKeys
 import json
 
 
-def header_to_dict(headers):
-    return {h: headers[h] for h in headers.keys()}
-
-
 class FlowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
@@ -38,7 +34,9 @@ class FlowApp(QuartApp):
                         self.etcd.put(payload_key, json.dumps(incoming_json).encode())
                         self.etcd.put(
                             headers_key,
-                            json.dumps(header_to_dict(request.headers)).encode()
+                            json.dumps({
+                                h: request.headers[h] for h in request.headers.keys()
+                            }).encode()
                         )
                     except Exception:
                         logging.error(f"Was unable to save the data for flow_id {flow_id}.")

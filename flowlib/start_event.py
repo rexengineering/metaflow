@@ -76,6 +76,10 @@ class BPMNStartEvent(BPMNComponent):
                 "value": task.k8s_url,
             },
             {
+                "name": "FORWARD_TASK_ID",
+                "value": task.id,
+            },
+            {
                 "name": "FAIL_URL",
                 "value": "http://flowd.rexflow:9002/instancefail",
             },

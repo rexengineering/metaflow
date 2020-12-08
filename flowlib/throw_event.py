@@ -87,7 +87,11 @@ class BPMNThrowEvent(BPMNComponent):
             {
                 "name": 'KAFKA_HOST',
                 "value": KAFKA_HOST,
-            }
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": target.id if target else '',
+            },
         ]
 
         k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
