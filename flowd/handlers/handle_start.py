@@ -17,13 +17,10 @@ def handler(request : flow_pb2.StartRequest):
             except Exception as exn:
                 result[id] = {'status':-1, 'message':f'Error: {exn}'}
     else:
-        # TODO: If the provided WF Instance ID does not exist, create and
-        # `run` a new WF Instance with that ID.
-
         for id in request.ids:
             etcd = etcd_utils.get_etcd()
 
-            # First check to see that the thing is in the `ERROR` state.
+            # First check to see that the thing is in the `STOPPED` state.
             state_key = constants.WorkflowInstanceKeys.state_key(id)
             state = etcd.get(state_key)[0]
             assert state == constants.BStates.STOPPED, "Can only start instances in STOPPED state"
