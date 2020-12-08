@@ -4,17 +4,15 @@ import sys
 
 from flowlib import flow_pb2
 
-from . import handle_apply, handle_delete, handle_ps, handle_run, handle_restart, handle_start,\
+from . import handle_apply, handle_delete, handle_ps, handle_run, handle_start,\
     handle_stop
 
 
 def handler_dispatch(command, request, context):
-    print("hello there", flush=True)
     logging.info(f'Received {request} in {context}.')
     try:
         handler = globals()[f'handle_{command}'].handler
     except KeyError:
-        print("welp, we found a key error", flush=True)
         logging.error(f'Unable to handle {command} request: {request}')
         return {'error': f'could not find handler for {command} command'}
     try:
