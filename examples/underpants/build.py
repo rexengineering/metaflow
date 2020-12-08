@@ -18,7 +18,7 @@ ENV SERVER_MODE {}
 ENV SLEEP_TIME {}
 '''
 
-SERVER_MODES = {'collect', 'secret-sauce', 'profit'}
+SERVER_MODES = {'collect', 'secret-sauce', 'profit', 'unreliable-sauce'}
 SLEEP_TIME = 0
 
 if __name__ == '__main__':

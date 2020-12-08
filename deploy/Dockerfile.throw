@@ -1,0 +1,9 @@
+FROM python:3.8-slim
+WORKDIR /opt/rexflow
+RUN apt-get update && apt-get install -y curl
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY flowlib flowlib/
+COPY throwgateway.py .
+EXPOSE 5050/tcp
+CMD ["python", "-m", "throwgateway"]

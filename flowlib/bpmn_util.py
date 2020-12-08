@@ -158,6 +158,7 @@ class CallProperties:
         self._path = None
         self._method = None
         self._serialization = None
+        self._total_attempts = None
 
     @property
     def path(self) -> str:
@@ -171,6 +172,15 @@ class CallProperties:
     def serialization(self) -> str:
         return self._serialization if self._serialization is not None else 'JSON'
 
+    @property
+    def total_attempts(self) -> int:
+        '''
+        Returns total number of times to attempt calling this service, including retries.
+        i.e. `total_attempts == 1` implies zero retries, `total_attempts == 3` implies two
+        retries.
+        '''
+        return self._total_attempts if self._total_attempts else 2
+
     def update(self, annotations:Mapping[str, Any]) -> None:
         if 'path' in annotations:
             self._path = annotations['path']
@@ -178,6 +188,8 @@ class CallProperties:
             self._method = annotations['method']
         if 'serialization' in annotations:
             self._serialization = annotations['serialization']
+        if 'retry' in annotations:
+            self._total_attempts = annotations['retry']['total_attempts']
 
 
 class HealthProperties:
@@ -224,6 +236,8 @@ class WorkflowProperties:
         self._namespace = None
         self._namespace_shared = False
         self._id_hash = ''
+        self._retry_total_attempts = 2
+        self._is_recoverable = False
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -245,9 +259,17 @@ class WorkflowProperties:
         return self._namespace_shared
 
     @property
+    def retry_total_attempts(self):
+        return self._retry_total_attempts
+
+    @property
     def orchestrator(self):
         assert self._orchestrator == 'istio'
         return self._orchestrator if self._orchestrator is not None else 'docker'
+
+    @property
+    def is_recoverable(self):
+        return self._is_recoverable
 
     def update(self, annotations):
         if 'orchestrator' in annotations:
@@ -267,6 +289,12 @@ class WorkflowProperties:
             if not self._namespace_shared:
                 self._namespace = self._id
 
+        if 'recoverable' in annotations:
+            self._is_recoverable = annotations['recoverable']
+
+        if 'retry' in annotations:
+            if 'total_attempts' in annotations['retry']:
+                self._retry_total_attempts = annotations['retry']['total_attempts']
 
 
 class BPMNComponent:
@@ -313,15 +341,16 @@ class BPMNComponent:
         }
         self._service_properties.update(service_update)
 
+        # Set the default Retry Policy, which may or may not be overriden by each
+        # individual BPMNComponent.
+        self._call_properties.update({'retry': {'total_attempts': self._global_props._retry_total_attempts}})
+
         if 'call' in self._annotation:
             self._call_properties.update(self._annotation['call'])
         if 'health' in self._annotation:
             self._health_properties.update(self._annotation['health'])
         if 'service' in self._annotation:
             self._service_properties.update(self._annotation['service'])
-
-
-
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any], digraph: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,

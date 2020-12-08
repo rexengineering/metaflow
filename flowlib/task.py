@@ -27,7 +27,7 @@ from .bpmn_util import (
 )
 
 
-Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
+Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method', 'total_attempts'])
 
 
 class BPMNTask(BPMNComponent):
@@ -82,7 +82,8 @@ class BPMNTask(BPMNComponent):
                     bpmn_component.envoy_host,
                     bpmn_component.service_properties.port,
                     path,
-                    bpmn_component.call_properties.method
+                    bpmn_component.call_properties.method,
+                    bpmn_component.call_properties.total_attempts,
                 )
             )
         bavs_config = {
@@ -90,6 +91,8 @@ class BPMNTask(BPMNComponent):
                 self._make_forward(upstream) for upstream in upstreams
             ],
             'wf_id': self._global_props.id,
+            'flowd_envoy_cluster': 'outbound|9002||flowd.rexflow.svc.cluster.local',
+            'flowd_path': '/instancefail',
         }
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',
@@ -291,4 +294,5 @@ class BPMNTask(BPMNComponent):
             'port': upstream.port,
             'path': upstream.path,
             'method': upstream.method, # TODO: Test with methods other than POST
+            'total_attempts': upstream.total_attempts,
         }

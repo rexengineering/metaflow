@@ -198,6 +198,18 @@ class BPMNXGateway(BPMNComponent):
                                         'name': 'REXFLOW_XGW_FALSE_URL',
                                         'value': component_map[self.false_forward_componentid].k8s_url,
                                     },
+                                    {
+                                        'name': 'REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS',
+                                        'value': component_map[self.false_forward_componentid].call_properties.total_attempts,
+                                    },
+                                    {
+                                        'name': 'REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS',
+                                        'value': component_map[self.true_forward_componentid].call_properties.total_attempts,
+                                    },
+                                    {
+                                        'name': 'REXFLOW_XGW_FAIL_URL',
+                                        'value': 'http://flowd.rexflow:9002/instancefail'
+                                    },
                                 ]
                             },
                         ],

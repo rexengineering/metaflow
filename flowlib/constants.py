@@ -1,6 +1,6 @@
 '''
 These are the valid states for a workflow and the workflow instances, specified here
-so that all parts necessarilly use the same values and to avoid embedding literal
+so that all parts necessarily use the same values and to avoid embedding literal
 constants everywhere.
 '''
 class States:
@@ -11,6 +11,7 @@ class States:
     STARTING  = 'STARTING'
     STOPPED   = 'STOPPED'
     STOPPING  = 'STOPPING'
+    TRUE      = 'TRUE'
 
 # TODO: research caching this conversion.
 class ByteStatesClass:
@@ -54,10 +55,13 @@ class WorkflowInstanceKeys:
     ROOT = f'{REXFLOW_ROOT}/instances'
 
     def __init__(self, id):
-        self.root   = self.key_of(id)
-        self.proc   = self.proc_key(id)
-        self.result = self.result_key(id)
-        self.state  = self.state_key(id)
+        self.root          = self.key_of(id)
+        self.proc          = self.proc_key(id)
+        self.result        = self.result_key(id)
+        self.state         = self.state_key(id)
+        self.headers       = self.headers_key(id)
+        self.payload       = self.payload_key(id)
+        self.error_key     = self.was_error_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -75,6 +79,18 @@ class WorkflowInstanceKeys:
     def result_key(cls, id):
         return f'{cls.key_of(id)}/result'
 
+    @classmethod
+    def payload_key(cls, id):
+        return f'{cls.key_of(id)}/payload'
+
+    @classmethod
+    def headers_key(cls, id):
+        return f'{cls.key_of(id)}/headers'
+
+    @classmethod
+    def was_error_key(cls, id):
+        return f'{cls.key_of(id)}/wasError'
+
 '''
 Accept a key in the form of <workflow_id>-<guid>
 and return a tuple of (workflow_id,guid)
@@ -83,6 +99,10 @@ It's assumed that the instance_id has no occurance of '-'
 othwerise this breaks.
 '''
 def split_key(instance_id : str):
-    parts = instance_id.split('-');
+    parts = instance_id.split('-')
     return ('-'.join(parts[0:-1]), '-'.join(parts[-1]))
 
+def flow_result(status: int, message: str, **kwargs):
+    result = {'status': status, 'message': message}
+    result.update(kwargs)
+    return result

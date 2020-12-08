@@ -1,40 +1,40 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: my-secret-sauce
+  name: profit
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-secret-sauce
+  name: profit
   labels:
-    app: my-secret-sauce
+    app: profit
 spec:
   ports:
   - name: http
     port: 5000
     targetPort: 5000
   selector:
-    app: my-secret-sauce
+    app: profit
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: my-secret-sauce
+  name: profit
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: my-secret-sauce
+      app: profit
   template:
     metadata:
       labels:
-        app: my-secret-sauce
+        app: profit
     spec:
-      serviceAccountName: my-secret-sauce
+      serviceAccountName: profit
       containers:
-      - image: secret-sauce
+      - image: profit
         imagePullPolicy: IfNotPresent
-        name: my-secret-sauce
+        name: profit
         ports:
         - containerPort: 5000

@@ -20,6 +20,7 @@ from .constants import (
     States,
     WorkflowKeys,
     WorkflowInstanceKeys,
+    flow_result,
 )
 class Workflow:
     def __init__(self, process : bpmn.BPMNProcess, id=None):
@@ -181,6 +182,47 @@ class WorkflowInstance:
         else:
             if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
+
+    def retry(self):
+        # mark running
+        etcd = get_etcd()
+
+        if not etcd.replace(self.keys.state, States.STOPPED, States.STARTING):
+            logging.error('Failed to transition from STOPPED -> STARTING.')
+
+        # get headers
+        headers = json.loads(etcd.get(self.keys.headers)[0].decode())
+
+        # next, get the json
+        payload = json.loads(etcd.get(self.keys.payload)[0].decode())
+        headers_to_send = {
+            'X-Flow-Id': self.id,
+            'X-Rexflow-Wf-Id': self.parent.id,
+        }
+
+        for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:
+            if k in headers:
+                headers_to_send[k] = headers[k]
+
+        # now, start the thing again.
+        response = requests.post(
+            f"http://{headers['X-Rexflow-Original-Host']}{headers['X-Rexflow-Original-Path']}",
+            json=payload,
+            headers=headers_to_send,
+        )
+
+        msg = "Retry Succeeded."
+        if response.ok:
+            if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
+                logging.error('Failed to transition from STARTING -> RUNNING.')
+            status = 0
+        else:
+            if not etcd.replace(self.keys.state, States.STARTING, States.STOPPED):
+                logging.error('Failed to transition from RUNNING -> ERROR.')
+            msg = "Retry failed."
+            status = -1
+
+        return flow_result(status, msg)
 
     def stop(self):
         raise NotImplementedError('Lazy developer error!')
