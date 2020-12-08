@@ -186,8 +186,8 @@ class WorkflowInstance:
         # mark running
         etcd = get_etcd()
 
-        if not etcd.replace(self.keys.state, States.ERROR, States.RUNNING):
-            logging.error('Failed to transition from ERROR -> RUNNING.')
+        if not etcd.replace(self.keys.state, States.STOPPED, States.STARTING):
+            logging.error('Failed to transition from STOPPED -> STARTING.')
 
         # get headers
         headers = json.loads(etcd.get(self.keys.headers)[0].decode())
@@ -210,13 +210,15 @@ class WorkflowInstance:
             headers=headers_to_send,
         )
 
-        # If failed, make error again.
-        if not response.ok:
-            if not etcd.replace(self.keys.state, States.RUNNING, States.ERROR):
+        if response.ok:
+            if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
+                logging.error('Failed to transition from STARTING -> RUNNING.')
+        else:
+            if not etcd.replace(self.keys.state, States.STARTING, States.STOPPED):
                 logging.error('Failed to transition from RUNNING -> ERROR.')
-            return {"the Force": "Not with us."}
+            return "Retry failed"
 
-        return {'the Force': 'with us'}
+        return "Retry Succeeded"
 
     def stop(self):
         raise NotImplementedError('Lazy developer error!')

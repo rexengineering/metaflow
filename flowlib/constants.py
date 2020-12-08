@@ -99,5 +99,5 @@ It's assumed that the instance_id has no occurance of '-'
 othwerise this breaks.
 '''
 def split_key(instance_id : str):
-    parts = instance_id.split('-');
+    parts = instance_id.split('-')
     return ('-'.join(parts[0:-1]), '-'.join(parts[-1]))

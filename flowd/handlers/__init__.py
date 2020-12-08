@@ -4,7 +4,7 @@ import sys
 
 from flowlib import flow_pb2
 
-from . import handle_apply, handle_delete, handle_ps, handle_run, handle_restart, handle_start,\
+from . import handle_apply, handle_delete, handle_ps, handle_run, handle_start,\
     handle_stop
 
 

@@ -26,7 +26,7 @@ from flowlib.quart_app import QuartApp
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
-KAFKA_GROUP_ID = os.environ('KAFKA_GROUP_ID', '')
+KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
 FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
