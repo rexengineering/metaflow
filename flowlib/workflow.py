@@ -210,15 +210,16 @@ class WorkflowInstance:
             headers=headers_to_send,
         )
 
+        msg = "Retry Succeeded."
         if response.ok:
             if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
         else:
             if not etcd.replace(self.keys.state, States.STARTING, States.STOPPED):
                 logging.error('Failed to transition from RUNNING -> ERROR.')
-            return "Retry failed"
+            msg = "Retry failed."
 
-        return "Retry Succeeded"
+        return {"Message": msg, "Status": response.status_code}
 
     def stop(self):
         raise NotImplementedError('Lazy developer error!')

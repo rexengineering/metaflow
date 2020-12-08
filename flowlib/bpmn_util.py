@@ -210,7 +210,7 @@ class HealthProperties:
 
     @property
     def period(self) -> int:
-        return self._period if self._period is not None else 10
+        return self._period if self._period is not None else 30
 
     @property
     def response(self) -> str:
