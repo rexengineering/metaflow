@@ -30,11 +30,11 @@ from flowlib.constants import (
 
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
-KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
-KAFKA_GROUP_ID = os.environ['KAFKA_GROUP_ID']
+KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
+KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
-TOTAL_ATTEMPTS = int(os.environ['TOTAL_ATTEMPTS'])
-FAIL_URL = os.environ['FAIL_URL']
+TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
+FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
@@ -96,21 +96,17 @@ class EventCatchPoller:
 
     def save_traceid(self, headers, flow_id):
         trace_id = None
-        print("headers:", headers, flush=True)
         if TRACEID_HEADER in headers:
             trace_id = headers[TRACEID_HEADER]
         elif TRACEID_HEADER.lower() in headers:
             trace_id = headers[TRACEID_HEADER.lower()]
 
-        print("Trace id: ", trace_id, flush=True)
         if trace_id:
             etcd = get_etcd()
             trace_key = WorkflowInstanceKeys.traceid_key(flow_id)
             with etcd.lock(trace_key):
-                print("got lock", flush=True)
                 current_traces = []
                 current_trace_resp = etcd.get(trace_key)[0]
-                print("curr trace resp: ", current_trace_resp, flush=True)
                 if current_trace_resp:
                     current_traces = json.loads(current_trace_resp.decode())
                 current_traces.append(trace_id)
@@ -133,7 +129,6 @@ class EventCatchPoller:
                     logging.error("failed to save trace id on WF Instance")
                     import traceback
                     traceback.print_exception(*sys.exc_info())
-                    print("got an error", flush=True)
                 return svc_response
             except Exception:
                 logging.error(f"failed making a call to {FORWARD_URL} on wf {flow_id}")
