@@ -120,6 +120,7 @@ class EventCatchPoller:
             'x-flow-id': str(flow_id),
             'x-rexflow-wf-id': str(wf_id),
             'content-type': content_type,
+            'x-rexflow-task-id': FORWARD_TASK_ID,
         }
         for _ in range(TOTAL_ATTEMPTS):
             try:

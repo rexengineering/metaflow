@@ -50,6 +50,8 @@ class BPMNTask(BPMNComponent):
             service_name = self.service_properties.host.replace("_", '-')
 
         envoyfilter_name = self.service_properties.host.replace('_', '-')
+        if self._is_preexisting:
+            envoyfilter_name += f'-{self.id.lower().replace("_", "-")}'
 
         # We name the envoyfilter withhash if in a shared namespace and without hash
         # if it's not in a shared namespace, regardless of whether service is preexisting.

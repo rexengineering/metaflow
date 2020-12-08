@@ -28,6 +28,9 @@ FORWARD_HEADERS = [
     'x-ot-span-context',
 ]
 
+TRUE_TASK_ID = os.environ['REXFLOW_TRUE_TASK_ID']
+FALSE_TASK_ID = os.environ['REXFLOW_FALSE_TASK_ID']
+
 
 @app.route('/', methods=['POST'])
 def conditional():
@@ -64,6 +67,7 @@ def conditional():
     headers = {
         'x-flow-id': request.headers['x-flow-id'],
         'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
+        'x-rexflow-task-id': TRUE_TASK_ID if comparison_result else FALSE_TASK_ID
     }
     for h in FORWARD_HEADERS:
         if h in request.headers:
