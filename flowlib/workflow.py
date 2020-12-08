@@ -20,6 +20,7 @@ from .constants import (
     States,
     WorkflowKeys,
     WorkflowInstanceKeys,
+    flow_result,
 )
 class Workflow:
     def __init__(self, process : bpmn.BPMNProcess, id=None):
@@ -83,7 +84,12 @@ class Workflow:
         etcd = get_etcd(is_not_none=True)
         if not transition_state(etcd, self.keys.state, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
+
+    def remove(self):
+        logging.info(f'Removing deployment for workflow {self.id}')
+        etcd = get_etcd(is_not_none=True)
         orchestrator = self.properties.orchestrator
+        logging.info(f'orchestrator is {orchestrator}')
         if orchestrator == 'docker':
             docker_result = subprocess.run(
                 ['docker', 'stack', 'rm', self.id_hash], capture_output=True, text=True,
@@ -101,7 +107,7 @@ class Workflow:
                 self.process.to_istio(kubernetes_stream, self.id_hash)
             ctl_input = kubernetes_stream.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'delete', '-f', '-'],
+                ['kubectl', 'delete', '--ignore-not-found', '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
             if kubectl_result.stdout:
@@ -201,8 +207,8 @@ class WorkflowInstance:
         # mark running
         etcd = get_etcd()
 
-        if not etcd.replace(self.keys.state, States.ERROR, States.RUNNING):
-            logging.error('Failed to transition from ERROR -> RUNNING.')
+        if not etcd.replace(self.keys.state, States.STOPPED, States.STARTING):
+            logging.error('Failed to transition from STOPPED -> STARTING.')
 
         # get headers
         headers = json.loads(etcd.get(self.keys.headers)[0].decode())
@@ -211,7 +217,7 @@ class WorkflowInstance:
         payload = json.loads(etcd.get(self.keys.payload)[0].decode())
         headers_to_send = {
             'X-Flow-Id': self.id,
-            'X-Rexflow-Wf-Id': self.parent.id, 
+            'X-Rexflow-Wf-Id': self.parent.id,
         }
 
         for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:
@@ -225,13 +231,18 @@ class WorkflowInstance:
             headers=headers_to_send,
         )
 
-        # If failed, make error again.
-        if not response.ok:
-            if not etcd.replace(self.keys.state, States.RUNNING, States.ERROR):
+        msg = "Retry Succeeded."
+        if response.ok:
+            if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
+                logging.error('Failed to transition from STARTING -> RUNNING.')
+            status = 0
+        else:
+            if not etcd.replace(self.keys.state, States.STARTING, States.STOPPED):
                 logging.error('Failed to transition from RUNNING -> ERROR.')
-            return {"the Force": "Not with us."}
+            msg = "Retry failed."
+            status = -1
 
-        return {'the Force': 'with us'}
+        return flow_result(status, msg)
 
     def stop(self):
         raise NotImplementedError('Lazy developer error!')
