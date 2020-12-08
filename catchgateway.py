@@ -98,21 +98,17 @@ class EventCatchPoller:
 
     def save_traceid(self, headers, flow_id):
         trace_id = None
-        print("headers:", headers, flush=True)
         if TRACEID_HEADER in headers:
             trace_id = headers[TRACEID_HEADER]
         elif TRACEID_HEADER.lower() in headers:
             trace_id = headers[TRACEID_HEADER.lower()]
 
-        print("Trace id: ", trace_id, flush=True)
         if trace_id:
             etcd = get_etcd()
             trace_key = WorkflowInstanceKeys.traceid_key(flow_id)
             with etcd.lock(trace_key):
-                print("got lock", flush=True)
                 current_traces = []
                 current_trace_resp = etcd.get(trace_key)[0]
-                print("curr trace resp: ", current_trace_resp, flush=True)
                 if current_trace_resp:
                     current_traces = json.loads(current_trace_resp.decode())
                 current_traces.append(trace_id)
@@ -135,7 +131,6 @@ class EventCatchPoller:
                     logging.error("failed to save trace id on WF Instance")
                     import traceback
                     traceback.print_exception(*sys.exc_info())
-                    print("got an error", flush=True)
                 return svc_response
             except Exception:
                 logging.error(f"failed making a call to {FORWARD_URL} on wf {flow_id}")
