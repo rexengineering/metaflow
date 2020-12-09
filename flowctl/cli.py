@@ -9,10 +9,9 @@ from .actions import (  # noqa
     run_action,  # noqa
     start_action,  # noqa
     stop_action,  # noqa
-    restart_action,  # noqa
 )  # noqa
 
-ACTIONS = ('apply', 'delete', 'ps', 'restart', 'run', 'start', 'stop')
+ACTIONS = ('apply', 'delete', 'ps', 'run', 'start', 'stop')
 
 
 def add_action(action_name, subparsers, action_map):

@@ -237,3 +237,21 @@ healthd_virtual_service_spec = {
         ],
     },
 }
+
+healthd_edit_default_spec = {
+    'apiVersion': 'rbac.authorization.k8s.io/v1',
+    'kind': 'RoleBinding',
+    'metadata': {'name': 'healthd-edit-default', 'namespace': 'default'},
+    'subjects': [
+        {
+            'kind': 'ServiceAccount',
+            'name': 'healthd',
+            'namespace': 'rexflow'
+        }
+    ],
+    'roleRef': {
+        'kind': 'ClusterRole',
+        'name': 'edit',
+        'apiGroup': 'rbac.authorization.k8s.io'
+    }
+}
