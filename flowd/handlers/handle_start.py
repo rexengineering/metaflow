@@ -3,7 +3,6 @@ from flowlib import (
     workflow,
     constants,
     etcd_utils,
-    workflow,
 )
 
 

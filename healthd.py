@@ -150,7 +150,7 @@ class HealthManager:
                     return result
         return False
 
-    def stop_workflow(self, workflow : Workflow):
+    def stop_workflow(self, workflow: Workflow):
         '''
         Stopping a workflow means we need to wait for all the instances for that
         workflow to COMPLETE or ERROR. Then we need to delete the deployment for
@@ -172,7 +172,9 @@ class HealthManager:
             if inst_key.endswith('/state'):
                 state = self.etcd.get(inst_key)[0]
                 if state not in (BStates.COMPLETED, BStates.ERROR):
-                    self.logger.info(f'stop_workflow detected unfinished instance {inst_key} in state {state}')
+                    self.logger.info(
+                        f'stop_workflow detected unfinished instance {inst_key} in state {state}'
+                    )
                     alive.append(inst_key)
 
         while len(alive) > 0:
@@ -187,7 +189,8 @@ class HealthManager:
         # if len(alive) > 0:
         #     watch_iter, cancel = self.etcd.watch_prefix(instance_prefix)
         #     for event in watch_iter:
-        #         key = event.key.decode('utf-8') #'/'.join(event.key.decode('utf-8').split('/')[:-1])  # strip last node from key path
+        #         # strip last node from key path
+        #         key = event.key.decode('utf-8')
         #         if key.endswith('/state'):
         #             val = event.value.decode('utf-8')
         #             self.logger.info(f'stop_workflow: Got key {key} {val} {key in alive}')

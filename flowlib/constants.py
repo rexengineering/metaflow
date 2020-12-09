@@ -113,16 +113,18 @@ class WorkflowInstanceKeys:
     def traceid_key(cls, id):
         return f'{cls.key_of(id)}/traceid'
 
-'''
-Accept a key in the form of <workflow_id>-<guid>
-and return a tuple of (workflow_id,guid)
 
-It's assumed that the instance_id has no occurance of '-'
-othwerise this breaks.
-'''
-def split_key(instance_id : str):
+def split_key(instance_id: str):
+    '''
+    Accept a key in the form of <workflow_id>-<guid>
+    and return a tuple of (workflow_id,guid)
+
+    It's assumed that the instance_id has no occurance of '-'
+    othwerise this breaks.
+    '''
     parts = instance_id.split('-')
     return ('-'.join(parts[0:-1]), '-'.join(parts[-1]))
+
 
 def flow_result(status: int, message: str, **kwargs):
     result = {'status': status, 'message': message}
