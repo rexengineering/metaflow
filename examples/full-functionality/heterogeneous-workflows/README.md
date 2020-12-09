@@ -11,7 +11,7 @@ To run this example, do:
 kubectl config set-context --current --namespace=default
 ./inject_and_deploy.sh sauce.yaml
 python -m flowctl apply heterogeneous-underpants.bpmn
-python -m flowctl apply heterogeneous-underpants2.bpmn
+python -m flowctl apply heterogeneous-underpants-2.bpmn
 
 # See that h-pants deploys its own `collect` service:
 kubectl get po -nh-pants
@@ -22,7 +22,7 @@ kubectl get po -h2-pants
 
 # In another shell, watch the logs of the `secret-sauce` so that you can be convinced
 # that both WF's use it:
-kubectl -ndefault logs -f $(kubectl get po -ndefault | grep secret-sauce | cut -d ' ' -f1) -c secret-sauce
+kubectl -ndefault logs -f $(kubectl get po -ndefault | grep my-secret-sauce | cut -d ' ' -f1) -c my-secret-sauce
 
 # Run both WF's:
 python -m flowctl run h-pants '{}'

@@ -17,5 +17,5 @@ python -m flowctl run retry-demo '{}'
 After running a few WF Instances, doing a `python -m flowctl ps` should show some instances as `COMPLETED` and some as `ERROR`. To try an `ERROR` instance again, please do:
 
 ```
-python -m flowctl restart <<Failed WF Instance ID>>
+python -m flowctl start -k INSTANCE <<Failed WF Instance ID>>
 ```
