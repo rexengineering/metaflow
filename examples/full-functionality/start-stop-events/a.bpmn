@@ -62,7 +62,7 @@
     <bpmn:association id="Association_1yz0l60" sourceRef="Task_1mrtiy4" targetRef="TextAnnotation_18mql5m" />
     <bpmn:textAnnotation id="TextAnnotation_1msrvto">
       <bpmn:text>rexflow:
-  queue: oops
+  queue: thing-b
   service:
     host: underpants</bpmn:text>
     </bpmn:textAnnotation>

@@ -30,11 +30,11 @@ from flowlib.constants import (
 
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
-KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
-KAFKA_GROUP_ID = os.environ['KAFKA_GROUP_ID']
+KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
+KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
-TOTAL_ATTEMPTS = int(os.environ['TOTAL_ATTEMPTS'])
-FAIL_URL = os.environ['FAIL_URL']
+TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
+FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 
 FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 

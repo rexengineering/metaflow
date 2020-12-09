@@ -208,7 +208,7 @@ class HealthProperties:
 
     @property
     def period(self) -> int:
-        return self._period if self._period is not None else 10
+        return self._period if self._period is not None else 30
 
     @property
     def response(self) -> str:
@@ -235,6 +235,7 @@ class WorkflowProperties:
         self._namespace_shared = False
         self._id_hash = ''
         self._retry_total_attempts = 2
+        self._is_recoverable = False
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -264,6 +265,10 @@ class WorkflowProperties:
         assert self._orchestrator == 'istio'
         return self._orchestrator if self._orchestrator is not None else 'docker'
 
+    @property
+    def is_recoverable(self):
+        return self._is_recoverable
+
     def update(self, annotations):
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
@@ -282,6 +287,9 @@ class WorkflowProperties:
             self._id_hash = calculate_id_hash(self._id)
             if not self._namespace_shared:
                 self._namespace = self._id
+
+        if 'recoverable' in annotations:
+            self._is_recoverable = annotations['recoverable']
 
         if 'retry' in annotations:
             if 'total_attempts' in annotations['retry']:

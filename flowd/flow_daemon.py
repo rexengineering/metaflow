@@ -14,9 +14,6 @@ class Flow(flow_pb2_grpc.FlowDaemon):
     def PSQuery(self, request, context):
         return handler_dispatch('ps', request, context)
 
-    def RestartWorkflow(self, request, context):
-        return handler_dispatch('restart', request, context)
-
     def RunWorkflow(self, request, context):
         return handler_dispatch('run', request, context)
 

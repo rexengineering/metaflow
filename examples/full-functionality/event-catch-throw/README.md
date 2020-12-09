@@ -7,11 +7,11 @@ In this example, the first Task throws an Event to the topic "stolenpants", whic
 To run this, please do:
 
 ```
-python -m flowctl apply throw.bpmn
+python -m flowctl apply events.bpmn
 
 # Wait for the deployment to start RUNNING. If curious, watch pods in the `events` namespace.
 
-python -m flowctl run throw '{}'`.
+python -m flowctl run events '{}'`.
 python -m flowctl ps -o | jq .
 ```
 

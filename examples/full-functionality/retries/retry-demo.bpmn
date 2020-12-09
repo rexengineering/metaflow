@@ -35,6 +35,7 @@
     <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
       <bpmn:text>rexflow:
     id: retry-demo
+    recoverable: true
     retry:
         total_attempts: 1</bpmn:text>
     </bpmn:textAnnotation>
@@ -72,9 +73,6 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
-      <bpmndi:BPMNShape id="TextAnnotation_1s95izy_di" bpmnElement="TextAnnotation_1s95izy">
-        <dc:Bounds x="950" y="180" width="100" height="54" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="SequenceFlow_0wlepjp_di" bpmnElement="SequenceFlow_0wlepjp">
         <di:waypoint x="690" y="287" />
         <di:waypoint x="750" y="287" />
@@ -113,7 +111,7 @@
         <dc:Bounds x="590" y="247" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
-        <dc:Bounds x="160" y="130" width="160" height="68" />
+        <dc:Bounds x="160" y="130" width="160" height="82" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
         <dc:Bounds x="400" y="100" width="120" height="68" />
@@ -124,9 +122,12 @@
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
         <dc:Bounds x="850" y="137" width="128" height="68" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1s95izy_di" bpmnElement="TextAnnotation_1s95izy">
+        <dc:Bounds x="950" y="180" width="100" height="54" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0hwix5o_di" bpmnElement="Association_0hwix5o">
         <di:waypoint x="345" y="274" />
-        <di:waypoint x="275" y="198" />
+        <di:waypoint x="288" y="212" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
         <di:waypoint x="476" y="247" />

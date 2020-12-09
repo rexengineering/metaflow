@@ -35,7 +35,7 @@
     <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
       <bpmn:text>rexflow:
     id: b
-    queue: oops
+    queue: thing-b
     namespace: default
     namespace_shared: true</bpmn:text>
     </bpmn:textAnnotation>
