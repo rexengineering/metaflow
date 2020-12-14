@@ -331,6 +331,7 @@ class BPMNComponent:
         self._call_properties = CallProperties()
         self._global_props = workflow_properties
         self._proc = process
+        self._kafka_topics = []
 
         if 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
@@ -440,6 +441,10 @@ class BPMNComponent:
         service_props = self.service_properties
         host = service_props.host
         return f'{host}.{self.namespace}.svc.cluster.local'
+
+    @property
+    def kafka_topics(self) -> List[str]:
+        return self._kafka_topics
 
     @property
     def annotation(self) -> dict:
