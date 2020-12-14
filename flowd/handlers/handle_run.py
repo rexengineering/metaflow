@@ -1,13 +1,11 @@
 import logging
 
-import requests
-
-from flowlib import executor, workflow
+from flowlib import workflow
 from flowlib.etcd_utils import get_etcd
-from flowlib.constants import States, BStates
+from flowlib.constants import BStates
+
 
 def handler(request):
-    logger = logging.getLogger()
     result = dict()
     etcd = get_etcd(is_not_none=True)
     wf_deployment = workflow.Workflow.from_id(request.workflow_id)

@@ -1,5 +1,6 @@
 lxml
 beautifulsoup4
+confluent-kafka
 grpcio
 xmltodict
 etcd3
@@ -10,4 +11,4 @@ quart
 grpcio-tools
 pudb
 pylint
-confluent-kafka
+flake8

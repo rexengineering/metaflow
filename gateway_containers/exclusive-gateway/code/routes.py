@@ -11,8 +11,8 @@ REXFLOW_XGW_OPERATOR = os.environ['REXFLOW_XGW_OPERATOR']
 REXFLOW_XGW_COMPARISON_VALUE = os.environ['REXFLOW_XGW_COMPARISON_VALUE']
 REXFLOW_XGW_TRUE_URL = os.environ['REXFLOW_XGW_TRUE_URL']
 REXFLOW_XGW_FALSE_URL = os.environ['REXFLOW_XGW_FALSE_URL']
-REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS = int(os.environ['REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS'])
-REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS'])
+FALSE_ATTEMPTS = int(os.environ['REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS'])
+TRUE_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS'])
 REXFLOW_XGW_FAIL_URL = os.environ['REXFLOW_XGW_FAIL_URL']
 
 SPLITS = REXFLOW_XGW_JSONPATH.split('.')
@@ -28,6 +28,7 @@ FORWARD_HEADERS = [
     'x-ot-span-context',
 ]
 
+
 @app.route('/', methods=['POST'])
 def conditional():
     incoming_json = request.json
@@ -38,7 +39,12 @@ def conditional():
         if split in value_to_compare:
             value_to_compare = value_to_compare[split]
 
-    default_val = int(REXFLOW_XGW_COMPARISON_VALUE) if type(value_to_compare) == int else REXFLOW_XGW_COMPARISON_VALUE
+    default_val = None
+    if type(value_to_compare) == int:
+        default_val = int(REXFLOW_XGW_COMPARISON_VALUE)
+    else:
+        default_val = REXFLOW_XGW_COMPARISON_VALUE
+
     if type(value_to_compare) in [int, str]:
         if REXFLOW_XGW_OPERATOR == '==':
             comparison_result = (value_to_compare == default_val)
@@ -64,7 +70,7 @@ def conditional():
             headers[h] = request.headers[h]
 
     success = False
-    for _ in range(REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS if comparison_result else REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS):
+    for _ in range(TRUE_ATTEMPTS if comparison_result else FALSE_ATTEMPTS):
         try:
             response = requests.post(url, json=incoming_json, headers=headers)
             response.raise_for_status()
@@ -84,7 +90,7 @@ def conditional():
     if TRACEID_HEADER in request.headers:
         resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
     elif TRACEID_HEADER.lower() in request.headers:
-        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()
+        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
     return resp
 
 

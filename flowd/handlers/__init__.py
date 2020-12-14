@@ -1,11 +1,9 @@
 import json
 import logging
-import sys
 
 from flowlib import flow_pb2
 
-from . import handle_apply, handle_delete, handle_ps, handle_run, handle_start,\
-    handle_stop
+from . import handle_apply, handle_delete, handle_ps, handle_run, handle_start, handle_stop  # noqa
 
 
 def handler_dispatch(command, request, context):

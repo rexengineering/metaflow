@@ -2,33 +2,16 @@
 Implements the BPMNXGateway object, which inherits BPMNComponent.
 '''
 
-from collections import OrderedDict, namedtuple
-from io import IOBase
-import logging
-import socket
-import subprocess
-import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from collections import OrderedDict
+from typing import Mapping
 
 import yaml
-import xmltodict
-
-from .envoy_config import get_envoy_config, Upstream
-from .etcd_utils import get_etcd
-from .bpmn_util import (
-    iter_xmldict_for_key,
-    get_annotations,
-    CallProperties,
-    ServiceProperties,
-    HealthProperties,
-    BPMNComponent,
-)
+from .bpmn_util import iter_xmldict_for_key, BPMNComponent
 
 from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
-    create_rexflow_ingress_vs,
 )
 
 
@@ -39,7 +22,7 @@ XGATEWAY_LISTEN_PORT = "5000"
 class BPMNXGateway(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, gateway : OrderedDict, process : OrderedDict=None, global_props=None):
+    def __init__(self, gateway: OrderedDict, process: OrderedDict = None, global_props=None):
         super().__init__(gateway, process, global_props)
         self.jsonpath = ""
         self.operator = ""
@@ -60,14 +43,15 @@ class BPMNXGateway(BPMNComponent):
         # We've got the annotation. From here, let's find out the name of the resulting
         # gateway service.
         self.name = f"{XGATEWAY_SVC_PREFIX}-{self.annotation['gateway_name']}"
-        assert ('service' not in self.annotation), "service-name must be auto-inferred for X-Gateways"
+        assert ('service' not in self.annotation), "X-Gateway service-name must be auto-inferred"
 
         self._service_properties.update({
             "port": XGATEWAY_LISTEN_PORT,
             "host": self.name,
         })
 
-    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
+    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                      digraph: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -104,8 +88,11 @@ class BPMNXGateway(BPMNComponent):
             if association['@sourceRef'] in outgoing_calls
         }
         for annotation in iter_xmldict_for_key(self._proc, 'bpmn:textAnnotation'):
-            if (annotation['@id'] not in outgoing_component_targets.keys()) or not annotation['bpmn:text'].startswith('rexflow:'):
+            if (annotation['@id'] not in outgoing_component_targets.keys()):
                 continue
+            if not annotation['bpmn:text'].startswith('rexflow:'):
+                continue
+
             annot_dict = yaml.safe_load(annotation['bpmn:text'].replace('\xa0', ''))['rexflow']
             if 'next_step_id' in annot_dict:
                 if annot_dict['next_step_id'] == true_next_cookie:
@@ -138,11 +125,15 @@ class BPMNXGateway(BPMNComponent):
             },
             {
                 'name': 'REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS',
-                'value': component_map[self.false_forward_componentid].call_properties.total_attempts,
+                'value': component_map[
+                    self.false_forward_componentid
+                ].call_properties.total_attempts,
             },
             {
                 'name': 'REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS',
-                'value': component_map[self.true_forward_componentid].call_properties.total_attempts,
+                'value': component_map[
+                    self.true_forward_componentid
+                ].call_properties.total_attempts,
             },
             {
                 'name': 'REXFLOW_XGW_FAIL_URL',

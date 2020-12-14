@@ -1,11 +1,11 @@
 import logging
-import socket
 
 import kubernetes.client
 import kubernetes.client.rest
 import os
 
 from . import specs
+
 
 def wrap_api_call(api_call):
     def _wrapped_api_call(*args, **kws):
@@ -15,10 +15,11 @@ def wrap_api_call(api_call):
         except kubernetes.client.rest.ApiException as exn:
             # a 404 usually indicates that istio is not active on the k8s cluster
             if exn.status == 404:
-                logging.error('\n***\n*** Is istio installed? istioctl install --set profile=demo\n***')
+                logging.error('\n***\nIs istio installed? istioctl install --set profile=demo\n***')
             logging.exception(exn)
         return result
     return _wrapped_api_call
+
 
 class Deployer:
     def __init__(self):
@@ -91,7 +92,8 @@ class Deployer:
 
         os.system("kubectl create ns kafka")
         os.system("kubectl apply -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
-        os.system("kubectl apply -f https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
+        os.system("kubectl apply -f "
+                  "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
 
     def delete(self, _):
         self.delete_namespaced_custom_object(
@@ -117,7 +119,7 @@ class Deployer:
         self.delete_namespaced_service_account('rexflow-etcd', 'rexflow')
         self.delete_namespace('rexflow')
 
-        os.system("kubectl delete -f https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
+        os.system("kubectl delete -f "
+                  "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
         os.system("kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
         os.system("kubectl delete ns kafka")
-

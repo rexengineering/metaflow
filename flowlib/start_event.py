@@ -2,27 +2,11 @@
 Implements BPMNStartEvent object, which for now is just a pass-through to Flowd.
 '''
 
-from collections import OrderedDict, namedtuple
-from io import IOBase
-import logging
-import socket
-import subprocess
-import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from collections import OrderedDict
+from typing import Mapping
 import os
 
-import yaml
-import xmltodict
-
-from .envoy_config import get_envoy_config, Upstream
-from .etcd_utils import get_etcd
-from .bpmn_util import (
-    iter_xmldict_for_key,
-    CallProperties,
-    ServiceProperties,
-    HealthProperties,
-    BPMNComponent,
-)
+from .bpmn_util import BPMNComponent
 
 from .k8s_utils import (
     create_deployment,
@@ -38,10 +22,16 @@ START_EVENT_CONTAINER = 'catch-gateway:1.0.0'
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
+START_EVENT_PREFIX = 'start'
+START_EVENT_LISTEN_PORT = '5000'
+START_EVENT_CONTAINER = 'catch-gateway:1.0.0'
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+
+
 class BPMNStartEvent(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, event : OrderedDict, process : OrderedDict, global_props):
+    def __init__(self, event: OrderedDict, process: OrderedDict, global_props):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
         self._service_name = f"{START_EVENT_PREFIX}-{self._global_props.id}"
@@ -56,9 +46,9 @@ class BPMNStartEvent(BPMNComponent):
         # Check if we listen to a kafka topic to start events.
         if 'queue' in self._annotation:
             self._queue = self._annotation['queue']
-            self.kafka_topics.append(self._queue)
 
-    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
+    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                      digraph: OrderedDict) -> list:
         assert self._namespace, "new-grad programmer error: namespace should be set by now."
 
         k8s_objects = []
