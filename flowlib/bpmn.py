@@ -99,19 +99,19 @@ class BPMNProcess:
         # it's a Throw event. Else, it's a Catch event.
         self.throws = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            if 'bpmn:incoming' in event:
-                bpmn_throw = BPMNThrowEvent(event, process, self.properties)
-                self.throws.append(bpmn_throw)
-                self.component_map[event['@id']] = bpmn_throw
-                self.kafka_topics.extend(bpmn_throw.kafka_topics)
+            assert 'bpmn:incoming' in event, "Must have incoming edge to Throw Event."
+            bpmn_throw = BPMNThrowEvent(event, process, self.properties)
+            self.throws.append(bpmn_throw)
+            self.component_map[event['@id']] = bpmn_throw
+            self.kafka_topics.extend(bpmn_throw.kafka_topics)
 
         self.catches = []
-        for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            if 'bpmn:incoming' not in event:
-                bpmn_catch = BPMNCatchEvent(event, process, self.properties)
-                self.catches.append(bpmn_catch)
-                self.component_map[event['@id']] = bpmn_catch
-                self.kafka_topics.extend(bpmn_catch.kafka_topics)
+        for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
+            assert 'bpmn:incoming' not in event, "Can't have incoming edge to Catch Event."
+            bpmn_catch = BPMNCatchEvent(event, process, self.properties)
+            self.catches.append(bpmn_catch)
+            self.component_map[event['@id']] = bpmn_catch
+            self.kafka_topics.extend(bpmn_catch.kafka_topics)
 
         self.kafka_topics = list(set(self.kafka_topics))
 
