@@ -427,6 +427,7 @@ class TestHealthProperties(unittest.TestCase):
 #
 # WorkflowProperties tests
 #
+
 class TestWorkflowProperties(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -566,6 +567,13 @@ class TestBPMNComponent(unittest.TestCase):
         self.assertEqual(out._proc, self._process)
         self.assertFalse(out._service_properties._is_hash_used)
         self.assertEqual(out._service_properties._id_hash, '')
+
+        self.assertEqual(out.namespace, self._wfprops.namespace)
+        self.assertEqual(out.is_in_shared_ns, self._wfprops.namespace_shared)
+        self.assertEqual(out.k8s_url, 'http://localhost.default:5000/')
+        self.assertEqual(out.envoy_host, 'localhost.default.svc.cluster.local')
+        self.assertEqual(out.annotation, {'preexisting': False, 'service': {'host': 'localhost', 'port': 5000}})
+        self.assertEqual(out.path, '/')
 
     def test_init_with_preexisting(self):
         ''' init with annotation with prexisting true specified
