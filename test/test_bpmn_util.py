@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-import bpmn_util
+from flowlib import bpmn_util
 import copy
 import xmltodict
 from collections import OrderedDict

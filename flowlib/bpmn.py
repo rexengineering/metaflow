@@ -12,7 +12,7 @@ from typing import Any, Iterator, List, Mapping, Optional, Set
 import yaml
 import xmltodict
 
-from .etcd_utils import get_etcd
+from flowlib.etcd_utils import get_etcd
 from .task import BPMNTask
 from .exclusive_gateway import BPMNXGateway
 from .start_event import BPMNStartEvent
