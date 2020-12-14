@@ -111,6 +111,10 @@ class BPMNCatchEvent(BPMNComponent):
                 "name": "FAIL_URL",
                 "value": "http://flowd.rexflow:9002/instancefail",
             },
+            {
+                "name": "ETCD_HOST",
+                "value": os.environ['ETCD_HOST'],
+            },
         ]
 
         k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
