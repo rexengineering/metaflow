@@ -1,5 +1,3 @@
-import logging
-
 from flowlib import flow_pb2
 from flowlib import etcd_utils
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys

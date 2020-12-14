@@ -15,7 +15,7 @@ if __name__ == '__main__':
         sys.exit(1)
     try:
         result = actions[namespace.command](namespace)
-    except:
+    except Exception:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         logging.error(f'Unexpected top level exception: {exc_value}')
         traceback.print_exception(exc_type, exc_value, exc_traceback)

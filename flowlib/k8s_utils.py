@@ -3,6 +3,7 @@ Removes significant copy-pasta by defining simple utilities to
 create a k8s Service, ServiceAccount, and Deployment.
 '''
 
+
 def create_deployment(namespace, dns_safe_name, container, container_port, env, replicas=1):
     deployment = {
         'apiVersion': 'apps/v1',

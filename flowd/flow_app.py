@@ -1,13 +1,14 @@
 import logging
+import traceback
 
 from quart import request
+import json
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
 from flowlib.constants import BStates, WorkflowInstanceKeys
 from flowlib.workflow import Workflow
 
-import json
 
 class FlowApp(QuartApp):
     def __init__(self, **kws):
@@ -44,9 +45,11 @@ class FlowApp(QuartApp):
                             self.etcd.put(headers_key, json.dumps(
                                 {h: request.headers[h] for h in request.headers.keys()}
                             ).encode())
-                            transition_state(self.etcd, state_key, [BStates.STOPPING], BStates.STOPPED)
-                        except:
-                            import traceback; traceback.print_exc()
+                            transition_state(
+                                self.etcd, state_key, [BStates.STOPPING], BStates.STOPPED
+                            )
+                        except Exception:
+                            traceback.print_exc()
                             logging.error(f"Was unable to save the data for flow_id {flow_id}.")
                     else:
                         logging.error(

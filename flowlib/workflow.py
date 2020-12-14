@@ -1,13 +1,11 @@
 from ast import literal_eval
-from ctypes import c_size_t
 from io import StringIO
 import json
 import logging
+import os
 import subprocess
 from typing import Union
 import uuid
-from hashlib import sha1
-import os
 
 from confluent_kafka.admin import AdminClient, NewTopic
 import requests
@@ -30,7 +28,7 @@ KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
 class Workflow:
-    def __init__(self, process : bpmn.BPMNProcess, id=None):
+    def __init__(self, process: bpmn.BPMNProcess, id=None):
         self.process = process
         if id is None:
             self.id = self.process.id
@@ -107,7 +105,8 @@ class Workflow:
 
     def stop(self):
         etcd = get_etcd(is_not_none=True)
-        if not transition_state(etcd, self.keys.state, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
+        good_states = (BStates.RUNNING, BStates.ERROR)
+        if not transition_state(etcd, self.keys.state, good_states, BStates.STOPPING):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
 
     def remove(self):
@@ -156,7 +155,7 @@ class WorkflowInstance:
     1. Running a WF instance by calling the Start service
     2. Potentially other dashboarding uses in the future (not yet implemented).
     '''
-    def __init__(self, parent : Union[str, Workflow], id:str=None):
+    def __init__(self, parent: Union[str, Workflow], id: str = None):
         if isinstance(parent, str):
             self.parent = Workflow.from_id(parent)
         else:
@@ -179,7 +178,8 @@ class WorkflowInstance:
         '''
         process = self.parent.process
         executor_obj = get_executor()
-        def start_wf(task_id : str):
+
+        def start_wf(task_id: str):
             '''
             Arguments:
                 task_id - Task ID in the BPMN spec.
@@ -199,18 +199,26 @@ class WorkflowInstance:
             else:
                 raise ValueError(f'{serialization} is not a supported serialization type.')
             method = call_props.method.lower()
-            if method not in {'post',}:
+            if method not in {'post'}:
                 raise ValueError(f'{method} is not a supported method.')
             request = getattr(requests, method)
+            req_headers = {
+                'X-Flow-ID': self.id,
+                'X-Rexflow-Wf-Id': self.parent.id,
+                'Content-Type': mime_type
+            }
             response = request(
                 task.k8s_url,
-                headers={'X-Flow-ID':self.id, 'X-Rexflow-Wf-Id': self.parent.id, 'Content-Type':mime_type},
+                headers=req_headers,
                 data=data
             )
             if response.ok:
                 logging.info(f"Response for {task_id} in {self.id} was OK.")
             else:
-                logging.error(f"Response for {task_id} in {self.id} was not OK.  (status code {response.status_code})")
+                logging.error(
+                    f"Response for {task_id} in {self.id} was not OK."
+                    f"(status code {response.status_code})"
+                )
             return response
         target = process.entry_point['@id']
         future = executor_obj.submit(start_wf, target)

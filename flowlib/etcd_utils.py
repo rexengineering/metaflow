@@ -45,8 +45,9 @@ def init_etcd(*args, **kws):
                         etcd_opts['port'] = int(port_str)
         etcd_opts.update(kws)
         result = etcd3.client(*args, **etcd_opts)
-        result.get('😏') # If this throws an error, we know there is
-                         # something wrong with the client configuration.
+        # If this throws an error, we know there is
+        # something wrong with the client configuration.
+        result.get('😏')
         _etcd = result
     elif args or kws:
         # Notes: without this check, additional arguments to init_etcd()
@@ -112,7 +113,8 @@ def get_next_level(prefix=None, delim='/'):
     )
 
 
-def get_dict_from_prefix(prefix=None, delim='/', keys_only=False, keys=None, value_transformer=None):
+def get_dict_from_prefix(prefix=None, delim='/', keys_only=False,
+                         keys=None, value_transformer=None):
     '''Impose a naming discipline over a set of prefixed keys in etcd.
     Arguments:
         prefix - Key prefix.  Default is the root.
@@ -125,10 +127,12 @@ def get_dict_from_prefix(prefix=None, delim='/', keys_only=False, keys=None, val
     '''
     global _etcd
     assert _etcd is not None
-    if prefix is None: prefix = delim
-    elif not prefix.endswith(delim): prefix += delim
+    if prefix is None:
+        prefix = delim
+    elif not prefix.endswith(delim):
+        prefix += delim
     key_gen = (etcd_result[-1].key.decode('utf-8')
-        for etcd_result in _etcd.get_prefix(prefix, keys_only=True))
+               for etcd_result in _etcd.get_prefix(prefix, keys_only=True))
     plain_old_dict = dict()
     for key in key_gen:
         crnt = plain_old_dict
@@ -142,7 +146,7 @@ def get_dict_from_prefix(prefix=None, delim='/', keys_only=False, keys=None, val
             crnt[dict_key] = (
                 None if keys_only
                 else (_etcd.get(key)[0] if value_transformer is None
-                        else value_transformer(_etcd.get(key)[0]))
+                      else value_transformer(_etcd.get(key)[0]))
             )
     return plain_old_dict
 
@@ -160,7 +164,8 @@ class EtcdDict(dict):
         if prefix is None:
             self.prefix = delim
         elif isinstance(prefix, list):
-            if prefix[-1] == '': prefix.pop()
+            if prefix[-1] == '':
+                prefix.pop()
             self.prefix = delim.join(prefix)
         else:
             assert isinstance(prefix, str)
