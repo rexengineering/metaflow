@@ -5,14 +5,14 @@ import argparse
 from typing import Union
 from grpc.experimental import aio
 
-from flowlib import flow_pb2_grpc, executor
+from flowlib import flow_pb2_grpc
 from flowlib.flowd_utils import get_log_format
 
 from .flow_daemon import Flow
 from .flow_app import FlowApp
 
 
-async def serve(host:str, port:Union[str,int]):
+async def serve(host: str, port: Union[str, int]):
     address = f'{host}:{port}'
     server = aio.server()
     flow_pb2_grpc.add_FlowDaemonServicer_to_server(Flow(), server)

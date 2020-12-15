@@ -8,11 +8,15 @@ try:
     k8s.config.load_incluster_config()
 except k8s.config.config_exception.ConfigException:
     k8s.config.load_kube_config()
+
+
 v1 = k8s.client.CoreV1Api()
 url_match = re.compile('(?:http.*://)?(?P<host>[^:/ ]+).?(?P<port>[0-9]*).*')
 
+
 def do_something_else_for_etcd(kube_client):
-  raise NotImplementedError('Lazy developer error!')
+    raise NotImplementedError('Lazy developer error!')
+
 
 def get_etcd_from_container(pod, container, cert=None, key=None, ca=None,
                             cert_data=None, key_data=None, ca_data=None,
@@ -21,8 +25,8 @@ def get_etcd_from_container(pod, container, cert=None, key=None, ca=None,
                  for split in (arg.split('=', 1)
                  for arg in container.command
                  if arg.startswith('--')))
-    if (('cert-file' in flags) and ('key-file' in flags) and
-        ('trusted-ca-file' in flags) and ('advertise-client-urls' in flags)):
+    if ('cert-file' in flags) and ('key-file' in flags) and \
+            ('trusted-ca-file' in flags) and ('advertise-client-urls' in flags):
         src_cert = flags.get('cert-file')
         src_key = flags.get('key-file')
         src_ca = flags.get('trusted-ca-file')
@@ -30,9 +34,9 @@ def get_etcd_from_container(pod, container, cert=None, key=None, ca=None,
     else:
         env = dict((setting.name, setting.value)
                    for setting in container.env)
-        if (('ETCD_CERT_FILE' in env) and ('ETCD_KEY_FILE' in env) and
-            ('ETCD_TRUSTED_CA_FILE' in env) and
-            ('ETCD_ADVERTISE_CLIENT_URLS' in env)):
+        if ('ETCD_CERT_FILE' in env) and ('ETCD_KEY_FILE' in env) and \
+                ('ETCD_TRUSTED_CA_FILE' in env) and \
+                ('ETCD_ADVERTISE_CLIENT_URLS' in env):
             src_cert = env.get('ETCD_CERT_FILE')
             src_key = env.get('ETCD_KEY_FILE')
             src_ca = env.get('ETCD_TRUSTED_CA_FILE')
@@ -46,9 +50,9 @@ def get_etcd_from_container(pod, container, cert=None, key=None, ca=None,
             if not urls:
                 raise ValueError('No endpoint URL was given!')
     if src_cert and src_key and src_ca:
-        mk_exec_command = lambda path: ['/bin/sh', '-c',
+        mk_exec_command = lambda path: ['/bin/sh', '-c',  # noqa
                                         f'cp {path} /dev/stdout']
-        get_pod_file = lambda path: k8s.stream.stream(
+        get_pod_file = lambda path: k8s.stream.stream(  # noqa
             v1.connect_get_namespaced_pod_exec,
             pod.metadata.name, pod.metadata.namespace,
             command=mk_exec_command(path),
@@ -79,6 +83,7 @@ def get_etcd_from_container(pod, container, cert=None, key=None, ca=None,
                 )
     return etcd
 
+
 def get_etcd(**kws):
     pods = v1.list_pod_for_all_namespaces(watch=False).items
     etcd_cands = [pod for pod in pods if pod.metadata.name.startswith('etcd')]
@@ -89,8 +94,10 @@ def get_etcd(**kws):
         else:
             etcd_cand_index = 0
         etcd_cand = etcd_cands[etcd_cand_index]
-        etcd_containers = [container for container in etcd_cand.spec.containers
-                            if 'etcd' in container.name]
+        etcd_containers = [
+            container for container in etcd_cand.spec.containers
+            if 'etcd' in container.name
+        ]
         if len(etcd_containers) == 1:
             etcd = get_etcd_from_container(etcd_cand, etcd_containers[0], **kws)
         elif etcd_containers:
@@ -105,6 +112,7 @@ def get_etcd(**kws):
     else:
         etcd = do_something_else_for_etcd(v1)
     return etcd
+
 
 if __name__ == '__main__':
     etcd = get_etcd()

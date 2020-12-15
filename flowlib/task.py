@@ -3,27 +3,15 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict, namedtuple
-from io import IOBase
-import logging
-import socket
-import subprocess
-import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from typing import Mapping
 
-import yaml
-import xmltodict
+from .bpmn_util import WorkflowProperties, BPMNComponent
 
-from .envoy_config import get_envoy_config, Upstream
-from .etcd_utils import get_etcd
-from .bpmn_util import (
-    iter_xmldict_for_key,
-    CallProperties,
-    ServiceProperties,
-    HealthProperties,
-    WorkflowProperties,
-    BPMNComponent,
-    get_annotations,
-    calculate_id_hash,
+from .k8s_utils import (
+    create_deployment,
+    create_service,
+    create_serviceaccount,
+    create_rexflow_ingress_vs,
 )
 
 
@@ -33,18 +21,23 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method', 'to
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task : OrderedDict, process : OrderedDict, global_props: WorkflowProperties):
+    def __init__(self, task: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(task, process, global_props)
         self._task = task
 
-        assert 'service' in self._annotation, "Must annotate Service Task with service information."
-        assert 'host' in self._annotation['service'], "Must annotate Service Task with service host."
+        assert 'service' in self._annotation, \
+            "Must annotate Service Task with service information."
+
+        assert 'host' in self._annotation['service'], \
+            "Must annotate Service Task with service host."
 
         if self._is_preexisting:
-            assert 'namespace' in self._annotation['service'], "Must provide namespace of preexisting service."
+            assert 'namespace' in self._annotation['service'], \
+                "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']
 
-    def _generate_envoyfilter(self, component_map: Mapping[str, BPMNComponent], digraph: OrderedDict) -> list:
+    def _generate_envoyfilter(self, component_map: Mapping[str, BPMNComponent],
+                              digraph: OrderedDict) -> list:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
         FilterChain. This filter hijacks the response traffic and sends it to the next
         step of the workflow (whether that's a gateway, Event, or another ServiceTask.)
@@ -135,8 +128,8 @@ class BPMNTask(BPMNComponent):
         }
         return envoy_filter
 
-
-    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent], digraph : OrderedDict) -> list:
+    def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                      digraph: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -172,121 +165,29 @@ class BPMNTask(BPMNComponent):
         port = self.service_properties.port
         namespace = self._namespace
         assert self.namespace, "new-grad programmer error: namespace should be set by now."
-        service_account = {
-            'apiVersion': 'v1',
-            'kind': 'ServiceAccount',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-        }
-        k8s_objects.append(service_account)
+        uri_prefix = f'/{service_name}' if namespace == 'default' \
+            else f'/{namespace}/{service_name}'
 
-        uri_prefix = (f'/{service_name}' if namespace == 'default' else f'/{namespace}/{service_name}')
-        service_fqdn = (dns_safe_name if namespace == 'default'
-                        else f'{dns_safe_name}.{namespace}.svc.cluster.local')
-        # VirtualService
-        # (I'm not sure why, but Jon had it in his code)
-        virtual_service = {
-            'apiVersion': 'networking.istio.io/v1alpha3',
-            'kind': 'VirtualService',
-            'metadata': {
-                'name': dns_safe_name,
-                'namespace': namespace,
-            },
-            'spec': {
-                'hosts': ['*'],
-                'gateways': ['rexflow-gateway'],
-                'http': [
-                    {
-                        'match': [{'uri': {'prefix': uri_prefix}}],
-                        'rewrite': {'uri': '/'},
-                        'route': [
-                            {
-                                'destination': {
-                                    'port': {'number': port},
-                                    'host': service_fqdn
-                                }
-                            }
-                        ]
-                    }
-                ]
-            }
-        }
-        k8s_objects.append(virtual_service)
-
-        # k8s Service
-        service = {
-            'apiVersion': 'v1',
-            'kind': 'Service',
-            'metadata': {
-                'name': dns_safe_name,
-                'labels': {
-                    'app': dns_safe_name,
-                },
-            },
-            'spec': {
-                'ports': [
-                    {
-                        'name': 'http',
-                        'port': port,
-                        'targetPort': port,
-                    }
-                ],
-                'selector': {
-                    'app': dns_safe_name,
-                },
-            },
-        }
-        k8s_objects.append(service)
-
-        # k8s Deployment
-        deployment = {
-            'apiVersion': 'apps/v1',
-            'kind': 'Deployment',
-            'metadata': {
-                'name': dns_safe_name,
-            },
-            'spec': {
-                'replicas': 1, # FIXME: Make this a property one can set in the BPMN.
-                'selector': {
-                    'matchLabels': {
-                        'app': dns_safe_name,
-                    },
-                },
-                'template': {
-                    'metadata': {
-                        'labels': {
-                            'app': dns_safe_name,
-                        },
-                    },
-                    'spec': {
-                        'serviceAccountName': dns_safe_name,
-                        'containers': [
-                            {
-                                'image': self.service_properties.container,
-                                'imagePullPolicy': 'IfNotPresent',
-                                'name': dns_safe_name,
-                                'ports': [
-                                    {
-                                        'containerPort': port,
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                },
-            },
-        }
-        k8s_objects.append(deployment)
-
-        if self._global_props.namespace is not None:
-            service_account['metadata']['namespace'] = self._global_props.namespace
-            service['metadata']['namespace'] = self._global_props.namespace
-            deployment['metadata']['namespace'] = self._global_props.namespace
+        k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
+        k8s_objects.append(create_service(namespace, dns_safe_name, port))
+        k8s_objects.append(create_deployment(
+            namespace,
+            dns_safe_name,
+            self.service_properties.container,
+            port,
+            env=[],
+        ))
+        k8s_objects.append(create_rexflow_ingress_vs(
+            namespace,
+            dns_safe_name,
+            uri_prefix=uri_prefix,
+            dest_port=port,
+            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
+        ))
 
         return k8s_objects
 
-    def _make_forward(self, upstream : Upstream):
+    def _make_forward(self, upstream: Upstream):
         return {
             'name': upstream.name,
             'cluster': upstream.name,

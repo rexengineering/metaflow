@@ -6,8 +6,9 @@ from . import flow_pb2_grpc
 
 # Utility functions
 
+
 @contextmanager
-def get_flowd_connection(host : str, port : int, *_, **kws):
+def get_flowd_connection(host: str, port: int, *_, **kws):
     opts = [('grpc.default_authority', 'flowd:9001')]
     opts.extend(list(kws.items()))
     with grpc.insecure_channel(f'{host}:{port}', opts) as channel:

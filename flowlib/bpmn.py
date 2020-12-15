@@ -4,10 +4,9 @@
 from collections import OrderedDict
 from io import IOBase
 import logging
-import socket
 import subprocess
 import sys
-from typing import Any, Iterator, List, Mapping, Optional, Set
+from typing import Mapping, Set
 
 import yaml
 import xmltodict
@@ -25,21 +24,17 @@ from .bpmn_util import (
     iter_xmldict_for_key,
     raw_proc_to_digraph,
     get_annotations,
-    parse_events,
-    HealthProperties,
-    CallProperties,
-    ServiceProperties,
     BPMNComponent,
     WorkflowProperties,
 )
 
 
 class BPMNProcess:
-    def __init__(self, process : OrderedDict):
+    def __init__(self, process: OrderedDict):
         self._process = process
         entry_point = process['bpmn:startEvent']
         assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
-        self.entry_point =  entry_point
+        self.entry_point = entry_point
         annotations = list(get_annotations(process, self.entry_point['@id']))
         assert len(annotations) == 1, "Must have only one annotation for start event."
         self.annotation = annotations[0]
@@ -61,6 +56,8 @@ class BPMNProcess:
         # The `id_hash` and `namespace_shared` have already been computed when we
         # created the WorkflowProperties object (see self.properties).
 
+        self.kafka_topics = []
+
         # Now, create all of the BPMN Components.
         # Start with Tasks:
         self.tasks = []
@@ -79,6 +76,7 @@ class BPMNProcess:
         # Don't forget BPMN Start Event!
         self.start_event = BPMNStartEvent(self.entry_point, process, self.properties)
         self.component_map[self.entry_point['@id']] = self.start_event
+        self.kafka_topics.extend(self.start_event.kafka_topics)
 
         # Don't forget BPMN End Events!
         # TODO: Test to make sure it works with multiple End Events.
@@ -87,6 +85,7 @@ class BPMNProcess:
             end_event = BPMNEndEvent(eev, process, self.properties)
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
+            self.kafka_topics.extend(end_event.kafka_topics)
 
         # Throw Events.
         # For now, to avoid forcing the user of REXFlow to have to annotate each event
@@ -95,17 +94,21 @@ class BPMNProcess:
         # it's a Throw event. Else, it's a Catch event.
         self.throws = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            if 'bpmn:incoming' in event:
-                bpmn_throw = BPMNThrowEvent(event, process, self.properties)
-                self.throws.append(bpmn_throw)
-                self.component_map[event['@id']] = bpmn_throw
+            assert 'bpmn:incoming' in event, "Must have incoming edge to Throw Event."
+            bpmn_throw = BPMNThrowEvent(event, process, self.properties)
+            self.throws.append(bpmn_throw)
+            self.component_map[event['@id']] = bpmn_throw
+            self.kafka_topics.extend(bpmn_throw.kafka_topics)
 
         self.catches = []
-        for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            if 'bpmn:incoming' not in event:
-                bpmn_catch = BPMNCatchEvent(event, process, self.properties)
-                self.catches.append(bpmn_catch)
-                self.component_map[event['@id']] = bpmn_catch
+        for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
+            assert 'bpmn:incoming' not in event, "Can't have incoming edge to Catch Event."
+            bpmn_catch = BPMNCatchEvent(event, process, self.properties)
+            self.catches.append(bpmn_catch)
+            self.component_map[event['@id']] = bpmn_catch
+            self.kafka_topics.extend(bpmn_catch.kafka_topics)
+
+        self.kafka_topics = list(set(self.kafka_topics))
 
         self.all_components = []
         self.all_components.extend([t for t in self.tasks if not t.is_preexisting])
@@ -126,7 +129,7 @@ class BPMNProcess:
     def to_xml(self):
         return xmltodict.unparse(OrderedDict([('bpmn:process', self._process)]))
 
-    def to_digraph(self, digraph : dict=None):
+    def to_digraph(self, digraph: dict = None):
         if digraph is None:
             digraph = dict()
         for sequence_flow in iter_xmldict_for_key(self._process, 'bpmn:sequenceFlow'):
@@ -146,11 +149,11 @@ class BPMNProcess:
             result = self._digraph
         return result
 
-    def to_kubernetes(self, stream:IOBase = None, id_hash:str = None, **kws):
+    def to_kubernetes(self, stream: IOBase = None, id_hash: str = None, **kws):
         # No longer used
         raise NotImplementedError("REXFlow requires Istio.")
 
-    def to_istio(self, stream:IOBase = None, id_hash:str = None, **kws):
+    def to_istio(self, stream: IOBase = None, id_hash: str = None, **kws):
         if stream is None:
             stream = sys.stdout
         results = []
@@ -167,7 +170,9 @@ class BPMNProcess:
 
         for bpmn_component in self.component_map.keys():
             results.extend(
-                self.component_map[bpmn_component].to_kubernetes(id_hash, self.component_map, self._digraph)
+                self.component_map[bpmn_component].to_kubernetes(
+                    id_hash, self.component_map, self._digraph
+                )
             )
 
         # This code below does manual sidecar injection. It is ONLY necessary
@@ -182,8 +187,10 @@ class BPMNProcess:
             input=temp_yaml, capture_output=True, text=True,
         )
         if istioctl_result.returncode == 0:
-            result = istioctl_result.stdout.replace(': Always', ': IfNotPresent'
-                ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
+            result = istioctl_result.stdout.replace(
+                ': Always',
+                ': IfNotPresent',
+            ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
             stream.write(result)
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')

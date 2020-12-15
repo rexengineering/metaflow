@@ -15,9 +15,9 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port'])
 
 def gen_address(address, port):
     return {
-        'socket_address' : {
-            'address' : address,
-            'port_value' : port,
+        'socket_address': {
+            'address': address,
+            'port_value': port,
         },
     }
 
@@ -70,9 +70,10 @@ end
 '''.format(''.join([f'''
         request_handle:httpCall(
             "{upstream.name}", headers_table, body, 500, true)'''
-    for upstream in upstreams]))
+                    for upstream in upstreams]))
     logging.debug(f'Generated Lua code:\n{result}')
     return result
+
 
 def dummy_gen_envoy_lua(*args, **kws):
     return '''
@@ -90,50 +91,50 @@ def gen_envoy_config(service_name='localhost', upstreams=None, port=5000, *args,
     if upstreams is None:
         upstreams = []
     return {
-        'static_resources' : {
-            'listeners' : [
+        'static_resources': {
+            'listeners': [
                 {
-                    'name' : 'main',
-                    'address' : gen_address('0.0.0.0', port),
-                    'filter_chains' : [
+                    'name': 'main',
+                    'address': gen_address('0.0.0.0', port),
+                    'filter_chains': [
                         {
-                            'filters' : [
+                            'filters': [
                                 {
-                                    'name' : 'envoy.filters.network.http_connection_manager',
-                                    'typed_config' : {
-                                        '@type' : 'type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager',
-                                        'stat_prefix' : 'ingress_http',
-                                        'codec_type' : 'auto',
-                                        'route_config' : {
-                                            'name' : 'local_route',
-                                            'virtual_hosts' : [
+                                    'name': 'envoy.filters.network.http_connection_manager',
+                                    'typed_config': {
+                                        '@type': 'type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager',  # noqa
+                                        'stat_prefix': 'ingress_http',
+                                        'codec_type': 'auto',
+                                        'route_config': {
+                                            'name': 'local_route',
+                                            'virtual_hosts': [
                                                 {
-                                                    'name' : 'local_service',
-                                                    'domains' : ['*'],
-                                                    'routes' : [
+                                                    'name': 'local_service',
+                                                    'domains': ['*'],
+                                                    'routes': [
                                                         {
-                                                            'match' : {
-                                                                'prefix' : '/',
-                                                                },
-                                                            'route' : {
-                                                                'cluster' : 'local_service',
+                                                            'match': {
+                                                                'prefix': '/',
+                                                            },
+                                                            'route': {
+                                                                'cluster': 'local_service',
                                                             },
                                                         },
                                                     ],
                                                 },
                                             ],
                                         },
-                                        'http_filters' : [
+                                        'http_filters': [
                                             {
-                                                'name' : 'envoy.filters.http.lua',
-                                                'typed_config' : {
-                                                    '@type' : 'type.googleapis.com/envoy.config.filter.http.lua.v2.Lua',
-                                                    'inline_code' : gen_envoy_lua(upstreams),
+                                                'name': 'envoy.filters.http.lua',
+                                                'typed_config': {
+                                                    '@type': 'type.googleapis.com/envoy.config.filter.http.lua.v2.Lua',  # noqa
+                                                    'inline_code': gen_envoy_lua(upstreams),
                                                 }
                                             },
                                             {
-                                                'name' : 'envoy.filters.http.router',
-                                                'typed_config' : {},
+                                                'name': 'envoy.filters.http.router',
+                                                'typed_config': {},
                                             },
                                         ],
                                     },
@@ -143,20 +144,20 @@ def gen_envoy_config(service_name='localhost', upstreams=None, port=5000, *args,
                     ],
                 },
             ],
-            'clusters' : [
+            'clusters': [
                 {
-                    'name' : 'local_service',
-                    'connect_timeout' : '0.5s',
-                    'type' : 'strict_dns',
-                    'lb_policy' : 'round_robin',
-                    'load_assignment' : {
-                        'cluster_name' : 'local_service',
-                        'endpoints' : [
+                    'name': 'local_service',
+                    'connect_timeout': '0.5s',
+                    'type': 'strict_dns',
+                    'lb_policy': 'round_robin',
+                    'load_assignment': {
+                        'cluster_name': 'local_service',
+                        'endpoints': [
                             {
-                                'lb_endpoints' : [
+                                'lb_endpoints': [
                                     {
-                                        'endpoint' : {
-                                            'address' : gen_address(service_name, port),
+                                        'endpoint': {
+                                            'address': gen_address(service_name, port),
                                         },
                                     },
                                 ],
@@ -166,18 +167,18 @@ def gen_envoy_config(service_name='localhost', upstreams=None, port=5000, *args,
                 },
             ] + [
                 {
-                    'name' : upstream.name,
-                    'connect_timeout' : '0.5s',
-                    'type' : 'strict_dns',
-                    'lb_policy' : 'round_robin',
-                    'load_assignment' : {
-                        'cluster_name' : upstream.name,
-                        'endpoints' : [
+                    'name': upstream.name,
+                    'connect_timeout': '0.5s',
+                    'type': 'strict_dns',
+                    'lb_policy': 'round_robin',
+                    'load_assignment': {
+                        'cluster_name': upstream.name,
+                        'endpoints': [
                             {
-                                'lb_endpoints' : [
+                                'lb_endpoints': [
                                     {
-                                        'endpoint' : {
-                                            'address' : gen_address(upstream.host, upstream.port),
+                                        'endpoint': {
+                                            'address': gen_address(upstream.host, upstream.port),
                                         },
                                     },
                                 ],
@@ -188,9 +189,9 @@ def gen_envoy_config(service_name='localhost', upstreams=None, port=5000, *args,
                 for upstream in upstreams
             ],
         },
-        'admin' : {
-            'access_log_path' : '/dev/null',
-            'address' : gen_address('0.0.0.0', port + 1),
+        'admin': {
+            'access_log_path': '/dev/null',
+            'address': gen_address('0.0.0.0', port + 1),
         },
     }
 
