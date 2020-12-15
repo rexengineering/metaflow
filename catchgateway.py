@@ -13,8 +13,6 @@ import json
 import os
 import requests
 import time
-import sys
-import traceback
 
 from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
@@ -27,6 +25,7 @@ from flowlib.constants import (
     States,
     BStates,
     TRACEID_HEADER,
+    flow_result,
 )
 
 
@@ -36,6 +35,7 @@ KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
 FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
+KAFKA_POLLING_PERIOD = 1
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
@@ -89,10 +89,10 @@ class EventCatchPoller:
         )
         if first_task_response is not None:
             if not etcd.replace(keys.state, States.STARTING, BStates.RUNNING):
-                logging.error('Failed to transition from STARTING -> ERROR.')
-        else:
-            if not etcd.replace(keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
+        else:
+            if not etcd.replace(keys.state, States.STARTING, States.ERROR):
+                logging.error('Failed to transition from STARTING -> ERROR.')
         return {"id": instance_id}
 
     def save_traceid(self, headers, flow_id):
@@ -126,12 +126,14 @@ class EventCatchPoller:
                 svc_response.raise_for_status()
                 try:
                     self.save_traceid(svc_response.headers, flow_id)
-                except Exception:
-                    logging.error("failed to save trace id on WF Instance")
-                    traceback.print_exception(*sys.exc_info())
+                except Exception as exn:
+                    logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
                 return svc_response
-            except Exception:
-                logging.error(f"failed making a call to {FORWARD_URL} on wf {flow_id}")
+            except Exception as exn:
+                logging.exception(
+                    f"failed making a call to {FORWARD_URL} on wf {flow_id}",
+                    exc_info=exn,
+                )
 
         # Notify Flowd that we failed.
         o = urlparse(FORWARD_URL)
@@ -160,13 +162,10 @@ class EventCatchPoller:
                     )
                 else:
                     self.create_instance(data, headers['content-type'])
-            except Exception as e:
-                # For some reason, being in a ThreadpoolExecutor suppresses stacktraces, which
-                # causes some serious headaches.
-                traceback.print_exc()
-                logging.error(f"caught exception: {e}")
+            except Exception as exn:
+                logging.exception("Failed processing event", exc_info=exn)
 
-            time.sleep(2)  # don't get ratelimited by AWS
+            time.sleep(KAFKA_POLLING_PERIOD)
 
 
 class EventCatchApp(QuartApp):
@@ -180,10 +179,10 @@ class EventCatchApp(QuartApp):
         if kafka is not None:
             # ensure we still have healthy connection to kafka
             kafka.poll(0)
-        return jsonify({"status": 0, "msg": ""})
+        return jsonify(flow_result(0, ""))
 
     async def catch_event(self):
-        response = jsonify({"status": 0, "msg": ""})
+        response = jsonify(flow_result(0, ""))
 
         data = await request.data
         if FUNCTION == 'START':
