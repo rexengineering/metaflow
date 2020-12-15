@@ -1,5 +1,5 @@
 from code import app
-from flask import request, make_response
+from flask import request, make_response, jsonify
 import os
 import requests
 from urllib.parse import urlparse
@@ -86,7 +86,7 @@ def conditional():
         headers['x-rexflow-original-path'] = o.path
         requests.post(REXFLOW_XGW_FAIL_URL, json=incoming_json, headers=headers)
 
-    resp = make_response("The faith of knowing deep inside your heart, that Heaven holds")
+    resp = make_response({"status": 200, "msg": ""})
     if TRACEID_HEADER in request.headers:
         resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
     elif TRACEID_HEADER.lower() in request.headers:
@@ -96,4 +96,4 @@ def conditional():
 
 @app.route('/', methods=['GET'])
 def health():
-    return "more than just some stars...Someone's up there watching over you"
+    return jsonify({"status": 200, "msg": ""})

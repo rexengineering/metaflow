@@ -1,7 +1,7 @@
 from confluent_kafka import Producer
 import logging
 
-from quart import request, make_response
+from quart import request, make_response, jsonify
 from urllib.parse import urlparse
 
 import os
@@ -132,7 +132,7 @@ class EventThrowApp(QuartApp):
 
     def health_check(self):
         kafka.poll(0)
-        return "May the Force be with you."
+        return jsonify({"status": 200, "msg": ""})
 
     async def throw_event(self):
         data = await request.data
@@ -151,7 +151,7 @@ class EventThrowApp(QuartApp):
                 request.headers['x-rexflow-wf-id'],
                 data
             )
-        resp = await make_response("For my ally is the Force, and a powerful ally it is.")
+        resp = await make_response({"status": 200, "msg": ""})
 
         if TRACEID_HEADER in request.headers:
             resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]

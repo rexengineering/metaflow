@@ -5,7 +5,7 @@ step in the workflow with that data.
 '''
 import logging
 
-from quart import request
+from quart import request, jsonify
 from urllib.parse import urlparse
 
 from confluent_kafka import Consumer
@@ -180,10 +180,10 @@ class EventCatchApp(QuartApp):
         if kafka is not None:
             # ensure we still have healthy connection to kafka
             kafka.poll(0)
-        return "Strong, I am, in the Force!"
+        return jsonify({"status": 0, "msg": ""})
 
     async def catch_event(self):
-        response = "For my ally is the Force, and a powerful ally it is."
+        response = jsonify({"status": 0, "msg": ""})
 
         data = await request.data
         if FUNCTION == 'START':
@@ -196,21 +196,6 @@ class EventCatchApp(QuartApp):
                 request.headers['content-type'],
             )
         return response
-
-    async def forward_call(self):
-        data = await request.data
-        requests.post(
-            FORWARD_URL,
-            headers={
-                'x-flow-id': request.headers['x-flow-id'],
-                'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
-                'content-type': request.headers['content-type'],
-            },
-            data=data,
-        )
-        if FUNCTION == "CATCH":
-            return "For my ally is the Force, and a powerful ally it is."
-        return "TODO"
 
     def _shutdown(self):
         self.manager.stop()

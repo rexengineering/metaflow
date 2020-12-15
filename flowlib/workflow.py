@@ -233,7 +233,6 @@ class WorkflowInstance:
         else:
             if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
-            print(response, flush=True)
             return response.json()
 
     def retry(self):
