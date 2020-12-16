@@ -18,4 +18,11 @@ However, until that dream is a reality, we must assume the following:
 * Your `docker-desktop` context has a fresh installation of REXFlow, via `python -m deploy create`.
 * You have built the Underpants containers, via `cd examples/underpants && python -m build`.
 
-For more information on how to set up your test environment, please see `examples/istio/README.md`
+For more information on how to set up your REXFlow environment, please see `examples/istio/README.md`
+
+### Building Test Containers
+
+```
+cd rexflow/testing/integration/test_containers
+python -m build --clean
+```
