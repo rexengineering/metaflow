@@ -1,5 +1,4 @@
 import logging
-import traceback
 
 from quart import request
 import json
@@ -74,9 +73,11 @@ class FlowApp(QuartApp):
                             transition_state(
                                 self.etcd, state_key, [BStates.STOPPING], BStates.STOPPED
                             )
-                        except Exception:
-                            traceback.print_exc()
-                            logging.error(f"Was unable to save the data for flow_id {flow_id}.")
+                        except Exception as exn:
+                            logging.exception(
+                                f"Was unable to save the data for flow_id {flow_id}.",
+                                exc_info=exn,
+                            )
                     else:
                         logging.error(
                             f'Race on {state_key}; state changed out of known'

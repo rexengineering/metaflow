@@ -16,6 +16,7 @@ from flowlib.constants import (
     WorkflowInstanceKeys,
     BStates,
     TRACEID_HEADER,
+    flow_result,
 )
 
 
@@ -132,7 +133,7 @@ class EventThrowApp(QuartApp):
 
     def health_check(self):
         kafka.poll(0)
-        return jsonify({"status": 200, "msg": ""})
+        return jsonify(flow_result(0, ""))
 
     async def throw_event(self):
         data = await request.data
