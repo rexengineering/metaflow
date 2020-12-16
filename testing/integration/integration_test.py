@@ -1,11 +1,14 @@
 import argparse
 import json
+import logging
 import os
 import time
 
-from utils.util import (
+from util import (
+    cleanup_wf_deployment,
     flowctl,
     wait_for_status,
+    test_result,
 )
 
 
@@ -22,7 +25,10 @@ EXPECTED_2 = {
 }
 
 
-def run_test(cleanup):
+def test1():
+    '''
+    Verifies simple WF functionality. Deploys a one-step WF to the default namespace.
+    '''
     # Safety check to ensure we don't accidentally pollute a production cluster.
     # Not that anyone here's done that before 😏
     os.system("kubectl config use-context docker-desktop")
@@ -32,7 +38,8 @@ def run_test(cleanup):
     wf_id = out['wf_id']
 
     # Step 2: wait for deployment to come up
-    assert wait_for_status(wf_id, 'RUNNING'), "Deployment failed to come up"
+    if not wait_for_status(wf_id, 'RUNNING'):
+        return test_result([wf_id], [], -1, "WF Deployment failed to come up.")
 
     # Step 3: Run an instance
     run_response = flowctl("run " + wf_id + " '{}' -o")
@@ -46,32 +53,43 @@ def run_test(cleanup):
     # Step 5: Interrogate the Instance Output
     result_json = json.loads(instance['result'])
 
-    assert instance['state'] == 'COMPLETED'
-    assert result_json == EXPECTED or result_json == EXPECTED_2
+    if instance['state'] != 'COMPLETED':
+        return test_result([wf_id], [instance_id], -1, "Instance didn't complete.")
 
-    if cleanup:
-        print("Cleaning up deployment...")
-        flowctl(f"stop -k DEPLOYMENT {wf_id}")
+    if result_json not in [EXPECTED, EXPECTED_2]:
+        return test_result([wf_id], [instance_id], -1, "Result didn't match.")
 
-        # Takes a long time for deployment to come down.
-        assert wait_for_status(wf_id, "STOPPED", timeout_seconds=180), f"Failed to stop {wf_id}"
+    return test_result([wf_id], [instance_id], 0, "Ok.")
 
-        flowctl(f"delete -k DEPLOYMENT {wf_id}")
 
-        # Make sure deployment is gone
-        time.sleep(3)
-        response = flowctl(f"ps -k DEPLOYMENT {wf_id} -o")
-        assert response[wf_id] == {}, "WF Should have been deleted by now."
-
-    print("SUCCESS!")
-
+ALL_TESTS = [
+    test1,
+]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run Underpants Test')
     parser.add_argument(
         '--no-cleanup',
-        action='store_false',
+        action='store_true',
         help="Don't cleanup deployment after running",
     )
     ns = parser.parse_args()
-    run_test(ns.no_cleanup)
+    should_cleanup = not ns.no_cleanup
+
+    results = [
+        test() for test in ALL_TESTS
+    ]
+
+    wf_ids = []
+    for result in results:
+        wf_ids.extend(result['wf_ids'])
+    all_ok = all([result['status'] == 0 for result in results])
+
+    if should_cleanup:
+        for wf_id in wf_ids:
+            cleanup_wf_deployment(wf_id)
+
+    if not all_ok:
+        logging.error("Tests didn't pass.")
+        exit(1)
+    
