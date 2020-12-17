@@ -97,14 +97,17 @@ class TestBpmnCatchEvent(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
+        print('\n TestBpmnCatchEvent\n==============================')
         cls._xml = xmltodict.parse(xml)
         cls._definition = cls._xml['bpmn:definitions']
         cls._process = cls._definition['bpmn:process']
-        print(cls._process)
 
     def test_init(self):
         event = self._process['bpmn:intermediateCatchEvent']
         out = catch_event.BPMNCatchEvent(event, self._process, WorkflowProperties())
+
+    def test_to_kubernetes(self):
+        pass
 
 
 if __name__ == '__main__':

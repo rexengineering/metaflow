@@ -99,6 +99,7 @@ class TestBpmnUtil(unittest.TestCase):
         cls._xml = xmltodict.parse(xml)
         cls._definition = cls._xml['bpmn:definitions']
         cls._process = cls._definition['bpmn:process']
+        print('\n TestBpmnUtil\n==============================')
 
     def test_iter_xmldict_for_key_one(self):
         ''' iter_xmldict_for_key returns only a single match
@@ -197,6 +198,7 @@ class TestServiceProperties(unittest.TestCase):
         cls.id_hash = 'id_hash'
         cls.namespace = 'name_space'
         cls.full_host = f'{cls.host_xlate}-{cls.id_hash}'
+        print('\n TestServiceProperties\n==============================')
 
     def test_init_no_annotations(self):
         ''' Create object without any annotations (empty object)
@@ -285,6 +287,7 @@ class TestCallProperties(unittest.TestCase):
         cls.method = 'this-is-a-method'
         cls.serialization = 'this-is-a-serialization'
         cls.total_attempts = 999
+        print('\n TestCallProperties\n==============================')
 
     def test_init_no_annotations(self):
         ''' Create object without any annotations (empty object)
@@ -350,6 +353,7 @@ class TestHealthProperties(unittest.TestCase):
         cls.query = 'this-is-a-query'
         cls.period = 999
         cls.response = 'this-is-a-response'
+        print('\n TestHealthProperties\n==============================')
 
     def test_init_no_annotations(self):
         ''' Create object without any annotations (empty object)
@@ -459,6 +463,7 @@ class TestWorkflowProperties(unittest.TestCase):
         # if annotations is not None:
         #     if 'rexflow' in annotations:
         #         self.update(annotations['rexflow'])
+        print('\n TestWorkflowProperties\n==============================')
 
     def test_init_no_annotations(self):
         ''' Create WorkflowProperties without any annotations (empty object)
@@ -567,6 +572,7 @@ class TestBPMNComponent(unittest.TestCase):
         cls._definition = cls._xml['bpmn:definitions']
         cls._process = cls._definition['bpmn:process']
         cls._wfprops = bpmn_util.WorkflowProperties()
+        print('\n TestBPMNComponent\n==============================')
 
 
     def test_init_no_rexflow_annot_raises(self):

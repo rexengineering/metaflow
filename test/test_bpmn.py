@@ -100,6 +100,7 @@ class TestBpmnProcess(unittest.TestCase):
         cls._xml = xmltodict.parse(xml)
         cls._definition = cls._xml['bpmn:definitions']
         cls._process = cls._definition['bpmn:process']
+        print('\n TestBpmnProcess\n==============================')
 
     def test_init(self):
         ''' Normal BPMNProcess init
