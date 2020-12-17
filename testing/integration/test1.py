@@ -46,7 +46,7 @@ class Test1(IntegrationTest):
         else:
             result = SetupResult([wf_id], 0, "Ok.")
             self._status.set_state("set_up")
-        
+
         self._wf_id = wf_id
         return result
 
@@ -80,7 +80,6 @@ class Test1(IntegrationTest):
             return TestResult([instance_id], -1, "Result didn't match.", self._name)
 
         return TestResult([instance_id], 0, "Ok.", self._name)
-
 
     def test_b(self) -> List[TestResult]:
         '''Runs 200 instances in quick succession in order to stress-test the Envoys and Flowd.

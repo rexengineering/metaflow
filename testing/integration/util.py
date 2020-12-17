@@ -97,7 +97,6 @@ class CleanupResult:
         return self._wf_ids
 
 
-
 class SetupResult:
     def __init__(self, wf_ids: List[str], status: int, msg: str):
         self._wf_ids = wf_ids

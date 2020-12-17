@@ -1,4 +1,3 @@
-import io
 import sys
 import subprocess
 
@@ -36,11 +35,10 @@ if __name__ == '__main__':
         tag_set = set([f'{repo}:latest' for repo in SERVER_MODES | {'underpants_base'}])
         for tag in tag_set & image_set:
             client.images.remove(tag)
-    mk_docker_cmd = lambda tag: ['docker', 'build', '-f', '-', '-t', tag, '.']
+    mk_docker_cmd = lambda tag: ['docker', 'build', '-f', '-', '-t', tag, '.']  # noqa
     subprocess.run(
         mk_docker_cmd('underpants_base:latest'), input=BASE_DOCKERFILE, text=True)
     for mode in SERVER_MODES:
         subprocess.run(
-            mk_docker_cmd(f'{mode}:latest'), input=DOCKER_TEMPLATE.format(mode,SLEEP_TIME),
+            mk_docker_cmd(f'{mode}:latest'), input=DOCKER_TEMPLATE.format(mode, SLEEP_TIME),
             text=True)
-

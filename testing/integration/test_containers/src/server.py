@@ -1,9 +1,7 @@
 import logging
 import os
 
-from time import sleep
-
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify
 from random import random
 
 server = Flask(__name__)
@@ -20,7 +18,7 @@ def serve():
     mode = mode[:mode.find('-')]
     response = request.get_json(force=True, silent=True)
 
-    if mode == 'collect':        
+    if mode == 'collect':
         response = jsonify({'underpants': 'Collected.'})
 
     elif mode == 'sauce':
