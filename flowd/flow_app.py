@@ -13,6 +13,7 @@ class FlowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
+        self.app.route('/', methods=('POST',))(self.root_route)
         self.app.route('/instancefail', methods=('POST',))(self.fail_route)
 
     async def root_route(self):
