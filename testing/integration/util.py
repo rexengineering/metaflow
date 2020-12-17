@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from subprocess import check_output
 import time
 from typing import List
@@ -7,7 +8,9 @@ from typing import List
 
 def flowctl(command: str):
     command = ["python", "-m", "flowctl"] + command.split()
-    result = check_output(command)
+    result = None
+    with open(os.devnull, 'w') as devnull:
+        result = check_output(command, stderr=devnull)
     if command[-1] == '-o':
         response = json.loads(result.decode())
     else:
@@ -52,6 +55,19 @@ def cleanup_wf_deployment(wf_id):
         return False
 
     return True
+
+
+def flowd_exec(command: List[str]):
+    '''Runs a shell command on flowd pod. Useful for making requests into k8s cluster from
+    outside of it.
+    '''
+    rexflow_pods = str(check_output("kubectl get po -nrexflow".split())).split('\\n')
+    flowd_pods = [p for p in rexflow_pods if 'flowd' in p and 'Running' in p]
+    flowd_pod = flowd_pods[0].split()[0]
+
+    return check_output(
+        f"kubectl exec -nrexflow -it {flowd_pod} -- {command}".split()
+    )
 
 
 class TestResult:
@@ -189,5 +205,6 @@ class IntegrationTest:
     def status(self) -> TestStatus:
         assert False, "Must be overriden by implementation."
 
+    @property
     def name(self) -> str:
         return self._name
