@@ -1,13 +1,13 @@
 import logging
 
 from quart import request
+import json
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
 from flowlib.constants import BStates, WorkflowInstanceKeys
 from flowlib.workflow import Workflow
 
-import json
 
 class FlowApp(QuartApp):
     def __init__(self, **kws):
@@ -37,7 +37,7 @@ class FlowApp(QuartApp):
                 else:
                     logging.error(
                         f'Race on {state_key}; state changed out of known'
-                         ' good state before state transition could occur!'
+                        ' good state before state transition could occur!'
                     )
         return 'Hello there!\n'
 
@@ -70,10 +70,14 @@ class FlowApp(QuartApp):
                             self.etcd.put(headers_key, json.dumps(
                                 {h: request.headers[h] for h in request.headers.keys()}
                             ).encode())
-                            transition_state(self.etcd, state_key, [BStates.STOPPING], BStates.STOPPED)
-                        except:
-                            import traceback; traceback.print_exc()
-                            logging.error(f"Was unable to save the data for flow_id {flow_id}.")
+                            transition_state(
+                                self.etcd, state_key, [BStates.STOPPING], BStates.STOPPED
+                            )
+                        except Exception as exn:
+                            logging.exception(
+                                f"Was unable to save the data for flow_id {flow_id}.",
+                                exc_info=exn,
+                            )
                     else:
                         logging.error(
                             f'Race on {state_key}; state changed out of known'

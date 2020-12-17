@@ -1,8 +1,9 @@
 from code import app
-from flask import request
+from flask import request, make_response, jsonify
 import os
 import requests
 from urllib.parse import urlparse
+import logging
 
 
 REXFLOW_XGW_JSONPATH = os.environ['REXFLOW_XGW_JSONPATH']
@@ -10,11 +11,23 @@ REXFLOW_XGW_OPERATOR = os.environ['REXFLOW_XGW_OPERATOR']
 REXFLOW_XGW_COMPARISON_VALUE = os.environ['REXFLOW_XGW_COMPARISON_VALUE']
 REXFLOW_XGW_TRUE_URL = os.environ['REXFLOW_XGW_TRUE_URL']
 REXFLOW_XGW_FALSE_URL = os.environ['REXFLOW_XGW_FALSE_URL']
-REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS = int(os.environ['REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS'])
-REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS'])
+FALSE_ATTEMPTS = int(os.environ['REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS'])
+TRUE_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS'])
 REXFLOW_XGW_FAIL_URL = os.environ['REXFLOW_XGW_FAIL_URL']
 
 SPLITS = REXFLOW_XGW_JSONPATH.split('.')
+TRACEID_HEADER = 'x-b3-traceid'
+
+FORWARD_HEADERS = [
+    'x-request-id',
+    'x-b3-traceid',
+    'x-b3-spanid',
+    'x-b3-parentspanid',
+    'x-b3-sampled',
+    'x-b3-flags',
+    'x-ot-span-context',
+]
+
 
 @app.route('/', methods=['POST'])
 def conditional():
@@ -26,7 +39,12 @@ def conditional():
         if split in value_to_compare:
             value_to_compare = value_to_compare[split]
 
-    default_val = int(REXFLOW_XGW_COMPARISON_VALUE) if type(value_to_compare) == int else REXFLOW_XGW_COMPARISON_VALUE
+    default_val = None
+    if type(value_to_compare) == int:
+        default_val = int(REXFLOW_XGW_COMPARISON_VALUE)
+    else:
+        default_val = REXFLOW_XGW_COMPARISON_VALUE
+
     if type(value_to_compare) in [int, str]:
         if REXFLOW_XGW_OPERATOR == '==':
             comparison_result = (value_to_compare == default_val)
@@ -47,18 +65,19 @@ def conditional():
         'x-flow-id': request.headers['x-flow-id'],
         'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
     }
-    if 'x-b3-spanid' in request.headers:
-        headers['x-b3-spanid'] = request.headers['x-b3-spanid']
+    for h in FORWARD_HEADERS:
+        if h in request.headers:
+            headers[h] = request.headers[h]
 
     success = False
-    for _ in range(REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS if comparison_result else REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS):
+    for _ in range(TRUE_ATTEMPTS if comparison_result else FALSE_ATTEMPTS):
         try:
             response = requests.post(url, json=incoming_json, headers=headers)
             response.raise_for_status()
             success = True
             break
         except Exception:
-            print(f"failed making a call to {url} on wf {request.headers['x-flow-id']}", flush=True)
+            logging.error(f"failed making a call to {url} on wf {request.headers['x-flow-id']}")
 
     if not success:
         # Notify Flowd that we failed.
@@ -67,9 +86,14 @@ def conditional():
         headers['x-rexflow-original-path'] = o.path
         requests.post(REXFLOW_XGW_FAIL_URL, json=incoming_json, headers=headers)
 
-    return "The faith of knowing deep inside your heart, that Heaven holds"
+    resp = make_response({"status": 200, "msg": ""})
+    if TRACEID_HEADER in request.headers:
+        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
+    elif TRACEID_HEADER.lower() in request.headers:
+        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
+    return resp
 
 
 @app.route('/', methods=['GET'])
 def health():
-    return "more than just some stars...Someone's up there watching over you"
+    return jsonify({"status": 200, "msg": ""})

@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 
 from etcd3.events import DeleteEvent, PutEvent
@@ -16,10 +15,10 @@ from flowlib.constants import States, BStates, WorkflowKeys, WorkflowInstanceKey
 
 
 class HealthProbe:
-    def __init__(self, workflow : Workflow, task : BPMNComponent):
+    def __init__(self, workflow: Workflow, task: BPMNComponent):
         self.workflow = workflow
         self.task = task
-        self.key = WorkflowKeys.task_key(workflow.id,task.id)
+        self.key = WorkflowKeys.task_key(workflow.id, task.id)
         self.future = None
         self.running = False
         self.status = None
@@ -71,7 +70,8 @@ class HealthManager:
     def __init__(self):
         self.etcd = get_etcd()
         self.executor = get_executor()
-        self.workflows = {workflow_id : Workflow.from_id(workflow_id)
+        self.workflows = {
+            workflow_id: Workflow.from_id(workflow_id)
             for workflow_id in get_next_level(WorkflowKeys.ROOT)
         }
         self.probes = {}
@@ -92,21 +92,21 @@ class HealthManager:
                         workflow = Workflow.from_id(workflow_id)
                         self.workflows[workflow_id] = workflow
                         self.probes[workflow_id] = {
-                            component.id : HealthProbe(workflow, component)
+                            component.id: HealthProbe(workflow, component)
                             for component in workflow.process.all_components
                         }
                         for probe in self.probes[workflow_id].values():
-                           probe.start()
-                        future = self.executor.submit(self.wait_for_up, workflow)
+                            probe.start()
+                        self.future = self.executor.submit(self.wait_for_up, workflow)
                     elif value == States.STOPPING:
                         workflow = self.workflows[workflow_id]
-                        future = self.executor.submit(self.stop_workflow, workflow)
+                        self.future = self.executor.submit(self.stop_workflow, workflow)
                 elif isinstance(event, DeleteEvent):
                     self.logger.info(f'{workflow_id} DELETE event - {value}')
                     for probe in self.probes[workflow_id].values():
                         probe.stop()
 
-    def wait_for_up(self, workflow : Workflow):
+    def wait_for_up(self, workflow: Workflow):
         self.logger.info(f'wait_for_up() called for workflow {workflow.id}')
         probes = self.probes[workflow.id]
         watch_iter, _ = self.etcd.watch_prefix(workflow.keys.probe)
@@ -115,8 +115,8 @@ class HealthManager:
             crnt_state = self.etcd.get(workflow.keys.state)[0]
             if (crnt_state is None) or (crnt_state != BStates.STARTING):
                 self.logger.info(f'wait_for_up(): Workflow {workflow.id} is no '
-                                  'longer starting up, cancelling further '
-                                  'monitoring.')
+                                 'longer starting up, cancelling further '
+                                 'monitoring.')
                 break
             if isinstance(event, PutEvent):
                 if all(probe.status == 'UP' for probe in probes.values()):
@@ -129,7 +129,7 @@ class HealthManager:
                     return result
         return False
 
-    def wait_for_down(self, workflow : Workflow):
+    def wait_for_down(self, workflow: Workflow):
         self.logger.info(f'wait_for_down() called for workflow {workflow.id}')
         probes = self.probes[workflow.id]
         watch_iter, _ = self.etcd.watch_prefix(workflow.keys.probe)
@@ -150,7 +150,7 @@ class HealthManager:
                     return result
         return False
 
-    def stop_workflow(self, workflow : Workflow):
+    def stop_workflow(self, workflow: Workflow):
         '''
         Stopping a workflow means we need to wait for all the instances for that
         workflow to COMPLETE or ERROR. Then we need to delete the deployment for
@@ -172,7 +172,9 @@ class HealthManager:
             if inst_key.endswith('/state'):
                 state = self.etcd.get(inst_key)[0]
                 if state not in (BStates.COMPLETED, BStates.ERROR):
-                    self.logger.info(f'stop_workflow detected unfinished instance {inst_key} in state {state}')
+                    self.logger.info(
+                        f'stop_workflow detected unfinished instance {inst_key} in state {state}'
+                    )
                     alive.append(inst_key)
 
         while len(alive) > 0:
@@ -187,7 +189,8 @@ class HealthManager:
         # if len(alive) > 0:
         #     watch_iter, cancel = self.etcd.watch_prefix(instance_prefix)
         #     for event in watch_iter:
-        #         key = event.key.decode('utf-8') #'/'.join(event.key.decode('utf-8').split('/')[:-1])  # strip last node from key path
+        #         # strip last node from key path
+        #         key = event.key.decode('utf-8')
         #         if key.endswith('/state'):
         #             val = event.value.decode('utf-8')
         #             self.logger.info(f'stop_workflow: Got key {key} {val} {key in alive}')
@@ -204,7 +207,7 @@ class HealthManager:
     def start(self):
         for workflow in self.workflows.values():
             probes = {
-                task.id : HealthProbe(workflow, task)
+                task.id: HealthProbe(workflow, task)
                 for task in workflow.process.tasks
             }
             for probe in probes.values():
@@ -237,8 +240,8 @@ class HealthApp(QuartApp):
         self.app.route('/')(self.root_route)
 
     def root_route(self):
-        return jsonify({workflow_id : {
-            task_id : str(probe)
+        return jsonify({workflow_id: {
+            task_id: str(probe)
             for task_id, probe in self.manager.probes[workflow_id].items()
         } for workflow_id in self.manager.workflows.keys()})
 

@@ -3,26 +3,31 @@ This file runs as a daemon in the background. It constantly polls a kinesis
 stream for events that are published into the WF instance and calls the next
 step in the workflow with that data.
 '''
-import asyncio
 import logging
-import signal
-from typing import Any
 
-from quart import Quart, request
-from hypercorn.config import Config
-from hypercorn.asyncio import serve
+from quart import request, jsonify
 from urllib.parse import urlparse
 
 from confluent_kafka import Consumer
 import json
 import os
-import re
 import requests
 import time
 
-from quart import jsonify
 from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
+from flowlib import workflow
+from flowlib.etcd_utils import (
+    get_etcd,
+)
+from flowlib.constants import (
+    WorkflowInstanceKeys,
+    States,
+    BStates,
+    TRACEID_HEADER,
+    flow_result,
+)
+
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
@@ -30,16 +35,17 @@ KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
 FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
+KAFKA_POLLING_PERIOD = 1
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
-WF_ID = os.getenv('REXFLOW_WF_ID', None)
+WF_ID = os.getenv('WF_ID', None)
 
 
 kafka = None
-if KAFKA_TOPIC:    
+if KAFKA_TOPIC:
     kafka = Consumer({
         'bootstrap.servers': KAFKA_HOST,
-        'group.id': KAFKA_GROUP_ID,
+        'group.id': os.environ['KAFKA_GROUP_ID'],
         'auto.offset.reset': 'earliest'
     })
     kafka.subscribe([KAFKA_TOPIC])
@@ -65,28 +71,75 @@ class EventCatchPoller:
         msg = kafka.poll()
         return msg
 
+    def create_instance(self, incoming_data, content_type):
+        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
+        etcd = get_etcd()
+        keys = WorkflowInstanceKeys(instance_id)
+        if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
+            # Should never happen...unless there's a collision in uuid1
+            logging.error(f'{keys.state} already defined in etcd!')
+            return f"Internal Error: ID {instance_id} already exists"
+
+        etcd.put(keys.parent, WF_ID)
+        first_task_response = self.make_call_(
+            incoming_data,
+            instance_id,
+            WF_ID,
+            content_type,
+        )
+        if first_task_response is not None:
+            if not etcd.replace(keys.state, States.STARTING, BStates.RUNNING):
+                logging.error('Failed to transition from STARTING -> RUNNING.')
+        else:
+            if not etcd.replace(keys.state, States.STARTING, States.ERROR):
+                logging.error('Failed to transition from STARTING -> ERROR.')
+        return {"id": instance_id}
+
+    def save_traceid(self, headers, flow_id):
+        trace_id = None
+        if TRACEID_HEADER in headers:
+            trace_id = headers[TRACEID_HEADER]
+        elif TRACEID_HEADER.lower() in headers:
+            trace_id = headers[TRACEID_HEADER.lower()]
+
+        if trace_id:
+            etcd = get_etcd()
+            trace_key = WorkflowInstanceKeys.traceid_key(flow_id)
+            with etcd.lock(trace_key):
+                current_traces = []
+                current_trace_resp = etcd.get(trace_key)[0]
+                if current_trace_resp:
+                    current_traces = json.loads(current_trace_resp.decode())
+                current_traces.append(trace_id)
+                current_traces = list(set(current_traces))
+                etcd.put(trace_key, json.dumps(current_traces).encode())
+
     def make_call_(self, data, flow_id, wf_id, content_type):
         next_headers = {
             'x-flow-id': str(flow_id),
             'x-rexflow-wf-id': str(wf_id),
             'content-type': content_type,
         }
-        success = False
         for _ in range(TOTAL_ATTEMPTS):
             try:
                 svc_response = requests.post(FORWARD_URL, headers=next_headers, data=data)
                 svc_response.raise_for_status()
-                success = True
-                break
-            except Exception:
-                logging.error(f"failed making a call to {FORWARD_URL} on wf {flow_id}")
+                try:
+                    self.save_traceid(svc_response.headers, flow_id)
+                except Exception as exn:
+                    logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
+                return svc_response
+            except Exception as exn:
+                logging.exception(
+                    f"failed making a call to {FORWARD_URL} on wf {flow_id}",
+                    exc_info=exn,
+                )
 
-        if not success:
-            # Notify Flowd that we failed.
-            o = urlparse(FORWARD_URL)
-            next_headers['x-rexflow-original-host'] = o.netloc
-            next_headers['x-rexflow-original-path'] = o.path
-            requests.post(FAIL_URL, data=data, headers=next_headers)
+        # Notify Flowd that we failed.
+        o = urlparse(FORWARD_URL)
+        next_headers['x-rexflow-original-host'] = o.netloc
+        next_headers['x-rexflow-original-path'] = o.path
+        requests.post(FAIL_URL, data=data, headers=next_headers)
 
     def __call__(self):
         while True:  # do forever
@@ -98,21 +151,21 @@ class EventCatchPoller:
                     continue
                 data = msg.value()
                 headers = dict(msg.headers())
-                assert 'x-flow-id' in headers
-                assert 'x-rexflow-wf-id' in headers
-                self.make_call_(
-                    data.decode(),
-                    flow_id=headers['x-flow-id'].decode(),
-                    wf_id=headers['x-rexflow-wf-id'].decode(),
-                    content_type=headers['content-type'].decode(),
-                )
-            except Exception as e:
-                import traceback
-                # For some reason, being in a ThreadpoolExecutor suppresses stacktraces, which
-                # causes some serious headaches.
-                traceback.print_exc()
-                raise e
-            time.sleep(2)  # don't get ratelimited by AWS
+                if FUNCTION == 'CATCH':
+                    assert 'x-flow-id' in headers
+                    assert 'x-rexflow-wf-id' in headers
+                    self.make_call_(
+                        data.decode(),
+                        flow_id=headers['x-flow-id'].decode(),
+                        wf_id=headers['x-rexflow-wf-id'].decode(),
+                        content_type=headers['content-type'].decode(),
+                    )
+                else:
+                    self.create_instance(data, headers['content-type'])
+            except Exception as exn:
+                logging.exception("Failed processing event", exc_info=exn)
+
+            time.sleep(KAFKA_POLLING_PERIOD)
 
 
 class EventCatchApp(QuartApp):
@@ -120,30 +173,35 @@ class EventCatchApp(QuartApp):
         super().__init__(__name__, **kws)
         self.manager = EventCatchPoller(FORWARD_URL)
         self.app.route('/', methods=['GET'])(self.health_check)
-        self.app.route('/', methods=['POST'])(self.forward_call)
+        self.app.route('/', methods=['POST'])(self.catch_event)
 
     def health_check(self):
-        return "May the Force be with you."
+        if kafka is not None:
+            # ensure we still have healthy connection to kafka
+            kafka.poll(0)
+        return jsonify(flow_result(0, ""))
 
-    async def forward_call(self):
+    async def catch_event(self):
+        response = jsonify(flow_result(0, ""))
+
         data = await request.data
-        requests.post(
-            FORWARD_URL,
-            headers={
-                'x-flow-id': request.headers['x-flow-id'],
-                'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
-                'content-type': request.headers['content-type'],
-            },
-            data=data,
-        )
-        if FUNCTION == "CATCH":
-            return "For my ally is the Force, and a powerful ally it is."
-        return "TODO"
+        if FUNCTION == 'START':
+            response = self.manager.create_instance(data, request.headers['content-type'])
+        else:
+            self.manager.make_call_(
+                data,
+                request.headers['x-flow-id'],
+                request.headers['x-rexflow-wf-id'],
+                request.headers['content-type'],
+            )
+        return response
 
     def _shutdown(self):
         self.manager.stop()
 
     def run(self):
+        # Only run the kafka poller if there is a properly-configured
+        # kafka client
         if kafka is not None:
             self.manager.start()
         super().run()

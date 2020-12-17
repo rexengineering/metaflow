@@ -1,13 +1,13 @@
 from ast import literal_eval
-from ctypes import c_size_t
 from io import StringIO
 import json
 import logging
+import os
 import subprocess
 from typing import Union
 import uuid
-from hashlib import sha1
 
+from confluent_kafka.admin import AdminClient, NewTopic
 import requests
 import xmltodict
 import yaml
@@ -22,8 +22,13 @@ from .constants import (
     WorkflowInstanceKeys,
     flow_result,
 )
+
+
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+
+
 class Workflow:
-    def __init__(self, process : bpmn.BPMNProcess, id=None):
+    def __init__(self, process: bpmn.BPMNProcess, id=None):
         self.process = process
         if id is None:
             self.id = self.process.id
@@ -67,6 +72,7 @@ class Workflow:
                 self.process.to_kubernetes(kubernetes_input, self.id_hash)
             else:
                 self.process.to_istio(kubernetes_input, self.id_hash)
+                self._create_kafka_topics()
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
                 ['kubectl', 'create', '-f', '-'],
@@ -80,9 +86,27 @@ class Workflow:
         else:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
+    def _create_kafka_topics(self):
+        kafka_client = AdminClient({"bootstrap.servers": KAFKA_HOST})
+        topic_metadata = kafka_client.list_topics()
+        new_topics = [
+            NewTopic(topic, num_partitions=3, replication_factor=1)
+            for topic in self.process.kafka_topics
+            if topic_metadata.topics.get(topic) is None
+        ]
+        if len(new_topics):
+            response = kafka_client.create_topics(new_topics)
+            for topic, f in response.items():
+                try:
+                    f.result()  # The result itself is None
+                    logging.info(f"Created Kafka Topic {topic}.")
+                except Exception as e:
+                    logging.error(f"Failed to create topic {topic}: {e}")
+
     def stop(self):
         etcd = get_etcd(is_not_none=True)
-        if not transition_state(etcd, self.keys.state, (BStates.RUNNING, BStates.ERROR), BStates.STOPPING):
+        good_states = (BStates.RUNNING, BStates.ERROR)
+        if not transition_state(etcd, self.keys.state, good_states, BStates.STOPPING):
             raise RuntimeError(f'{self.id} is not in a stoppable state')
 
     def remove(self):
@@ -120,23 +144,42 @@ class Workflow:
 
 
 class WorkflowInstance:
-    def __init__(self, parent : Union[str, Workflow], id:str=None):
+    '''NOTE as of this commit:
+
+    This class does NOT get instantiated by the Start Event, because it requires the
+    creation of a Workflow Object. Doing this requires significant computation over the
+    BPMN XML, which is slow for large WF's. Rather, the Start Event already knows where
+    to send the first request. Furthermore, the Start Event uses the
+    `WorkflowInstanceKeys` object to determine which keys to manipulate in Etcd.
+    This class is instantiated by Flowd and used for:
+    1. Running a WF instance by calling the Start service
+    2. Potentially other dashboarding uses in the future (not yet implemented).
+    '''
+    def __init__(self, parent: Union[str, Workflow], id: str = None):
         if isinstance(parent, str):
             self.parent = Workflow.from_id(parent)
         else:
             self.parent = parent
-        if id is None:
-            uid = uuid.uuid1().hex
-            self.id = f'{self.parent.id}-{uid}'
-        else:
-            self.id = id
+        self.id = id
         self.keys = WorkflowInstanceKeys(self.id)
 
+    @staticmethod
+    def new_instance_id(parent_id: str):
+        '''
+        Constructs a new WF Instance Id given a parent WF id. Should ONLY be
+        called by the Start Service.
+        '''
+        uid = uuid.uuid1().hex
+        return f'{parent_id}-{uid}'
+
     def start(self, *args):
+        '''Starts the WF and returns the resulting ID. NOTE: Now, WF Id's are
+        created by the Start Event.
+        '''
         process = self.parent.process
-        digraph = process.digraph
         executor_obj = get_executor()
-        def start_task(task_id : str):
+
+        def start_wf(task_id: str):
             '''
             Arguments:
                 task_id - Task ID in the BPMN spec.
@@ -156,32 +199,41 @@ class WorkflowInstance:
             else:
                 raise ValueError(f'{serialization} is not a supported serialization type.')
             method = call_props.method.lower()
-            if method not in {'post',}:
+            if method not in {'post'}:
                 raise ValueError(f'{method} is not a supported method.')
             request = getattr(requests, method)
+            req_headers = {
+                'X-Flow-ID': self.id,
+                'X-Rexflow-Wf-Id': self.parent.id,
+                'Content-Type': mime_type
+            }
             response = request(
                 task.k8s_url,
-                headers={'X-Flow-ID':self.id, 'X-Rexflow-Wf-Id': self.parent.id, 'Content-Type':mime_type},
+                headers=req_headers,
                 data=data
             )
             if response.ok:
                 logging.info(f"Response for {task_id} in {self.id} was OK.")
             else:
-                logging.error(f"Response for {task_id} in {self.id} was not OK.  (status code {response.status_code})")
-            return response.ok
-        targets = [target_id
-            for target_id in digraph[process.entry_point['@id']]
-            if target_id.startswith('Task') # TODO: Handle other vertex types...
-        ]
-        results = executor_obj.map(start_task, targets)
-        all_ok = all(result for result in results)
+                logging.error(
+                    f"Response for {task_id} in {self.id} was not OK."
+                    f"(status code {response.status_code})"
+                )
+            return response
+        target = process.entry_point['@id']
+        future = executor_obj.submit(start_wf, target)
+
         etcd = get_etcd(is_not_none=True)
-        if not all_ok:
+        response = future.result()
+
+        if not response.ok:
             if not etcd.replace(self.keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
+            return {"instance_id": "Error"}
         else:
             if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
+            return response.json()
 
     def retry(self):
         # mark running

@@ -9,14 +9,23 @@ from flowlib.flowd_utils import get_flowd_connection
 __help__ = 'apply sufficiently annotated BPMN file(s)'
 
 
-def __refine_args__(parser : argparse.ArgumentParser):
-    parser.add_argument('--stopped', action='store_true',
+def __refine_args__(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        '--stopped',
+        action='store_true',
         help='flag that all deployments should be brought up in the STOPPED state',
     )
-    parser.add_argument('-o', '--output', action='store_true',
+    parser.add_argument(
+        '-o',
+        '--output',
+        action='store_true',
         help='Output response data to stdout.'
     )
-    parser.add_argument('bpmn_spec', nargs='+', help='sufficiently annotated BPMN file(s)')
+    parser.add_argument(
+        'bpmn_spec',
+        nargs='+',
+        help='sufficiently annotated BPMN file(s)'
+    )
     return parser
 
 
@@ -34,10 +43,10 @@ def process_specification(specification):
     return xmltodict.unparse(spec)
 
 
-def apply_action(namespace : argparse.Namespace, *args, **kws):
+def apply_action(namespace: argparse.Namespace, *args, **kws):
     '''apply_action(namespace)
     Arguments:
-        namespace : argparse.Namespace - Argument map of command line inputs
+        namespace: argparse.Namespace - Argument map of command line inputs
     Returns toplevel exit code.
     '''
     responses = dict()
@@ -46,7 +55,8 @@ def apply_action(namespace : argparse.Namespace, *args, **kws):
             with open(spec, 'rb') as spec_file_obj:
                 postprocessed_xml = process_specification(spec_file_obj)
                 responses[spec] = flowd.ApplyWorkflow(
-                    flow_pb2.ApplyRequest(bpmn_xml=postprocessed_xml,
+                    flow_pb2.ApplyRequest(
+                        bpmn_xml=postprocessed_xml,
                         stopped=namespace.stopped
                     )
                 )
