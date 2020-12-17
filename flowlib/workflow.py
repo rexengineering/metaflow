@@ -2,10 +2,12 @@ from ast import literal_eval
 from io import StringIO
 import json
 import logging
+import os
 import subprocess
 from typing import Union
 import uuid
 
+from confluent_kafka.admin import AdminClient, NewTopic
 import requests
 import xmltodict
 import yaml
@@ -20,6 +22,9 @@ from .constants import (
     WorkflowInstanceKeys,
     flow_result,
 )
+
+
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
 class Workflow:
@@ -67,6 +72,7 @@ class Workflow:
                 self.process.to_kubernetes(kubernetes_input, self.id_hash)
             else:
                 self.process.to_istio(kubernetes_input, self.id_hash)
+                self._create_kafka_topics()
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
                 ['kubectl', 'create', '-f', '-'],
@@ -79,6 +85,23 @@ class Workflow:
                 etcd.replace(self.keys.state, States.STARTING, States.ERROR)
         else:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
+
+    def _create_kafka_topics(self):
+        kafka_client = AdminClient({"bootstrap.servers": KAFKA_HOST})
+        topic_metadata = kafka_client.list_topics()
+        new_topics = [
+            NewTopic(topic, num_partitions=3, replication_factor=1)
+            for topic in self.process.kafka_topics
+            if topic_metadata.topics.get(topic) is None
+        ]
+        if len(new_topics):
+            response = kafka_client.create_topics(new_topics)
+            for topic, f in response.items():
+                try:
+                    f.result()  # The result itself is None
+                    logging.info(f"Created Kafka Topic {topic}.")
+                except Exception as e:
+                    logging.error(f"Failed to create topic {topic}: {e}")
 
     def stop(self):
         etcd = get_etcd(is_not_none=True)
@@ -210,7 +233,6 @@ class WorkflowInstance:
         else:
             if not etcd.replace(self.keys.state, States.STARTING, States.RUNNING):
                 logging.error('Failed to transition from STARTING -> RUNNING.')
-            print(response, flush=True)
             return response.json()
 
     def retry(self):

@@ -15,7 +15,10 @@ from .k8s_utils import (
 )
 
 
-Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method', 'total_attempts', 'task_id'])
+Upstream = namedtuple(
+    'Upstream',
+    ['name', 'host', 'port', 'path', 'method', 'total_attempts', 'task_id']
+)
 
 
 class BPMNTask(BPMNComponent):

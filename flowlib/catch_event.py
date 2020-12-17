@@ -31,6 +31,7 @@ class BPMNCatchEvent(BPMNComponent):
             "Must annotate Catch Event with gateway name (becomes k8s service name)."
 
         self.queue_name = self._annotation['queue']
+        self.kafka_topics.append(self.queue_name)
 
         # We've got the annotation. From here, let's find out the name of the resulting
         # gateway service.

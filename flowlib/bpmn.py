@@ -56,6 +56,8 @@ class BPMNProcess:
         # The `id_hash` and `namespace_shared` have already been computed when we
         # created the WorkflowProperties object (see self.properties).
 
+        self.kafka_topics = []
+
         # Now, create all of the BPMN Components.
         # Start with Tasks:
         self.tasks = []
@@ -74,6 +76,7 @@ class BPMNProcess:
         # Don't forget BPMN Start Event!
         self.start_event = BPMNStartEvent(self.entry_point, process, self.properties)
         self.component_map[self.entry_point['@id']] = self.start_event
+        self.kafka_topics.extend(self.start_event.kafka_topics)
 
         # Don't forget BPMN End Events!
         # TODO: Test to make sure it works with multiple End Events.
@@ -82,6 +85,7 @@ class BPMNProcess:
             end_event = BPMNEndEvent(eev, process, self.properties)
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
+            self.kafka_topics.extend(end_event.kafka_topics)
 
         # Throw Events.
         # For now, to avoid forcing the user of REXFlow to have to annotate each event
@@ -90,17 +94,21 @@ class BPMNProcess:
         # it's a Throw event. Else, it's a Catch event.
         self.throws = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            if 'bpmn:incoming' in event:
-                bpmn_throw = BPMNThrowEvent(event, process, self.properties)
-                self.throws.append(bpmn_throw)
-                self.component_map[event['@id']] = bpmn_throw
+            assert 'bpmn:incoming' in event, "Must have incoming edge to Throw Event."
+            bpmn_throw = BPMNThrowEvent(event, process, self.properties)
+            self.throws.append(bpmn_throw)
+            self.component_map[event['@id']] = bpmn_throw
+            self.kafka_topics.extend(bpmn_throw.kafka_topics)
 
         self.catches = []
-        for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            if 'bpmn:incoming' not in event:
-                bpmn_catch = BPMNCatchEvent(event, process, self.properties)
-                self.catches.append(bpmn_catch)
-                self.component_map[event['@id']] = bpmn_catch
+        for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
+            assert 'bpmn:incoming' not in event, "Can't have incoming edge to Catch Event."
+            bpmn_catch = BPMNCatchEvent(event, process, self.properties)
+            self.catches.append(bpmn_catch)
+            self.component_map[event['@id']] = bpmn_catch
+            self.kafka_topics.extend(bpmn_catch.kafka_topics)
+
+        self.kafka_topics = list(set(self.kafka_topics))
 
         self.all_components = []
         self.all_components.extend([t for t in self.tasks if not t.is_preexisting])

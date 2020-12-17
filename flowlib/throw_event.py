@@ -6,9 +6,7 @@ from collections import OrderedDict, namedtuple
 import os
 from typing import Mapping
 
-
 from .bpmn_util import WorkflowProperties, BPMNComponent
-
 from .k8s_utils import (
     create_deployment,
     create_service,
@@ -34,6 +32,7 @@ class BPMNThrowEvent(BPMNComponent):
             "Must annotate Throw Event with gateway name (becomes k8s service name)."
 
         self.queue_name = self._annotation['queue']
+        self._kafka_topics.append(self.queue_name)
         self.name = f"{THROW_GATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
         assert 'service' not in self._annotation, "Service properties auto-inferred for Throw Event"
 
