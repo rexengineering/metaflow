@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-from util import flowd_exec
 
 from test1 import Test1
 from test2 import Test2

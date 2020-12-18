@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from subprocess import check_output
@@ -13,7 +12,6 @@ from util import (
     TestStatus,
     cleanup_wf_deployment,
     flowctl,
-    flowd_exec,
     wait_for_status,
 )
 
@@ -73,8 +71,8 @@ class Test2(IntegrationTest):
 
         if instance['state'] != 'COMPLETED':
             return TestResult([instance_id], -1, "Instance didn't complete.", self._name)
-    
-        if instance ['end_event'] != 'end-didnot-profit':
+
+        if instance['end_event'] != 'end-didnot-profit':
             return TestResult([instance_id], -1, "Wrong Gateway evaluation.", self._name)
 
         if result_json != {"val": 2}:
@@ -106,7 +104,7 @@ class Test2(IntegrationTest):
         if result_json != {"val": 138, "cashflow": "Positive!"}:
             return TestResult([instance_id], -1, "Result didn't match.", self._name)
 
-        if instance ['end_event'] != 'end-did-profit':
+        if instance['end_event'] != 'end-did-profit':
             return TestResult([instance_id], -1, "Wrong Gateway evaluation.", self._name)
 
         return TestResult([instance_id], 0, "Ok.", "Conditional: True")
