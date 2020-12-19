@@ -1,11 +1,6 @@
-'''This test simulates interaction between the REXFlow swimlane and another  swimlane using
-Kafka Events. See the `data/test3_events.bpmn` file, which contains the spec for the REXFlow
-swimlane. The file `test_containers/src/test3_kafka_util.py` simulates an agent from another
-swimlane by processing an Event that was thrown, and throwing another Event back into the
-REXFlow swimlane.
-
-Anyways, that's enough with academic stuff...in concrete terms, this tests our Kafka Events
-code.
+'''This file stress-tests the `flowctl start -k INSTANCE` code. We deploy a WF in which one
+step fails 50% of the time, and we run 200 instances (and retry each one up to 18 times)
+and verify that at the end, all of them have succeeded.
 '''
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -107,7 +102,7 @@ class Test4(IntegrationTest):
         if result_json != EXPECTED:
             return TestResult([instance_id], -1, "Result didn't match.", self._name)
 
-        return TestResult([instance_id], 0, "Ok.", "Retry thing.")
+        return TestResult([instance_id], 0, "Ok.", "Retry stress test.")
 
     def cleanup(self) -> CleanupResult:
         if cleanup_wf_deployment(self._wf_id):
