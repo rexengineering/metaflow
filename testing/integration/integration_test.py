@@ -12,10 +12,10 @@ from test5 import Test5
 logging.getLogger().setLevel(logging.INFO)
 
 ALL_TESTS = [
-    # Test1,
-    # Test2,
-    # Test3,
-    # Test4,
+    Test1,
+    Test2,
+    Test3,
+    Test4,
     Test5,
 ]
 
