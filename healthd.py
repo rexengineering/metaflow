@@ -52,8 +52,7 @@ class HealthProbe:
 
     def start(self):
         assert self.timer is None
-        # self.timer = threading.Timer(self.task.health_properties.period, self)
-        self.timer = threading.Timer(5, self)
+        self.timer = threading.Timer(self.task.health_properties.period, self)
         self.running = True
         self.timer.start()
 
