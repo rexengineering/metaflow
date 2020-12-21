@@ -46,6 +46,11 @@ def serve():
     return response
 
 
+@server.route('/biscuits', methods=['PUT', 'POST'])
+def biscuits():
+    return jsonify({'Biscuits': 'Hot and Fluffy'})
+
+
 @server.errorhandler(TypeError)
 def handle_type_error(exception):
     server.logger.exception(exception) # pylint: disable=no-member
