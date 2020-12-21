@@ -31,12 +31,11 @@ class HealthProbe:
         self.url = f'http://{self.task.envoy_host}:{self.task.service_properties.port}{health_path}'
 
     def __call__(self):
-        self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
         health_properties = self.task.health_properties
         try:
             response = requests.request(
                 health_properties.method, self.url,
-                data=health_properties.query
+                data=health_properties.query, timeout=health_properties.timeout,
             )
             exception = None
         except requests.RequestException as exn:
@@ -51,9 +50,9 @@ class HealthProbe:
             self.timer.start()
 
     def start(self):
+        self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
         assert self.timer is None
-        # self.timer = threading.Timer(self.task.health_properties.period, self)
-        self.timer = threading.Timer(5, self)
+        self.timer = threading.Timer(self.task.health_properties.period, self)
         self.running = True
         self.timer.start()
 
@@ -101,8 +100,10 @@ class HealthManager:
                         self.future = self.executor.submit(self.stop_workflow, workflow)
                 elif isinstance(event, DeleteEvent):
                     self.logger.info(f'{workflow_id} DELETE event - {value}')
-                    for probe in self.probes[workflow_id].values():
-                        probe.stop()
+                    # No action necessary because we stop the HealthProbes in the
+                    # stop_workflow() function. This is good practice because we don't want
+                    # a bunch of HealthProbes making calls to services that don't exist, and
+                    # is a request from Hong.
 
     def wait_for_up(self, workflow: Workflow):
         self.logger.info(f'wait_for_up() called for workflow {workflow.id}')
