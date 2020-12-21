@@ -179,7 +179,7 @@ class BPMNTask(BPMNComponent):
         ))
         k8s_objects.append(create_rexflow_ingress_vs(
             namespace,
-            dns_safe_name,
+            f'{dns_safe_name}-{self._global_props.id_hash}',
             uri_prefix=uri_prefix,
             dest_port=port,
             dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
