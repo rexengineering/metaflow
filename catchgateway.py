@@ -157,6 +157,7 @@ class EventCatchPoller:
                 if FUNCTION == 'CATCH':
                     assert 'x-flow-id' in headers
                     assert 'x-rexflow-wf-id' in headers
+                    assert headers['x-rexflow-wf-id'].decode() == WF_ID
                     self.make_call_(
                         data.decode(),
                         flow_id=headers['x-flow-id'].decode(),

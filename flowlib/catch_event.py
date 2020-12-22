@@ -87,6 +87,10 @@ class BPMNCatchEvent(BPMNComponent):
                 "value": target.k8s_url,
             },
             {
+                "name": "WF_ID",
+                "value": self._global_props.id,
+            },
+            {
                 "name": "FORWARD_TASK_ID",
                 "value": target.id,
             },
