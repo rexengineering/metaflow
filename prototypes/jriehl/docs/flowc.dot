@@ -1,0 +1,34 @@
+digraph G {
+    compound=true; rankdir=LR;
+    node [shape=record];
+    subgraph cluster_dist {
+        label = "dist/";
+        //subdir [label = "./"];
+        /*
+        subdir -> "wfname.bpmn";
+        subdir -> "wfname_task1.py";
+        subdir -> "wfname_task2.py";
+        subdir -> "wfname_taskn.py";
+        */
+        subgraph cluster_wfname_bpmn {
+            label = "";
+            "wfname.bpmn" [shape=plaintext];
+        }
+        subgraph cluster_makefile {
+            label = "";
+            "Makefile" [shape=plaintext];
+        }
+        subgraph cluster_task1 {
+            label="task1/";
+            "Dockerfile";
+            "app.py";
+        }
+        subgraph cluster_taskn {
+            label = <task<i>n</i>/>;
+            "..." [shape=plaintext];
+        }
+    }
+    flowcode [shape=ellipse];
+    "wfname.py" -> flowcode;
+    flowcode -> "wfname.bpmn" [lhead=cluster_dist];
+}
