@@ -4,9 +4,11 @@
 import argparse
 import ast
 import logging
+import os
 import os.path
 import sys
 from typing import Any, Callable, TextIO, Union
+import warnings
 
 from flowlib.flowd_utils import get_log_format
 
@@ -156,6 +158,35 @@ def parse(file_obj: TextIO) -> ToplevelVisitor:
     return visitor
 
 
+def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
+    workflow_name = visitor.workflow.name
+    workflow_path = os.path.join(output_path, workflow_name)
+    os.mkdir(workflow_path)
+    return workflow_path
+
+
+def gen_service_task(
+        visitor: ToplevelVisitor,
+        output_path: str,
+        task: ast.FunctionDef) -> str:
+    task_name = task.name
+    task_path = os.path.join(output_path, task_name)
+    os.mkdir(task_path)
+    return task_path
+
+
+def code_gen(visitor: ToplevelVisitor, output_path: str):
+    output_dir = os.path.abspath(output_path)
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    else:
+        warnings.warn(
+            f'{output_dir} already exists, and contents may be overwritten')
+    workflow_path = gen_workflow(visitor, output_dir)
+    for task in visitor.tasks:
+        gen_service_task(visitor, workflow_path, task)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='flowc')
     parser.add_argument(
@@ -176,4 +207,5 @@ if __name__ == '__main__':
         parse(sys.stdin)
     else:
         for source in namespace.sources:
-            parse(source)
+            parse_result = parse(source)
+            code_gen(parse_result, namespace.output_path)
