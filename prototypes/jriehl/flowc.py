@@ -10,7 +10,8 @@ import sys
 from typing import Any, Callable, TextIO, Union
 import warnings
 
-from . import cmof, bpmn2
+from . import cmof
+from .bpmn2 import bpmn
 from flowlib.flowd_utils import get_log_format
 
 
@@ -30,10 +31,51 @@ class ToplevelVisitor(ast.NodeVisitor):
         self.tasks = []
         self.workflow = None
         self.bindings = {}
+        self.counter = 0
         super().__init__()
 
-    def to_bpmn(self) -> bpmn2.bpmn.Definitions:
-        return bpmn2.bpmn.Definitions()
+    def task_to_bpmn(self, task: ast.FunctionDef):
+        service_task = bpmn.ServiceTask(
+            id=f'Task_{self.counter}', name=f'{task.name}_{self.counter}'
+        )
+        self.counter += 1
+        return service_task
+
+    def _make_edge(self, source: cmof.Element, target: cmof.Element):
+        sequence_flow = bpmn.SequenceFlow(
+            id=f'SequenceFlow_{self.counter}',
+            sourceRef=source.id,
+            targetRef=target.id
+        )
+        self.counter += 1
+        source.append(bpmn.Outgoing(sequence_flow.id))
+        target.append(bpmn.Incoming(sequence_flow.id))
+        return sequence_flow
+
+    def to_bpmn(self) -> bpmn.Definitions:
+        self.counter = 1
+        start_event = bpmn.StartEvent(
+            id=f'StartEvent_{self.counter}', name='Start'
+        )
+        self.counter += 1
+        # FIXME: Don't forget to change the following to only emit the tasks
+        # called in the workflow.
+        service_tasks = [self.task_to_bpmn(task) for task in self.tasks]
+        end_event = bpmn.EndEvent(id=f'EndEvent_{self.counter}', name='End')
+        self.counter += 1
+        # FIXME: This is just ridiculous, but true for the current test cases.
+        sequence_flows = []
+        current = start_event
+        for next in service_tasks:
+            sequence_flows.append(self._make_edge(current, next))
+            current = next
+        sequence_flows.append(self._make_edge(current, end_event))
+        process = bpmn.Process(id=self.workflow.name, isExecutable=True)
+        process.append(start_event)
+        process.extend(service_tasks)
+        process.append(end_event)
+        process.extend(sequence_flows)
+        return bpmn.Definitions([process])
 
     def generic_visit(self, node: ast.AST) -> Any:
         raise ValueError(

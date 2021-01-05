@@ -19,6 +19,11 @@ class TestFlowC(unittest.TestCase):
         super().__init__(*args, **kws)
         self._parse_results = {}
 
+    def assertNotEmpty(self, container):
+        if not container:
+            self.fail('Empty or non-existant container')
+        self.assertGreaterEqual(len(container), 1)
+
     def _parse_path(self, file_path):
         if file_path in self._parse_results:
             return self._parse_results[file_path]
@@ -35,6 +40,27 @@ class TestFlowC(unittest.TestCase):
         result = self._parse_path(BRANCH_PATH)
         self.assertIsInstance(result, flowc.ToplevelVisitor)
 
+    def _check_bpmn(self, bpmn_path: str):
+        self.assertTrue(
+            os.path.exists(bpmn_path), f'{bpmn_path} does not exist'
+        )
+        with open(bpmn_path, 'rb') as bpmn_file:
+            bpmn_dict = xmltodict.parse(bpmn_file, 'utf-8')
+        self.assertTrue(
+            'bpmn:definitions' in bpmn_dict,
+            f'Root element in {bpmn_path} is not a BPMN Definitions '
+            'instance'
+        )
+        definitions_dict = bpmn_dict['bpmn:definitions']
+        self.assertNotEmpty(definitions_dict)
+        self.assertIn('bpmn:process', definitions_dict)
+        process_dict = definitions_dict['bpmn:process']
+        self.assertNotEmpty(process_dict)
+        self.assertIn('bpmn:startEvent', process_dict)
+        self.assertIn('bpmn:serviceTask', process_dict)
+        self.assertIn('bpmn:endEvent', process_dict)
+        self.assertIn('bpmn:sequenceFlow', process_dict)
+
     def test_codegen(self):
         frontend_result = self._parse_path(HELLO_PATH)
         with tempfile.TemporaryDirectory() as temp_path:
@@ -44,16 +70,7 @@ class TestFlowC(unittest.TestCase):
                     os.path.join(temp_path, 'hello_workflow'))
                 self.assertTrue(os.path.exists(workflow_path))
                 bpmn_path = os.path.join(workflow_path, 'hello_workflow.bpmn')
-                self.assertTrue(
-                    os.path.exists(bpmn_path), f'{bpmn_path} does not exist'
-                )
-                with open(bpmn_path, 'rb') as bpmn_file:
-                    bpmn_dict = xmltodict.parse(bpmn_file, 'utf-8')
-                self.assertTrue(
-                    'bpmn:definitions' in bpmn_dict,
-                    f'Root element in {bpmn_path} is not a BPMN Definitions '
-                    'instance'
-                )
+                self._check_bpmn(bpmn_path)
             finally:
                 shutil.rmtree(temp_path)
 
