@@ -22,12 +22,6 @@ START_EVENT_CONTAINER = 'catch-gateway:1.0.0'
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
-START_EVENT_PREFIX = 'start'
-START_EVENT_LISTEN_PORT = '5000'
-START_EVENT_CONTAINER = 'catch-gateway:1.0.0'
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
-
-
 class BPMNStartEvent(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
@@ -80,6 +74,10 @@ class BPMNStartEvent(BPMNComponent):
             {
                 "name": "FORWARD_URL",
                 "value": task.k8s_url,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": task.id,
             },
             {
                 "name": "FAIL_URL",

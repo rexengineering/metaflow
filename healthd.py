@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 
 from etcd3.events import DeleteEvent, PutEvent
@@ -19,12 +20,11 @@ class HealthProbe:
         self.workflow = workflow
         self.task = task
         self.key = WorkflowKeys.task_key(workflow.id, task.id)
-        self.future = None
+        self.timer = None
         self.running = False
         self.status = None
         self.logger = logging.getLogger()
         self.etcd = get_etcd()
-        self.executor = get_executor()
         health_path = self.task.health_properties.path
         if not health_path.startswith('/'):
             health_path = '/' + health_path
@@ -33,36 +33,33 @@ class HealthProbe:
     def __call__(self):
         self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
         health_properties = self.task.health_properties
-        result = ''
-        while self.running:
-            time.sleep(health_properties.period)
-            if not self.running:
-                break
-            # FIXME: The above should fix a majority of races with a stopping
-            # workflow.  It, however, does not fix all races and healthd may
-            # still pollute etcd with a final put before stopping fully.
-            try:
-                response = requests.request(
-                    health_properties.method, self.url,
-                    data=health_properties.query
-                )
-                exception = None
-            except requests.RequestException as exn:
-                exception = exn
-                response = exn.response
-            result = 'UP' if exception is None and response.ok else 'DOWN'
-            self.etcd.put(self.key, result)
-            self.status = result
-            self.logger.info(f'Status check for {self.task.id} is {result}')
-        return result
+        try:
+            response = requests.request(
+                health_properties.method, self.url,
+                data=health_properties.query
+            )
+            exception = None
+        except requests.RequestException as exn:
+            exception = exn
+            response = exn.response
+        result = 'UP' if exception is None and response.ok else 'DOWN'
+        self.etcd.put(self.key, result)
+        self.status = result
+        self.logger.info(f'Status check for {self.task.id} is {result}')
+        if self.running:
+            self.timer = threading.Timer(self.task.health_properties.period, self)
+            self.timer.start()
 
     def start(self):
-        assert self.future is None
+        assert self.timer is None
+        self.timer = threading.Timer(self.task.health_properties.period, self)
         self.running = True
-        self.future = self.executor.submit(self)
+        self.timer.start()
 
     def stop(self):
-        assert self.future is not None
+        assert self.timer is not None
+        self.timer.cancel()
+        self.timer = None
         self.running = False
 
 

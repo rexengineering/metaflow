@@ -23,6 +23,7 @@ from flowlib.constants import (
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
 FORWARD_URL = os.getenv('FORWARD_URL', '')
+FORWARD_TASK_ID = os.getenv('FORWARD_TASK_ID', '')
 
 TOTAL_ATTEMPTS_STR = os.getenv('TOTAL_ATTEMPTS', '')
 TOTAL_ATTEMPTS = int(TOTAL_ATTEMPTS_STR) if TOTAL_ATTEMPTS_STR else 2
@@ -56,6 +57,7 @@ def make_call_(data):
         'x-flow-id': request.headers['x-flow-id'],
         'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
         'content-type': request.headers['content-type'],
+        'x-rexflow-task-id': FORWARD_TASK_ID,
     }
     if TRACEID_HEADER in request.headers:
         headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
@@ -152,7 +154,7 @@ class EventThrowApp(QuartApp):
                 request.headers['x-rexflow-wf-id'],
                 data
             )
-        resp = await make_response({"status": 200, "msg": ""})
+        resp = await make_response(flow_result(0, ""))
 
         if TRACEID_HEADER in request.headers:
             resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]

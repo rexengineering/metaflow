@@ -6,9 +6,7 @@ from collections import OrderedDict, namedtuple
 import os
 from typing import Mapping
 
-
 from .bpmn_util import WorkflowProperties, BPMNComponent
-
 from .k8s_utils import (
     create_deployment,
     create_service,
@@ -88,7 +86,11 @@ class BPMNThrowEvent(BPMNComponent):
             {
                 "name": 'KAFKA_HOST',
                 "value": KAFKA_HOST,
-            }
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": target.id if target else '',
+            },
         ]
 
         k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))

@@ -37,6 +37,8 @@ TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
 FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 KAFKA_POLLING_PERIOD = 1
 
+FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
+
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
 
@@ -119,6 +121,7 @@ class EventCatchPoller:
             'x-flow-id': str(flow_id),
             'x-rexflow-wf-id': str(wf_id),
             'content-type': content_type,
+            'x-rexflow-task-id': FORWARD_TASK_ID,
         }
         for _ in range(TOTAL_ATTEMPTS):
             try:

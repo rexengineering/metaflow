@@ -87,6 +87,10 @@ class BPMNCatchEvent(BPMNComponent):
                 "value": target.k8s_url,
             },
             {
+                "name": "FORWARD_TASK_ID",
+                "value": target.id,
+            },
+            {
                 "name": "TOTAL_ATTEMPTS",
                 "value": str(target.call_properties.total_attempts) if target else "2",
             },
