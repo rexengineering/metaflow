@@ -74,8 +74,14 @@ PRELUDE = """'''Automatically generated from a Moddle JSON representation'''
 
 from typing import List, Union
 
-import {}
+{}
 """
+
+IMPORT = '''try:
+    import {importee}
+except ImportError:
+    from . import {importee}
+'''
 
 Boolean = bool
 
@@ -240,14 +246,18 @@ class Property(PropertyTuple, NamespaceMetadataMixin):
 
 
 class Registry(dict, Dict[str, type]):
-    def __init__(self, types, package_map={}):
+    def __init__(self, types=[], package_map={}):
         super().__init__()
         self.package_map = package_map
         for type_obj in types:
             self.add(type_obj)
 
     def add(self, type_obj: type):
-        assert issubclass(type_obj, NamespaceMetadataMixin)
+        if not issubclass(type_obj, NamespaceMetadataMixin):
+            raise TypeError(
+                f'{type_obj.__name__} is not a subclass of '
+                'NamespaceMetadataMixin'
+            )
         type_obj._registry = weakref.ref(self)
         self[type_obj.get_tag()] = type_obj
 
@@ -355,11 +365,14 @@ def toposort(digraph: Dict[Hashable, Set[Hashable]]):
 
 
 def code_gen(cmof_json: dict, namespace: str, **kws):
+    cmof_package = kws.pop('cmof_package', None)
     local_name_map = {}
     # Compute superclasses
     type_supers = {}  # type: Dict[str, List[str]]
     type_dependencies = {}
-    imports = set(['cmof'])
+    imports = set([
+        f'from {cmof_package} import cmof' if cmof_package else 'import cmof'
+    ])
     for type_defn in cmof_json['types']:
         local_name = type_defn['name']
         supers = [
@@ -368,14 +381,17 @@ def code_gen(cmof_json: dict, namespace: str, **kws):
                 supertype)
             for supertype in type_defn.get('superClass', [])
         ]
-        imports.update([
-            supertype.split('.')[0] for supertype in supers if '.' in supertype
-        ])
+        importees = set(
+            supertype.split(".")[0] for supertype in supers if '.' in supertype
+        )
+        imports.update(
+            IMPORT.format(importee=importee) for importee in importees
+        )
         type_supers[local_name] = supers
         local_name_map[local_name] = type_defn
         type_dependencies[local_name] = set(supers)
     # Start emitting code
-    print(PRELUDE.format(', '.join(imports)), **kws)
+    print(PRELUDE.format('\n'.join(imports)), **kws)
     defined_already = set()
     for enum_defn in cmof_json.get('enumerations', ()):
         enum_name = enum_defn['name']

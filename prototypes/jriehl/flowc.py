@@ -10,6 +10,7 @@ import sys
 from typing import Any, Callable, TextIO, Union
 import warnings
 
+from . import cmof, bpmn2
 from flowlib.flowd_utils import get_log_format
 
 
@@ -30,6 +31,9 @@ class ToplevelVisitor(ast.NodeVisitor):
         self.workflow = None
         self.bindings = {}
         super().__init__()
+
+    def to_bpmn(self) -> bpmn2.bpmn.Definitions:
+        return bpmn2.bpmn.Definitions()
 
     def generic_visit(self, node: ast.AST) -> Any:
         raise ValueError(
@@ -162,6 +166,10 @@ def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
     workflow_name = visitor.workflow.name
     workflow_path = os.path.join(output_path, workflow_name)
     os.mkdir(workflow_path)
+    bpmn = visitor.to_bpmn()  # type: cmof.Element
+    bpmn_path = os.path.join(workflow_path, f'{workflow_name}.bpmn')
+    with open(bpmn_path, 'w') as bpmn_file:
+        bpmn_file.write(bpmn.to_xml(pretty=True, short_empty_elements=True))
     return workflow_path
 
 
@@ -177,14 +185,15 @@ def gen_service_task(
 
 def code_gen(visitor: ToplevelVisitor, output_path: str):
     output_dir = os.path.abspath(output_path)
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    else:
-        warnings.warn(
-            f'{output_dir} already exists, and contents may be overwritten')
+    assert os.path.exists(output_dir), f'{output_dir} does not exist'
     workflow_path = gen_workflow(visitor, output_dir)
     for task in visitor.tasks:
         gen_service_task(visitor, workflow_path, task)
+
+
+def flow_compiler(input_file: TextIO, output_path: str):
+    parse_result = parse(input_file)
+    code_gen(parse_result, output_path)
 
 
 if __name__ == '__main__':
@@ -194,18 +203,19 @@ if __name__ == '__main__':
         help='input source file(s)'
     )
     parser.add_argument(
-        '--log_level', nargs='?', default=logging.INFO, type=int,
+        '--log_level', nargs=1, default=logging.INFO, type=int,
         help=f'logging level (DEBUG={logging.DEBUG}, INFO={logging.INFO}...)'
     )
     parser.add_argument(
-        ('--output_path', '-o'), nargs='?', default='./', type=str,
-        help='path to create'
+        '-o', '--output_path', nargs=1, default='.', type=str,
+        help='target output path (defaults to .)'
     )
     namespace = parser.parse_args()
-    logging.basicConfig(format=get_log_format('flowc'), level=namespace.log_level)
+    logging.basicConfig(
+        format=get_log_format('flowc'), level=namespace.log_level
+    )
     if len(namespace.sources) == 0:
-        parse(sys.stdin)
+        flow_compiler(sys.stdin, namespace.output_path)
     else:
         for source in namespace.sources:
-            parse_result = parse(source)
-            code_gen(parse_result, namespace.output_path)
+            flow_compiler(source, namespace.output_path)

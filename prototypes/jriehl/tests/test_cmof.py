@@ -48,22 +48,26 @@ def get_bpmn_metamodel() -> types.ModuleType:
     return bpmn
 
 
+def roundtrip_bpmn(tester: unittest.TestCase, bpmn: types.ModuleType):
+    example_path = os.path.join(
+        PATH, '../../../examples/underpants/underpants.bpmn')
+    with open(example_path) as fileobj:
+        example_src = fileobj.read()
+    underpants1 = bpmn.registry.from_xml(example_src)  # type: cmof.Element
+    xml1 = underpants1.to_xml(pretty=True, short_empty_elements=True)
+    if __debug__:
+        print(xml1)
+    underpants2 = bpmn.registry.from_xml(xml1)  # type: cmof.Element
+    xml2 = underpants2.to_xml(pretty=True, short_empty_elements=True)
+    if __debug__:
+        print(xml2)
+    tester.assertEqual(xml1, xml2)
+
+
 class TestCMOF(unittest.TestCase):
     def test_round_trip(self):
-        example_path = os.path.join(
-            PATH, '../../../examples/underpants/underpants.bpmn')
-        with open(example_path) as fileobj:
-            example_src = fileobj.read()
         bpmn = get_bpmn_metamodel()
-        underpants1 = bpmn.registry.from_xml(example_src)  # type: cmof.Element
-        xml1 = underpants1.to_xml(pretty=True, short_empty_elements=True)
-        if __debug__:
-            print(xml1)
-        underpants2 = bpmn.registry.from_xml(xml1)  # type: cmof.Element
-        xml2 = underpants2.to_xml(pretty=True, short_empty_elements=True)
-        if __debug__:
-            print(xml2)
-        self.assertEqual(xml1, xml2)
+        roundtrip_bpmn(self, bpmn)
 
 
 if __name__ == '__main__':

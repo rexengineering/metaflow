@@ -3,6 +3,8 @@ import shutil
 import tempfile
 import unittest
 
+import xmltodict
+
 from prototypes.jriehl import flowc
 
 
@@ -41,6 +43,17 @@ class TestFlowC(unittest.TestCase):
                 workflow_path = os.path.abspath(
                     os.path.join(temp_path, 'hello_workflow'))
                 self.assertTrue(os.path.exists(workflow_path))
+                bpmn_path = os.path.join(workflow_path, 'hello_workflow.bpmn')
+                self.assertTrue(
+                    os.path.exists(bpmn_path), f'{bpmn_path} does not exist'
+                )
+                with open(bpmn_path, 'rb') as bpmn_file:
+                    bpmn_dict = xmltodict.parse(bpmn_file, 'utf-8')
+                self.assertTrue(
+                    'bpmn:definitions' in bpmn_dict,
+                    f'Root element in {bpmn_path} is not a BPMN Definitions '
+                    'instance'
+                )
             finally:
                 shutil.rmtree(temp_path)
 
