@@ -212,6 +212,9 @@ def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
     bpmn_path = os.path.join(workflow_path, f'{workflow_name}.bpmn')
     with open(bpmn_path, 'w') as bpmn_file:
         bpmn_file.write(bpmn.to_xml(pretty=True, short_empty_elements=True))
+    makefile_path = os.path.join(workflow_path, 'Makefile')
+    with open(makefile_path, 'w') as makefile_file:
+        pass
     return workflow_path
 
 
@@ -222,6 +225,12 @@ def gen_service_task(
     task_name = task.name
     task_path = os.path.join(output_path, task_name)
     os.mkdir(task_path)
+    dockerfile_path = os.path.join(task_path, 'Dockerfile')
+    with open(dockerfile_path, 'w') as dockerfile_file:
+        pass
+    app_path = os.path.join(task_path, 'app.py')
+    with open(app_path, 'w') as app_file:
+        pass
     return task_path
 
 

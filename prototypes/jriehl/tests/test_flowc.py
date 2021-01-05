@@ -61,6 +61,25 @@ class TestFlowC(unittest.TestCase):
         self.assertIn('bpmn:endEvent', process_dict)
         self.assertIn('bpmn:sequenceFlow', process_dict)
 
+    def _check_makefile(self, makefile_path: str):
+        self.assertTrue(
+            os.path.exists(makefile_path), f'{makefile_path} does not exist'
+        )
+
+    def _check_task(self, task_path: str):
+        self.assertTrue(
+            os.path.isdir(task_path),
+            f'{task_path} does not exist or is not a directory'
+        )
+        dockerfile_path = os.path.join(task_path, 'Dockerfile')
+        self.assertTrue(
+            os.path.exists(dockerfile_path), f'{dockerfile_path} does not exist'
+        )
+        app_path = os.path.join(task_path, 'app.py')
+        self.assertTrue(
+            os.path.exists(app_path), f'{app_path} does not exist'
+        )
+
     def test_codegen(self):
         frontend_result = self._parse_path(HELLO_PATH)
         with tempfile.TemporaryDirectory() as temp_path:
@@ -71,6 +90,10 @@ class TestFlowC(unittest.TestCase):
                 self.assertTrue(os.path.exists(workflow_path))
                 bpmn_path = os.path.join(workflow_path, 'hello_workflow.bpmn')
                 self._check_bpmn(bpmn_path)
+                makefile_path = os.path.join(workflow_path, 'Makefile')
+                self._check_makefile(makefile_path)
+                task_path = os.path.join(workflow_path, 'hello_task')
+                self._check_task(task_path)
             finally:
                 shutil.rmtree(temp_path)
 
