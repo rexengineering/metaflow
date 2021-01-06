@@ -1,3 +1,4 @@
+import ast
 import os.path
 import shutil
 import tempfile
@@ -90,6 +91,10 @@ class TestFlowC(unittest.TestCase):
         self.assertTrue(
             os.path.exists(app_path), f'{app_path} does not exist'
         )
+        with open(app_path) as app_file:
+            app_src = app_file.read()
+        app_tree = ast.parse(app_src, app_path)
+        self.assertNotEmpty(app_tree.body)
 
     def test_codegen(self):
         frontend_result = self._parse_path(HELLO_PATH)

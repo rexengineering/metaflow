@@ -43,6 +43,9 @@ COPY app.py /
 ENTRYPOINT ["python", "/app.py"]
 '''
 
+APP_TEMPLATE = '''print('Hello, world.')
+'''
+
 
 class ToplevelVisitor(ast.NodeVisitor):
     def __init__(self, module_dict: dict) -> None:
@@ -257,7 +260,7 @@ def gen_service_task(
         dockerfile_file.write(DOCKERFILE_TEMPLATE)
     app_path = os.path.join(task_path, 'app.py')
     with open(app_path, 'w') as app_file:
-        pass
+        app_file.write(APP_TEMPLATE)
     return task_path
 
 
