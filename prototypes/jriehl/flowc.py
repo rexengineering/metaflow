@@ -38,6 +38,12 @@ clean:
 TARGET_TEMPLATE = '''{target}: {target}/Dockerfile {target}/app.py
 \tdocker build -t {target} {target}'''
 
+DOCKERFILE_TEMPLATE = '''FROM python:3-alpine
+COPY app.py /
+ENTRYPOINT ["python", "/app.py"]
+'''
+
+
 class ToplevelVisitor(ast.NodeVisitor):
     def __init__(self, module_dict: dict) -> None:
         self._module = module_dict
@@ -248,7 +254,7 @@ def gen_service_task(
     os.mkdir(task_path)
     dockerfile_path = os.path.join(task_path, 'Dockerfile')
     with open(dockerfile_path, 'w') as dockerfile_file:
-        pass
+        dockerfile_file.write(DOCKERFILE_TEMPLATE)
     app_path = os.path.join(task_path, 'app.py')
     with open(app_path, 'w') as app_file:
         pass

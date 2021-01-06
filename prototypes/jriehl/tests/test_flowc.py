@@ -81,6 +81,11 @@ class TestFlowC(unittest.TestCase):
         self.assertTrue(
             os.path.exists(dockerfile_path), f'{dockerfile_path} does not exist'
         )
+        with open(dockerfile_path) as dockerfile_file:
+            dockerfile_src = dockerfile_file.read()
+        self.assertIn('FROM', dockerfile_src)
+        self.assertIn('COPY', dockerfile_src)
+        self.assertIn('ENTRYPOINT', dockerfile_src)
         app_path = os.path.join(task_path, 'app.py')
         self.assertTrue(
             os.path.exists(app_path), f'{app_path} does not exist'
