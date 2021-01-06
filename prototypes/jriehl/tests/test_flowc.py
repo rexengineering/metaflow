@@ -65,6 +65,12 @@ class TestFlowC(unittest.TestCase):
         self.assertTrue(
             os.path.exists(makefile_path), f'{makefile_path} does not exist'
         )
+        with open(makefile_path) as makefile_file:
+            makefile_src = makefile_file.read()
+        self.assertRegex(makefile_src, r'all\w*:')
+        self.assertRegex(makefile_src, r'clean\w*:')
+        self.assertRegex(makefile_src, r'test\w*:')
+        self.assertRegex(makefile_src, r'.PHONY\w*:')
 
     def _check_task(self, task_path: str):
         self.assertTrue(

@@ -24,6 +24,19 @@ LHSs = Union[
     ast.Tuple
 ]
 
+MAKEFILE_TEMPLATE = '''all: {targets}
+
+test:
+
+clean:
+
+{target_rules}
+
+.PHONY: all {targets} test clean
+'''
+
+TARGET_TEMPLATE = '''{target}: {target}/Dockerfile {target}/app.py
+\tdocker build -t {target} {target}'''
 
 class ToplevelVisitor(ast.NodeVisitor):
     def __init__(self, module_dict: dict) -> None:
@@ -214,7 +227,15 @@ def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
         bpmn_file.write(bpmn.to_xml(pretty=True, short_empty_elements=True))
     makefile_path = os.path.join(workflow_path, 'Makefile')
     with open(makefile_path, 'w') as makefile_file:
-        pass
+        target_names = [task.name for task in visitor.tasks]
+        targets = ' '.join(target_names)
+        target_rules = '\n\n'.join(TARGET_TEMPLATE.format(
+            target=target) for target in target_names
+        )
+        makefile_file.write(
+            MAKEFILE_TEMPLATE.format(
+                targets=targets, target_rules=target_rules)
+        )
     return workflow_path
 
 
