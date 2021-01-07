@@ -61,12 +61,20 @@ def create_serviceaccount(namespace, dns_safe_name):
 
 
 def create_rexflow_ingress_vs(namespace, dns_safe_name, uri_prefix, dest_port, dest_host):
+    # TODO: We need to put this behind a "Development" feature flag.
+    # It's very useful for debugging purposes on docker-desktop to have a virtualservice
+    # so that we can do `curl localhost/my-service`, but this will break our helm charts
+    # if we put it in prod (that's not to mention we don't want everything automatically
+    # visible to the outside world)
+
     virtual_service = {
         'apiVersion': 'networking.istio.io/v1alpha3',
         'kind': 'VirtualService',
         'metadata': {
             'name': dns_safe_name,
-            'namespace': namespace,
+
+            # hardcode it as "default" because otherwise it doesn't work.
+            'namespace': "default",
         },
         'spec': {
             'hosts': ['*'],

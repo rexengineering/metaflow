@@ -3,10 +3,14 @@ import logging
 import os
 
 from test1 import Test1
+from test2 import Test2
 
+
+logging.getLogger().setLevel(logging.INFO)
 
 ALL_TESTS = [
-    Test1
+    Test1,
+    Test2,
 ]
 
 if __name__ == "__main__":
@@ -29,13 +33,16 @@ if __name__ == "__main__":
 
     for test_object in test_objects:
         # setup
+        logging.info(f"Setting up deployment for test {test_object.name}.")
         sr = test_object.setup()
         if sr.status != 0:
             logging.error(f"Setup FAILED on test {test_object.name}: {sr.message}")
             failure = True
             continue
+        logging.info(f"Successfully set up deployment for {test_object.name}.")
 
         # Run
+        logging.info(f"Running all test cases for test deployment {test_object.name}.")
         trs = test_object.run()
         for tr in trs:
             if tr.status != 0:
@@ -46,11 +53,15 @@ if __name__ == "__main__":
                     f"Instance ID: {tr.instance_ids}"
                 )
                 failure = True
+            else:
+                logging.info(f"Test case {test_object.name}:{tr.name} PASSED.")
 
         # cleanup
+        logging.info(f"Cleaning up deployment {test_object.name}.")
         cr = test_object.cleanup()
         if cr.status != 0:
             logging.error(f"{test_object.name} FAILED to cleanup: {cr.message}")
+        logging.info(f"Done cleaning up deployment {test_object.name}.\n\n\n\n")
 
     if failure:
         logging.error("Tests didn't pass.")
