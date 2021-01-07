@@ -56,9 +56,6 @@ class Test6(IntegrationTest):
         return result
 
     def run(self) -> List[TestResult]:
-        '''We run several tests against the WF Deployment: First, we verify we can run
-        one instance alone; then, we do stress-testing and run 100 instances in a row.
-        '''
         self._status.set_state('running')
 
         results = None
