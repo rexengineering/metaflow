@@ -250,6 +250,7 @@ class WorkflowInstance:
         headers_to_send = {
             'X-Flow-Id': self.id,
             'X-Rexflow-Wf-Id': self.parent.id,
+            'X-Rexflow-Task-Id': headers['X-Rexflow-Task-Id'],
         }
 
         for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:
