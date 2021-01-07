@@ -21,7 +21,9 @@ from util import (
 
 NUM_REQUESTS = 20
 NUM_THREADS = 20
-WAIT_PERIOD = 1
+# Generous wait period (in seconds). Keep it generous so that this can pass reliably even
+# if the test environment is quite skimpy.
+WAIT_PERIOD = 3
 
 BPMN_FILE_A = 'data/test5_a.bpmn'
 BPMN_FILE_B = 'data/test5_b.bpmn'

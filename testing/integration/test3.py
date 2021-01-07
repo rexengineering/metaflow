@@ -32,6 +32,10 @@ BPMN_FILE = 'data/test3_events.bpmn'
 NUM_REQUESTS = 200
 NUM_THREADS = 40
 
+# This wait period is longer because we need some daemon running inside the cluster
+# to process our messages (see test3_kafka_util.py).
+WAIT_PERIOD = 12
+
 
 class Test3(IntegrationTest):
     def __init__(self):
@@ -101,7 +105,7 @@ class Test3(IntegrationTest):
 
         # Step 2: Wait for instance to complete. Give a few seconds since the other SwimLane
         # may take a while to do its job.
-        time.sleep(12)
+        time.sleep(WAIT_PERIOD)
         ps_response = flowctl(f"ps {instance_id} -o")
         instance = ps_response[instance_id]
 

@@ -26,12 +26,16 @@ BPMN_FILE = 'data/test1_simple.bpmn'
 NUM_REQUESTS = 200
 NUM_THREADS = 20
 
+# Generous wait period (in seconds). Keep it generous so that this can pass reliably even
+# if the test environment is quite skimpy.
+WAIT_PERIOD = 3
+
 
 class Test1(IntegrationTest):
     def __init__(self):
         self._name = "test1_simple_underpants"
         self._status = TestStatus('not_set_up')
-        self._wf_id = None
+        self._wf_id = "test1"
 
     def setup(self) -> SetupResult:
         # Step 1: apply wf
@@ -65,19 +69,28 @@ class Test1(IntegrationTest):
         run_response = flowctl("run " + self._wf_id + " '{}' -o")
         instance_id = run_response['id']
 
-        # Step 2: Wait for instance to complete. If slower than 1s, we fail.
-        time.sleep(1)
+        # Step 2: Wait for instance to complete. If slower than WAIT_PERIOD, we fail.
+        time.sleep(WAIT_PERIOD)
         ps_response = flowctl(f"ps {instance_id} -o")
         instance = ps_response[instance_id]
 
         # Step 3: Interrogate the Instance Output
+        if instance['state'] != 'COMPLETED':
+            return TestResult(
+                [instance_id],
+                -1,
+                f"Instance didn't complete: {instance['state']}.", self._name
+            )
+
         result_json = json.loads(instance['result'])
 
-        if instance['state'] != 'COMPLETED':
-            return TestResult([instance_id], -1, "Instance didn't complete.", self._name)
-
         if result_json != EXPECTED:
-            return TestResult([instance_id], -1, "Result didn't match.", self._name)
+            return TestResult(
+                [instance_id],
+                -1,
+                f"Result didn't match: {result_json} != {EXPECTED}.",
+                self._name
+            )
 
         return TestResult([instance_id], 0, "Ok.", self._name)
 

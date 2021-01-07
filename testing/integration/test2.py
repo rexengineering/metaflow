@@ -17,6 +17,10 @@ from util import (
 
 BPMN_FILE = 'data/test2_conditional.bpmn'
 
+# Generous wait period (in seconds). Keep it generous so that this can pass reliably even
+# if the test environment is quite skimpy.
+WAIT_PERIOD = 3
+
 
 class Test2(IntegrationTest):
     def __init__(self):
@@ -62,7 +66,7 @@ class Test2(IntegrationTest):
         instance_id = json.loads(run_response.decode())['id']
 
         # Step 2: Wait for instance to complete. If slower than 1s, we fail.
-        time.sleep(1)
+        time.sleep(WAIT_PERIOD)
         ps_response = flowctl(f"ps {instance_id} -o")
         instance = ps_response[instance_id]
 
@@ -85,13 +89,13 @@ class Test2(IntegrationTest):
         run_response = None
         with open(os.devnull, 'w') as devnull:
             run_response = check_output([
-                'curl', '-H', "content-type: application/json", '-d', '{"val": 1}',
+                'curl', '-H', "content-type: application/json", '-d', '{"val": 137}',
                 "http://localhost:80/start-test2",
             ], stderr=devnull)
         instance_id = json.loads(run_response.decode())['id']
 
         # Step 2: Wait for instance to complete. If slower than 1s, we fail.
-        time.sleep(1)
+        time.sleep(WAIT_PERIOD)
         ps_response = flowctl(f"ps {instance_id} -o")
         instance = ps_response[instance_id]
 

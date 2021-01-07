@@ -73,15 +73,7 @@ class EventCatchPoller:
         msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
 
-    def create_instance(self, incoming_data, content_type):
-        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
-        etcd = get_etcd()
-        keys = WorkflowInstanceKeys(instance_id)
-        if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
-            # Should never happen...unless there's a collision in uuid1
-            logging.error(f'{keys.state} already defined in etcd!')
-            return f"Internal Error: ID {instance_id} already exists"
-
+    def run_instance(self, keys, incoming_data, instance_id, content_type, etcd):
         etcd.put(keys.parent, WF_ID)
         first_task_response = self.make_call_(
             incoming_data,
@@ -95,6 +87,19 @@ class EventCatchPoller:
         else:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
+
+    def create_instance(self, incoming_data, content_type):
+        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
+        etcd = get_etcd()
+        keys = WorkflowInstanceKeys(instance_id)
+        if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
+            # Should never happen...unless there's a collision in uuid1
+            logging.error(f'{keys.state} already defined in etcd!')
+            return f"Internal Error: ID {instance_id} already exists"
+
+        self.executor.submit(
+            self.run_instance, keys, incoming_data, instance_id, content_type, etcd
+        )
         return {"id": instance_id}
 
     def save_traceid(self, headers, flow_id):
@@ -167,7 +172,7 @@ class EventCatchPoller:
                 else:
                     self.create_instance(data, headers['content-type'])
             except Exception as exn:
-                logging.exception("Failed processing event", exc_info=exn)
+                logging.exception("Failed processing ev ent", exc_info=exn)
 
 
 class EventCatchApp(QuartApp):

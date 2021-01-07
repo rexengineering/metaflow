@@ -58,9 +58,8 @@ if __name__ == "__main__":
                 logging.error(
                     f"Instance ID: {tr.instance_ids}"
                 )
-                failure = True
-            else:
-                logging.info(f"Test case {test_object.name}:{tr.name} PASSED.")
+                exit(1)
+        logging.info("Test cases passed.")
 
         # cleanup
         logging.info(f"Cleaning up deployment {test_object.name}.")

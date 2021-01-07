@@ -31,18 +31,16 @@ def process_message(msg):
 
 
 consumer.subscribe([KAFKA_TOPIC_READ])
-print("starting to poll", flush=True)
+print("Test3 Event Processing daemon: starting to poll", flush=True)
 msg = consumer.poll(15)
 
 processed = 0
 
 while msg is not None:
     processed += 1
-    print("Got a message", flush=True)
     process_message(msg)
     msg = consumer.poll(10)
     producer.poll(0.1)
 
-print("flushing")
 producer.flush()
-print(f"done processing {processed} messages!", flush=True)
+print(f"Test3 Event Processing daemon: done processing {processed} messages!", flush=True)

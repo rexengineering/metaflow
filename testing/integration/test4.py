@@ -24,8 +24,9 @@ BPMN_FILE = 'data/test4_retry.bpmn'
 NUM_REQUESTS = 200
 NUM_THREADS = 40
 
-# Generous wait period (in seconds)
-WAIT_PERIOD = 1
+# Generous wait period (in seconds). Keep it generous so that this can pass reliably even
+# if the test environment is quite skimpy.
+WAIT_PERIOD = 3
 
 # Ensures probability that one of the 200 instances doesn't complete is 0.1%.
 MAX_RETRIES = 18
@@ -96,11 +97,21 @@ class Test4(IntegrationTest):
             state = instance['state']
 
         if instance['state'] != 'COMPLETED':
-            return TestResult([instance_id], -1, "Instance didn't complete.", self._name)
+            return TestResult(
+                [instance_id],
+                -1,
+                f"Instance didn't complete: {instance}.",
+                self._name,
+            )
 
         result_json = json.loads(instance['result'])
         if result_json != EXPECTED:
-            return TestResult([instance_id], -1, "Result didn't match.", self._name)
+            return TestResult(
+                [instance_id],
+                -1,
+                f"Result didn't match: {result_json} != {EXPECTED}.",
+                self._name,
+            )
 
         return TestResult([instance_id], 0, "Ok.", "Retry stress test.")
 
