@@ -197,6 +197,7 @@ class HealthProperties:
         self.query = None
         self._period = None
         self._response = None
+        self._timeout = None
 
     @property
     def path(self) -> str:
@@ -214,6 +215,10 @@ class HealthProperties:
     def response(self) -> str:
         return self._response if self._response is not None else 'HEALTHY'
 
+    @property
+    def timeout(self) -> int:
+        return self._timeout if self._timeout else 5
+
     def update(self, annotations):
         if 'path' in annotations:
             self._path = annotations['path']
@@ -225,6 +230,8 @@ class HealthProperties:
             self._period = annotations['period']
         if 'response' in annotations:
             self._response = annotations['response']
+        if 'timeout' in annotations:
+            self._timeout = annotations['timeout']
 
 
 class WorkflowProperties:
