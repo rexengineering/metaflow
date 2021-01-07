@@ -8,7 +8,6 @@ import os
 import os.path
 import sys
 from typing import Any, Callable, TextIO, Union
-import warnings
 
 from . import cmof
 from .bpmn2 import bpmn
@@ -101,7 +100,8 @@ class ToplevelVisitor(ast.NodeVisitor):
 
     def generic_visit(self, node: ast.AST) -> Any:
         raise ValueError(
-            f'Unsupported Python syntax at line {node.lineno}, column {node.col_offset} ({type(node).__name__}).'
+            f'Unsupported Python syntax at line {node.lineno}, column '
+            f'{node.col_offset} ({type(node).__name__}).'
         )
 
     def _bind(self, name, value):
@@ -174,13 +174,13 @@ class WorkflowTransformer(ast.NodeTransformer):
         super().__init__()
 
     def visit_arguments(self, node: ast.arguments) -> Any:
-        valid = (
-            (len(node.posonlyargs) == 0) and
-            (len(node.args) == 0) and
-            (len(node.kwonlyargs) == 0) and
-            (not node.vararg) and
+        valid = all((
+            (len(node.posonlyargs) == 0),
+            (len(node.args) == 0),
+            (len(node.kwonlyargs) == 0),
+            (not node.vararg),
             (not node.kwarg)
-        )
+        ))
         assert valid, 'Workflow functions should have no arguments.'
         return node
 
@@ -195,8 +195,8 @@ class WorkflowTransformer(ast.NodeTransformer):
         # the environment consists of literals, while functions (and technically
         # classes) need to remain as they are so they are picked up by the
         # freezing process.
-        if ((node.id not in self.visitor._module) or
-            (not isinstance(self.visitor._module[node.id], Callable))):
+        if ((node.id not in self.visitor._module)
+                or (not isinstance(self.visitor._module[node.id], Callable))):
             node = ast.Subscript(
                 value=ast.Name(id='__wf_env', ctx=ast.Load()),
                 slice=ast.Index(value=ast.Constant(value=node.id)),
@@ -219,7 +219,10 @@ def parse(file_obj: TextIO) -> ToplevelVisitor:
     source = file_obj.read()
     tree = ast.parse(source, file_path, type_comments=True)
     code_obj = compile(tree, file_path, 'exec')
-    module_dict = {'__file__': file_path}
+    module_dict = {
+        '__file__': file_path,
+        '__name__': os.path.splitext(os.path.basename(file_path))[0],
+    }
     exec(code_obj, module_dict)
     visitor = ToplevelVisitor(module_dict)
     visitor.visit(tree)
@@ -272,9 +275,14 @@ def code_gen(visitor: ToplevelVisitor, output_path: str):
         gen_service_task(visitor, workflow_path, task)
 
 
-def flow_compiler(input_file: TextIO, output_path: str):
-    parse_result = parse(input_file)
-    code_gen(parse_result, output_path)
+def flow_compiler(input_file: TextIO, output_path: str) -> bool:
+    try:
+        parse_result = parse(input_file)
+        code_gen(parse_result, output_path)
+    except Exception as exception:
+        logging.exception(exception)
+        return False
+    return True
 
 
 if __name__ == '__main__':
@@ -296,7 +304,11 @@ if __name__ == '__main__':
         format=get_log_format('flowc'), level=namespace.log_level
     )
     if len(namespace.sources) == 0:
-        flow_compiler(sys.stdin, namespace.output_path)
+        if not flow_compiler(sys.stdin, namespace.output_path):
+            sys.exit(1)
     else:
-        for source in namespace.sources:
+        if not all(
             flow_compiler(source, namespace.output_path)
+            for source in namespace.sources
+        ):
+            sys.exit(1)

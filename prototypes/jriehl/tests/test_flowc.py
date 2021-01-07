@@ -1,4 +1,5 @@
 import ast
+import os
 import os.path
 import shutil
 import tempfile
@@ -110,6 +111,40 @@ class TestFlowC(unittest.TestCase):
                 self._check_makefile(makefile_path)
                 task_path = os.path.join(workflow_path, 'hello_task')
                 self._check_task(task_path)
+            finally:
+                shutil.rmtree(temp_path)
+
+    def test_make(self):
+        with tempfile.TemporaryDirectory() as temp_path:
+            try:
+                with open(HELLO_PATH) as hello_file:
+                    flowc_ok = flowc.flow_compiler(hello_file, temp_path)
+                    self.assertTrue(
+                        flowc_ok, 'Flow compiler failed to handle hello.py!'
+                    )
+                workflow_path = os.path.join(temp_path, 'hello_workflow')
+                result = os.system(f'make -C {workflow_path}')
+                self.assertEqual(
+                    result, 0, f'Make failed with exit code {result}'
+                )
+            finally:
+                shutil.rmtree(temp_path)
+
+    def test_fail(self):
+        with tempfile.TemporaryDirectory() as temp_path:
+            try:
+                with open(os.path.join(PATH, '..', 'flowc.py')) as test_file, \
+                        self.assertLogs() as logging_manager:
+                    flowc_ok = flowc.flow_compiler(test_file, temp_path)
+                self.assertFalse(
+                    flowc_ok,
+                    'Flow compiler failed to signal a problem with invalid '
+                    'input.'
+                )
+                self.assertNotEmpty(logging_manager.output)
+                self.assertNotIn(
+                    '"\'__name__\' not in globals"', logging_manager.output[0]
+                )
             finally:
                 shutil.rmtree(temp_path)
 
