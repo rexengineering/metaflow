@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_0d4zc4f" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Zeebe Modeler" exporterVersion="0.10.0">
+  <bpmn:process id="Underpants" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Start">
+      <bpmn:outgoing>SequenceFlow_190n0mt</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="SequenceFlow_190n0mt" sourceRef="StartEvent_1" targetRef="Task_1dqvybv" />
+    <bpmn:serviceTask id="Task_1dqvybv" name="Add 1">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="collect" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
+      <bpmn:outgoing>Flow_0sgm8j8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_1pxdd1k" name="Finish">
+      <bpmn:incoming>Flow_118p0rl</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="Event_1cptoky">
+      <bpmn:incoming>Flow_0sgm8j8</bpmn:incoming>
+    </bpmn:intermediateThrowEvent>
+    <bpmn:sequenceFlow id="Flow_0sgm8j8" sourceRef="Task_1dqvybv" targetRef="Event_1cptoky" />
+    <bpmn:intermediateCatchEvent id="Event_0w7y6jt">
+      <bpmn:outgoing>Flow_0tq5gl8</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_0zfzgj3" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_0tq5gl8" sourceRef="Event_0w7y6jt" targetRef="Activity_0zxkmg6" />
+    <bpmn:sequenceFlow id="Flow_118p0rl" sourceRef="Activity_0zxkmg6" targetRef="EndEvent_1pxdd1k" />
+    <bpmn:serviceTask id="Activity_0zxkmg6" name="Subtract 1">
+      <bpmn:incoming>Flow_0tq5gl8</bpmn:incoming>
+      <bpmn:outgoing>Flow_118p0rl</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
+      <bpmn:text>rexflow:
+    id: test3</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0hwix5o" sourceRef="StartEvent_1" targetRef="TextAnnotation_0awc0mf" />
+    <bpmn:textAnnotation id="TextAnnotation_1vjflrc">
+      <bpmn:text>rexflow:
+    service:
+        host: increment-test
+        port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1uohovd" sourceRef="Task_1dqvybv" targetRef="TextAnnotation_1vjflrc" />
+    <bpmn:textAnnotation id="TextAnnotation_18mql5m">
+      <bpmn:text>rexflow:
+    service:
+        host: decrement-test
+        port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_06yt33r">
+      <bpmn:text>rexflow:
+  queue: test3_throw
+  gateway_name: test3</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_057this" sourceRef="Event_1cptoky" targetRef="TextAnnotation_06yt33r" />
+    <bpmn:textAnnotation id="TextAnnotation_0dqtqab">
+      <bpmn:text>rexflow:
+  queue: test3_catch
+  gateway_name: test3</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0ahotq6" sourceRef="Event_0w7y6jt" targetRef="TextAnnotation_0dqtqab" />
+    <bpmn:textAnnotation id="TextAnnotation_1ov6vvr">
+      <bpmn:text>rexflow:
+  service:
+    host: end-events</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0xfwgko" sourceRef="EndEvent_1pxdd1k" targetRef="TextAnnotation_1ov6vvr" />
+    <bpmn:association id="Association_03ckkyb" sourceRef="Activity_0zxkmg6" targetRef="TextAnnotation_18mql5m" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
+      <bpmndi:BPMNShape id="TextAnnotation_1ov6vvr_di" bpmnElement="TextAnnotation_1ov6vvr">
+        <dc:Bounds x="870" y="126" width="100" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
+        <dc:Bounds x="700" y="133" width="128" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0sgm8j8_di" bpmnElement="Flow_0sgm8j8">
+        <di:waypoint x="430" y="297" />
+        <di:waypoint x="492" y="297" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_190n0mt_di" bpmnElement="SequenceFlow_190n0mt">
+        <di:waypoint x="275" y="297" />
+        <di:waypoint x="330" y="297" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0tq5gl8_di" bpmnElement="Flow_0tq5gl8">
+        <di:waypoint x="648" y="297" />
+        <di:waypoint x="700" y="297" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_118p0rl_di" bpmnElement="Flow_118p0rl">
+        <di:waypoint x="800" y="297" />
+        <di:waypoint x="872" y="297" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="239" y="279" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="245" y="322" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_0ogjpx6_di" bpmnElement="Task_1dqvybv">
+        <dc:Bounds x="330" y="257" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1cptoky_di" bpmnElement="Event_1cptoky">
+        <dc:Bounds x="492" y="279" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
+        <dc:Bounds x="160" y="154" width="160" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
+        <dc:Bounds x="330" y="103" width="120" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_06yt33r_di" bpmnElement="TextAnnotation_06yt33r">
+        <dc:Bounds x="460" y="133" width="120" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0dqtqab_di" bpmnElement="TextAnnotation_0dqtqab">
+        <dc:Bounds x="570" y="80" width="170" height="54" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
+        <dc:Bounds x="872" y="279" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="875" y="322" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_15llahl_di" bpmnElement="Event_0w7y6jt">
+        <dc:Bounds x="612" y="279" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1cfs4hm_di" bpmnElement="Activity_0zxkmg6">
+        <dc:Bounds x="700" y="257" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_0hwix5o_di" bpmnElement="Association_0hwix5o">
+        <di:waypoint x="253" y="280" />
+        <di:waypoint x="236" y="194" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
+        <di:waypoint x="384" y="257" />
+        <di:waypoint x="392" y="185" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_057this_di" bpmnElement="Association_057this">
+        <di:waypoint x="510" y="279" />
+        <di:waypoint x="510" y="215" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0xfwgko_di" bpmnElement="Association_0xfwgko">
+        <di:waypoint x="893" y="280" />
+        <di:waypoint x="910" y="194" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0ahotq6_di" bpmnElement="Association_0ahotq6">
+        <di:waypoint x="629" y="279" />
+        <di:waypoint x="622" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_03ckkyb_di" bpmnElement="Association_03ckkyb">
+        <di:waypoint x="757" y="257" />
+        <di:waypoint x="765" y="215" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

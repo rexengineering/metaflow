@@ -35,7 +35,7 @@ KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
 FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
-KAFKA_POLLING_PERIOD = 1
+KAFKA_POLLING_PERIOD = 10
 
 FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
@@ -70,7 +70,7 @@ class EventCatchPoller:
         self.running = False
 
     def get_event(self):
-        msg = kafka.poll()
+        msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
 
     def create_instance(self, incoming_data, content_type):
@@ -167,8 +167,6 @@ class EventCatchPoller:
                     self.create_instance(data, headers['content-type'])
             except Exception as exn:
                 logging.exception("Failed processing event", exc_info=exn)
-
-            time.sleep(KAFKA_POLLING_PERIOD)
 
 
 class EventCatchApp(QuartApp):

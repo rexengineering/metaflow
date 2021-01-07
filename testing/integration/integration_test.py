@@ -4,6 +4,7 @@ import os
 
 from test1 import Test1
 from test2 import Test2
+from test3 import Test3
 
 
 logging.getLogger().setLevel(logging.INFO)
@@ -11,6 +12,7 @@ logging.getLogger().setLevel(logging.INFO)
 ALL_TESTS = [
     Test1,
     Test2,
+    Test3,
 ]
 
 if __name__ == "__main__":
