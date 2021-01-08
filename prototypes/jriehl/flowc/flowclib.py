@@ -5,12 +5,10 @@ import ast
 import logging
 import os
 import os.path
-import sys
 from typing import Any, Callable, TextIO, Union
 
-from . import cmof
+from . import cmof, visitors
 from .bpmn2 import bpmn
-from flowlib.flowd_utils import get_log_format
 
 
 LHSs = Union[
@@ -54,9 +52,9 @@ class ToplevelVisitor(ast.NodeVisitor):
         self.counter = 0
         super().__init__()
 
-    def task_to_bpmn(self, task: ast.FunctionDef):
+    def task_to_bpmn(self, call: visitors.ServiceTaskCall):
         service_task = bpmn.ServiceTask(
-            id=f'Task_{self.counter}', name=f'{task.name}_{self.counter}'
+            id=f'Task_{self.counter}', name=call.service_name
         )
         self.counter += 1
         return service_task
@@ -135,17 +133,15 @@ class ToplevelVisitor(ast.NodeVisitor):
             if hasattr(value, '_workflow'):
                 assert self.workflow is None, \
                     'Only one workflow may be defined in a module.'
-                node = WorkflowTransformer(self).visit(node)
-                node = ast.fix_missing_locations(node)
                 self.workflow = node
-                code_obj = compile(
-                    ast.Module([node], []),
-                    self._module.get('__file__'),
-                    'exec'
-                )
-                exec(code_obj, self._module)
+                workflow_visitor = visitors.WorkflowVisitor(self._module)
+                workflow_visitor.visit(node)
+                self.tasks.extend(workflow_visitor.tasks)
             if hasattr(value, '_service_task'):
-                self.tasks.append(node)
+                assert value._service_task.definition is None, \
+                    (f'Service task {name} already defined on line '
+                        f'{value.lineno}')
+                value._service_task.definition = node
         self._bind(node.name, node)
 
     def _handle_import(self, node: Union[ast.Import, ast.ImportFrom]) -> Any:
@@ -165,50 +161,6 @@ class ToplevelVisitor(ast.NodeVisitor):
         result = super().generic_visit(node)
         assert self.workflow is not None, 'Failed to find a workflow.'
         return result
-
-
-class WorkflowTransformer(ast.NodeTransformer):
-    def __init__(self, visitor: ToplevelVisitor) -> None:
-        self.visitor = visitor
-        super().__init__()
-
-    def visit_arguments(self, node: ast.arguments) -> Any:
-        valid = all((
-            (len(node.posonlyargs) == 0),
-            (len(node.args) == 0),
-            (len(node.kwonlyargs) == 0),
-            (not node.vararg),
-            (not node.kwarg)
-        ))
-        assert valid, 'Workflow functions should have no arguments.'
-        return node
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
-        node.args.args.append(ast.arg(arg='__wf_env', annotation=None, type_comment=None))
-        node.body = [self.generic_visit(child) for child in node.body]
-        node.body.append(ast.Return(value=ast.Name(id='__wf_env', ctx=ast.Load())))
-        return node
-
-    def visit_Name(self, node: ast.Name) -> Any:
-        # The following conditional is an approximation to the rule that
-        # the environment consists of literals, while functions (and technically
-        # classes) need to remain as they are so they are picked up by the
-        # freezing process.
-        if ((node.id not in self.visitor._module)
-                or (not isinstance(self.visitor._module[node.id], Callable))):
-            node = ast.Subscript(
-                value=ast.Name(id='__wf_env', ctx=ast.Load()),
-                slice=ast.Index(value=ast.Constant(value=node.id)),
-                ctx=node.ctx
-            )
-        return node
-
-    def visit_Return(self, node: ast.Return) -> Any:
-        if not node.value:
-            node.value = ast.Name(id='__wf_env', ctx=ast.Load())
-        else:
-            node = super().generic_visit(node)
-        return node
 
 
 def parse(file_obj: TextIO) -> ToplevelVisitor:
@@ -238,7 +190,7 @@ def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
         bpmn_file.write(bpmn.to_xml(pretty=True, short_empty_elements=True))
     makefile_path = os.path.join(workflow_path, 'Makefile')
     with open(makefile_path, 'w') as makefile_file:
-        target_names = [task.name for task in visitor.tasks]
+        target_names = [call.service_name for call in visitor.tasks]
         targets = ' '.join(target_names)
         target_rules = '\n\n'.join(TARGET_TEMPLATE.format(
             target=target) for target in target_names
@@ -253,8 +205,8 @@ def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
 def gen_service_task(
         visitor: ToplevelVisitor,
         output_path: str,
-        task: ast.FunctionDef) -> str:
-    task_name = task.name
+        call: visitors.ServiceTaskCall) -> str:
+    task_name = call.service_name
     task_path = os.path.join(output_path, task_name)
     os.mkdir(task_path)
     dockerfile_path = os.path.join(task_path, 'Dockerfile')
@@ -270,8 +222,8 @@ def code_gen(visitor: ToplevelVisitor, output_path: str):
     output_dir = os.path.abspath(output_path)
     assert os.path.exists(output_dir), f'{output_dir} does not exist'
     workflow_path = gen_workflow(visitor, output_dir)
-    for task in visitor.tasks:
-        gen_service_task(visitor, workflow_path, task)
+    for call in visitor.tasks:
+        gen_service_task(visitor, workflow_path, call)
 
 
 def flow_compiler(input_file: TextIO, output_path: str) -> bool:

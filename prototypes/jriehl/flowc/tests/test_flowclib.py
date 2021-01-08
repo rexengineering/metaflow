@@ -110,7 +110,7 @@ class TestFlowCLib(unittest.TestCase):
                 self._check_bpmn(bpmn_path)
                 makefile_path = os.path.join(workflow_path, 'Makefile')
                 self._check_makefile(makefile_path)
-                task_path = os.path.join(workflow_path, 'hello_task')
+                task_path = os.path.join(workflow_path, 'hello_task_1')
                 self._check_task(task_path)
             finally:
                 shutil.rmtree(temp_path)

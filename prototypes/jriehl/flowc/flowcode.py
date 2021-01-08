@@ -1,10 +1,15 @@
-from typing import Callable
+import ast
+from typing import Callable, Optional
 
 class Workflow:
     pass
 
 class ServiceTask:
-    pass
+    definition: Optional[ast.FunctionDef]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.definition = None
 
 def workflow(*args, **kws):
     def workflow_decorator(func: Callable):
