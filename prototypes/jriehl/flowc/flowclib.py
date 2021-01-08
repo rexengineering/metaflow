@@ -1,7 +1,6 @@
-'''flowc.py - Entry point for REXFlow compiler.
+'''flowclib.py - REXFlow compiler utility library.
 '''
 
-import argparse
 import ast
 import logging
 import os
@@ -283,32 +282,3 @@ def flow_compiler(input_file: TextIO, output_path: str) -> bool:
         logging.exception(exception)
         return False
     return True
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog='flowc')
-    parser.add_argument(
-        'sources', metavar='source', nargs='*', type=open,
-        help='input source file(s)'
-    )
-    parser.add_argument(
-        '--log_level', nargs=1, default=logging.INFO, type=int,
-        help=f'logging level (DEBUG={logging.DEBUG}, INFO={logging.INFO}...)'
-    )
-    parser.add_argument(
-        '-o', '--output_path', nargs=1, default='.', type=str,
-        help='target output path (defaults to .)'
-    )
-    namespace = parser.parse_args()
-    logging.basicConfig(
-        format=get_log_format('flowc'), level=namespace.log_level
-    )
-    if len(namespace.sources) == 0:
-        if not flow_compiler(sys.stdin, namespace.output_path):
-            sys.exit(1)
-    else:
-        if not all(
-            flow_compiler(source, namespace.output_path)
-            for source in namespace.sources
-        ):
-            sys.exit(1)

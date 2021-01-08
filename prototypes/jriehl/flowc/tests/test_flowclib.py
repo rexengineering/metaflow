@@ -7,16 +7,17 @@ import unittest
 
 import xmltodict
 
-from prototypes.jriehl import flowc
+from .. import flowclib
 
 
 PATH = os.path.dirname(__file__)
+EXAMPLE_PATH = os.path.abspath(os.path.join(PATH, '..', 'examples'))
 
-BRANCH_PATH = os.path.join(PATH, '..', 'branch.py')
-HELLO_PATH = os.path.join(PATH, '..', 'hello.py')
+BRANCH_PATH = os.path.join(EXAMPLE_PATH, 'branch.py')
+HELLO_PATH = os.path.join(EXAMPLE_PATH, 'hello.py')
 
 
-class TestFlowC(unittest.TestCase):
+class TestFlowCLib(unittest.TestCase):
     def __init__(self, *args, **kws):
         super().__init__(*args, **kws)
         self._parse_results = {}
@@ -30,17 +31,17 @@ class TestFlowC(unittest.TestCase):
         if file_path in self._parse_results:
             return self._parse_results[file_path]
         with open(file_path) as file_obj:
-            result = flowc.parse(file_obj)
+            result = flowclib.parse(file_obj)
         self._parse_results[file_path] = result
         return result
 
     def test_parse_hello(self):
         result = self._parse_path(HELLO_PATH)
-        self.assertIsInstance(result, flowc.ToplevelVisitor)
+        self.assertIsInstance(result, flowclib.ToplevelVisitor)
 
     def test_parse_branch(self):
         result = self._parse_path(BRANCH_PATH)
-        self.assertIsInstance(result, flowc.ToplevelVisitor)
+        self.assertIsInstance(result, flowclib.ToplevelVisitor)
 
     def _check_bpmn(self, bpmn_path: str):
         self.assertTrue(
@@ -101,7 +102,7 @@ class TestFlowC(unittest.TestCase):
         frontend_result = self._parse_path(HELLO_PATH)
         with tempfile.TemporaryDirectory() as temp_path:
             try:
-                flowc.code_gen(frontend_result, temp_path)
+                flowclib.code_gen(frontend_result, temp_path)
                 workflow_path = os.path.abspath(
                     os.path.join(temp_path, 'hello_workflow'))
                 self.assertTrue(os.path.exists(workflow_path))
@@ -118,7 +119,7 @@ class TestFlowC(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_path:
             try:
                 with open(HELLO_PATH) as hello_file:
-                    flowc_ok = flowc.flow_compiler(hello_file, temp_path)
+                    flowc_ok = flowclib.flow_compiler(hello_file, temp_path)
                     self.assertTrue(
                         flowc_ok, 'Flow compiler failed to handle hello.py!'
                     )
@@ -133,9 +134,10 @@ class TestFlowC(unittest.TestCase):
     def test_fail(self):
         with tempfile.TemporaryDirectory() as temp_path:
             try:
-                with open(os.path.join(PATH, '..', 'flowc.py')) as test_file, \
+                test_path = os.path.join(PATH, '..', '__main__.py')
+                with open(test_path) as test_file, \
                         self.assertLogs() as logging_manager:
-                    flowc_ok = flowc.flow_compiler(test_file, temp_path)
+                    flowc_ok = flowclib.flow_compiler(test_file, temp_path)
                 self.assertFalse(
                     flowc_ok,
                     'Flow compiler failed to signal a problem with invalid '

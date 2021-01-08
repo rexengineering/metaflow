@@ -1,4 +1,4 @@
-from flowcode import workflow, service_task
+from flowc.flowcode import workflow, service_task
 
 @service_task()
 def hello_task():

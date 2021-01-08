@@ -1,6 +1,6 @@
 import random
 
-from flowcode import service_task, workflow
+from flowc.flowcode import service_task, workflow
 
 @service_task()
 def get_random():

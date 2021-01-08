@@ -6,7 +6,7 @@ import tempfile
 import types
 import unittest
 
-from prototypes.jriehl import cmof
+from .. import cmof
 
 SPECS = 'dc', 'di', 'bioc', 'bpmndi', 'bpmn'
 PATH = os.path.dirname(__file__)
@@ -38,7 +38,8 @@ def get_bpmn_metamodel() -> types.ModuleType:
             spec_dict = json.load(fileobj)
         module_path = os.path.join(TEMPDIR, f'{spec_name}.py')
         with open(module_path, 'w') as fileobj:
-            cmof.code_gen(spec_dict, spec_name, file=fileobj)
+            cmof.code_gen(spec_dict, spec_name, file=fileobj,
+                cmof_package='flowc')
         spec_modules[spec_name] = get_module(spec_name, module_path)
     bpmn = spec_modules['bpmn']
     for dependency in spec_modules.values():
@@ -50,7 +51,7 @@ def get_bpmn_metamodel() -> types.ModuleType:
 
 def roundtrip_bpmn(tester: unittest.TestCase, bpmn: types.ModuleType):
     example_path = os.path.join(
-        PATH, '../../../examples/underpants/underpants.bpmn')
+        PATH, '..', '..', '..', '..', 'examples/underpants/underpants.bpmn')
     with open(example_path) as fileobj:
         example_src = fileobj.read()
     underpants1 = bpmn.registry.from_xml(example_src)  # type: cmof.Element
