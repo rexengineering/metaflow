@@ -4,6 +4,7 @@ import multiprocessing
 
 MIN_WORKERS = 2
 
+
 def _init_get_executor():
     executor = None
 

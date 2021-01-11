@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 
+from comprehensive_test import ComprehensiveTest
 from test1 import Test1
 from test2 import Test2
 from test3 import Test3
@@ -24,18 +25,16 @@ ALL_TESTS = [
 ]
 
 if __name__ == "__main__":
+    failure = False
     parser = argparse.ArgumentParser(description='Run Underpants Test')
     parser.add_argument(
-        '--no-cleanup',
+        '--all-tests',
         action='store_true',
-        help="Don't cleanup deployment after running",
+        help="Run all individual tests, not just the comprehensive one.",
     )
     ns = parser.parse_args()
-    should_cleanup = not ns.no_cleanup
-    failure = False
-    test_objects = [
-        factory() for factory in ALL_TESTS
-    ]
+    test_objects = [factory() for factory in ALL_TESTS] if ns.all_tests else []
+    test_objects.append(ComprehensiveTest())
 
     # Safety check to ensure we don't accidentally pollute a production cluster.
     # Not that anyone here's done that before 😏
@@ -43,13 +42,13 @@ if __name__ == "__main__":
 
     for test_object in test_objects:
         # setup
-        logging.info(f"Setting up deployment for test {test_object.name}.")
-        sr = test_object.setup()
-        if sr.status != 0:
-            logging.error(f"Setup FAILED on test {test_object.name}: {sr.message}")
-            failure = True
-            continue
-        logging.info(f"Successfully set up deployment for {test_object.name}.")
+        # logging.info(f"Setting up deployment for test {test_object.name}.")
+        # sr = test_object.setup()
+        # if sr.status != 0:
+        #     logging.error(f"Setup FAILED on test {test_object.name}: {sr.message}")
+        #     failure = True
+        #     continue
+        # logging.info(f"Successfully set up deployment for {test_object.name}.")
 
         # Run
         logging.info(f"Running all test cases for test deployment {test_object.name}.")

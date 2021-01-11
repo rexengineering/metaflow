@@ -62,7 +62,7 @@ class Test5(IntegrationTest):
         if not wait_for_status(self._wf_id_a, 'RUNNING') or \
                 not wait_for_status(self._wf_id_b, 'RUNNING'):
             result = SetupResult(
-                wf_ids, -1, f"WF Deployment failed to come up."
+                wf_ids, -1, "WF Deployment failed to come up."
             )
             self._status.set_state("setup_error")
         else:
@@ -112,7 +112,7 @@ class Test5(IntegrationTest):
             self._status.set_state('cleaned_up')
             return CleanupResult([self._wf_id_a, self._wf_id_b], 0, "Ok.")
         else:
-            return CleanupResult([self._wf_id_a, self._wf_id_b], -1, f"Failed to clean up WF's.")
+            return CleanupResult([self._wf_id_a, self._wf_id_b], -1, "Failed to clean up WF's.")
 
     def status(self) -> TestStatus:
         return self.status

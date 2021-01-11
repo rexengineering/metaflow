@@ -115,8 +115,8 @@ class BPMNProcess:
         self.all_components.extend(self.xgateways)
         self.all_components.extend(self.throws)
         self.all_components.extend(self.catches)
-        # don't yet add start/end events to self.all_components because we don't want
-        # healthchecks for them (they are just virtual components at this point)
+        self.all_components.extend(self.end_events)
+        self.all_components.append(self.start_event)
 
     @classmethod
     def from_workflow_id(cls, workflow_id):

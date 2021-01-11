@@ -37,6 +37,9 @@ def serve():
         assert random() > 0.5
         response['sauce'] = 'Applied.'
 
+    elif mode == 'orz':
+        response['cashflow'] = 'Orz'
+
     return response
 
 

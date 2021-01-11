@@ -24,6 +24,7 @@ SERVER_MODES = {
     'unreliablesauce-test',
     'increment-test',
     'decrement-test',
+    'orz-test',
 }
 SLEEP_TIME = 0
 

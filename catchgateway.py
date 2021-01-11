@@ -12,7 +12,6 @@ from confluent_kafka import Consumer
 import json
 import os
 import requests
-import time
 
 from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
@@ -183,9 +182,6 @@ class EventCatchApp(QuartApp):
         self.app.route('/', methods=['POST'])(self.catch_event)
 
     def health_check(self):
-        if kafka is not None:
-            # ensure we still have healthy connection to kafka
-            kafka.poll(0)
         return jsonify(flow_result(0, ""))
 
     async def catch_event(self):

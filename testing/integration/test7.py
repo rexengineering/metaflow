@@ -51,7 +51,7 @@ class Test7(IntegrationTest):
         if not wait_for_status(self._wf_id_a, 'RUNNING') or \
                 not wait_for_status(self._wf_id_b, 'RUNNING'):
             result = SetupResult(
-                wf_ids, -1, f"WF Deployment failed to come up."
+                wf_ids, -1, "WF Deployment failed to come up."
             )
             self._status.set_state("setup_error")
         else:
@@ -107,12 +107,12 @@ class Test7(IntegrationTest):
         magic_cookie = result_json['magic_cookie']
 
         # Find the WF Instance from test7-b that has the same magic cookie
-        all_instances = flowctl(f"ps -o")
+        all_instances = flowctl("ps -o")
         for instance_id_b in all_instances.keys():
             instance_b = all_instances[instance_id_b]
             if instance_b['parent'] != self._wf_id_b:
                 continue
-                
+
             result_json = json.loads(instance_b['result'])
             if result_json['magic_cookie'] == magic_cookie:
                 # we found it!
@@ -138,7 +138,7 @@ class Test7(IntegrationTest):
             self._status.set_state('cleaned_up')
             return CleanupResult([self._wf_id_a, self._wf_id_b], 0, "Ok.")
         else:
-            return CleanupResult([self._wf_id_a, self._wf_id_b], -1, f"Failed to clean up WF's.")
+            return CleanupResult([self._wf_id_a, self._wf_id_b], -1, "Failed to clean up WF's.")
 
     def status(self) -> TestStatus:
         return self.status
