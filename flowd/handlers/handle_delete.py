@@ -19,6 +19,8 @@ def handler(request: flow_pb2.DeleteRequest):
     if request_kind == flow_pb2.RequestKind.DEPLOYMENT:
         for workflow_id in request.ids:
             prefix = WorkflowKeys.key_of(workflow_id)
+            if not prefix.endswith('/'):
+                prefix += '/'
             workflow = EtcdDict.from_root(prefix)
             if len(workflow) <= 0:
                 message = f'Workflow deployment {workflow_id} was not found.'
@@ -36,8 +38,6 @@ def handler(request: flow_pb2.DeleteRequest):
             # FIXME: Do we need some sort of DELETING state, or other lock
             # on the deployment?
             else:
-                wf = Workflow.from_id(workflow_id)
-                wf.remove()
                 # FIXME: Should deleting a workflow also delete all workflow
                 # instance history as well?
                 if etcd.delete_prefix(prefix):

@@ -27,9 +27,8 @@ from util import (
 NUM_REQUESTS = 200
 NUM_THREADS = 20
 
-# Generous wait period (in seconds). This one is longer because we have to wait for two
-# WF Instances to complete, and they're separated by a Kafka transport.
-WAIT_PERIOD = 10
+# The instances should take a while to complete because the kafka util runs slowly.
+WAIT_PERIOD = 40
 
 BPMN_FILE_A = 'data/comprehensive_test.bpmn'
 BPMN_FILE_B = 'data/comprehensive_test_b.bpmn'
@@ -69,10 +68,11 @@ class ComprehensiveTest(IntegrationTest):
         result_futures = None
 
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            instance_futures = executor.map(self.launch_instance, range(1, 10))
+            instance_futures = executor.map(self.launch_instance, range(-50, NUM_REQUESTS - 50))
 
         self.run_kafka_util()
         instances = [item for item in instance_futures]
+        time.sleep(WAIT_PERIOD)
 
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
             result_futures = executor.map(self.wait_for_instance, instances)
@@ -97,8 +97,6 @@ class ComprehensiveTest(IntegrationTest):
 
     def wait_for_instance(self, instance_tuple) -> TestResult:
         instance_id, val, magic_cookie = instance_tuple
-
-        time.sleep(WAIT_PERIOD)
         ps_response = flowctl(f"ps {instance_id} -o")
         instance = ps_response[instance_id]
 
@@ -126,7 +124,7 @@ class ComprehensiveTest(IntegrationTest):
             # all good!
             return TestResult([instance_id, secondary_id], 0, "Ok.", self._name,)
 
-        elif val < 100:
+        elif self.compute_output(val) < 100:
             if result['val'] == self.compute_output(val) and result['sauce'] == 'Applied.':
                 return TestResult([instance_id], 0, "Ok.", f"comprehensive test {val}")
             else:

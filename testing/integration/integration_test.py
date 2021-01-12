@@ -42,13 +42,13 @@ if __name__ == "__main__":
 
     for test_object in test_objects:
         # setup
-        # logging.info(f"Setting up deployment for test {test_object.name}.")
-        # sr = test_object.setup()
-        # if sr.status != 0:
-        #     logging.error(f"Setup FAILED on test {test_object.name}: {sr.message}")
-        #     failure = True
-        #     continue
-        # logging.info(f"Successfully set up deployment for {test_object.name}.")
+        logging.info(f"Setting up deployment for test {test_object.name}.")
+        sr = test_object.setup()
+        if sr.status != 0:
+            logging.error(f"Setup FAILED on test {test_object.name}: {sr.message}")
+            failure = True
+            continue
+        logging.info(f"Successfully set up deployment for {test_object.name}.")
 
         # Run
         logging.info(f"Running all test cases for test deployment {test_object.name}.")
