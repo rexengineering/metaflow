@@ -82,7 +82,7 @@ class ToplevelVisitor(ast.NodeVisitor):
         return self._module[key]
 
     def get_source(self, start_line=1, start_column=0, end_line=None,
-                   end_column=-1, newline='\n'):
+                   end_column=-1):
         if end_line is None:
             end_line = len(self._module_source)
         source_lines = [
