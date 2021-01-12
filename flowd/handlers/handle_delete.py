@@ -3,7 +3,6 @@ import logging
 from flowlib import flow_pb2
 from flowlib.etcd_utils import get_etcd, get_keys_from_prefix, EtcdDict
 from flowlib.constants import BStates, WorkflowKeys, WorkflowInstanceKeys
-from flowlib.workflow import Workflow
 
 
 def handler(request: flow_pb2.DeleteRequest):
