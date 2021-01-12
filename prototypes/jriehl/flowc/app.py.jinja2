@@ -1,0 +1,12 @@
+import quart_wrapper
+{% for dependency in dependencies %}
+
+{{dependency}}
+
+{% endfor %}
+{{service_task_function}}
+
+app = quart_wrapper.wrap(globals(), {{service_task_function_name}})
+
+if __name__ == '__main__':
+    app.run()

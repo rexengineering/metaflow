@@ -5,9 +5,12 @@ import ast
 import logging
 import os
 import os.path
-from typing import Any, Callable, TextIO, Union
+import shutil
+from typing import Any, TextIO, Union
 
-from . import cmof, visitors
+import jinja2
+
+from . import cmof, flowcode, quart_wrapper, visitors
 from .bpmn2 import bpmn
 
 
@@ -35,22 +38,65 @@ TARGET_TEMPLATE = '''{target}: {target}/Dockerfile {target}/app.py
 \tdocker build -t {target} {target}'''
 
 DOCKERFILE_TEMPLATE = '''FROM python:3-alpine
-COPY app.py /
-ENTRYPOINT ["python", "/app.py"]
+COPY requirements.txt *.py /
+RUN pip install -r /requirements.txt
+EXPOSE 8000
+ENTRYPOINT ["hypercorn", "-b", "0.0.0.0", "app:app"]
 '''
 
-APP_TEMPLATE = '''print('Hello, world.')
+SERVICE_TASK_FUNCTION_TEMPLATE = '''def {function_name} (environment):
+    environment['$result'] = {target_name}({args})
+    return environment
 '''
+
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.PackageLoader('flowc', '.'),
+    autoescape=jinja2.select_autoescape(['.py']),
+)
+
+APP_TEMPLATE = JINJA_ENVIRONMENT.get_template('app.py.jinja2')
+REQUIREMENTS_TEMPLATE = JINJA_ENVIRONMENT.get_template(
+    'requirements.txt.jinja2'
+)
 
 
 class ToplevelVisitor(ast.NodeVisitor):
-    def __init__(self, module_dict: dict) -> None:
+    def __init__(
+            self,
+            module_source: str,
+            module_dict: dict,
+            newline: str = '\n') -> None:
+        self._newline = newline
+        self._module_source = module_source.split(self._newline)
         self._module = module_dict
         self.tasks = []
         self.workflow = None
         self.bindings = {}
         self.counter = 0
         super().__init__()
+
+    def get_module_keys(self):
+        return self._module.keys()
+
+    def get_module_value(self, key):
+        return self._module[key]
+
+    def get_source(self, start_line=1, start_column=0, end_line=None,
+                   end_column=-1, newline='\n'):
+        if end_line is None:
+            end_line = len(self._module_source)
+        source_lines = [
+            line[:] for line in self._module_source[start_line - 1:end_line]
+        ]
+        if len(source_lines) == 1:
+            if end_column < 0:
+                return source_lines[0][start_column:] + '\n'
+            return source_lines[0][start_column:end_column]
+        elif len(source_lines) > 1:
+            source_lines[0] = source_lines[0][start_column:]
+            source_lines[-1] = source_lines[-1][:end_column]
+            return self._newline.join(source_lines)
+        return ''
 
     def task_to_bpmn(self, call: visitors.ServiceTaskCall):
         service_task = bpmn.ServiceTask(
@@ -175,7 +221,7 @@ def parse(file_obj: TextIO) -> ToplevelVisitor:
         '__name__': os.path.splitext(os.path.basename(file_path))[0],
     }
     exec(code_obj, module_dict)
-    visitor = ToplevelVisitor(module_dict)
+    visitor = ToplevelVisitor(source, module_dict)
     visitor.visit(tree)
     return visitor
 
@@ -214,7 +260,33 @@ def gen_service_task(
         dockerfile_file.write(DOCKERFILE_TEMPLATE)
     app_path = os.path.join(task_path, 'app.py')
     with open(app_path, 'w') as app_file:
-        app_file.write(APP_TEMPLATE)
+        task_function = visitor.get_module_value(call.task_name)
+        assert hasattr(task_function, '_service_task') and \
+            isinstance(task_function._service_task, flowcode.ServiceTask)
+        task_definition = task_function._service_task.definition
+        wrapper_name = f'{call.task_name}_{call.index}'
+        wrapper_source = SERVICE_TASK_FUNCTION_TEMPLATE.format(
+            function_name=wrapper_name,
+            target_name=call.task_name,
+            args='',
+        )
+        app_file.write(APP_TEMPLATE.render(
+            dependencies=[
+                visitor.get_source(
+                    task_definition.lineno, task_definition.col_offset,
+                    task_definition.end_lineno, task_definition.end_col_offset,
+                ),
+            ],
+            service_task_function=wrapper_source,
+            service_task_function_name=wrapper_name,
+        ))
+    target_path = os.path.join(task_path, 'quart_wrapper.py')
+    shutil.copyfile(quart_wrapper.__file__, target_path)
+    requirements_path = os.path.join(task_path, 'requirements.txt')
+    with open(requirements_path, 'w') as requirements_file:
+        requirements_file.write(REQUIREMENTS_TEMPLATE.render(
+            dependencies=[],
+        ))
     return task_path
 
 

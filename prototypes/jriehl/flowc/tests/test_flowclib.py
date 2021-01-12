@@ -75,7 +75,8 @@ class TestFlowCLib(unittest.TestCase):
         self.assertRegex(makefile_src, r'test\w*:')
         self.assertRegex(makefile_src, r'.PHONY\w*:')
 
-    def _check_task(self, task_path: str):
+    def _check_task(self, out_path: str, task_name: str):
+        task_path = os.path.join(out_path, task_name)
         self.assertTrue(
             os.path.isdir(task_path),
             f'{task_path} does not exist or is not a directory'
@@ -97,6 +98,16 @@ class TestFlowCLib(unittest.TestCase):
             app_src = app_file.read()
         app_tree = ast.parse(app_src, app_path)
         self.assertNotEmpty(app_tree.body)
+        function_definitions = [
+            stmt for stmt in app_tree.body if isinstance(stmt, ast.FunctionDef)
+        ]
+        self.assertNotEmpty(function_definitions)
+        function_map = {
+            function_definition.name: function_definition
+            for function_definition in function_definitions
+        }
+        self.assertIn(task_name, function_map)
+        self.assertIn(task_name.rsplit('_', 1)[0], function_map)
 
     def test_codegen(self):
         frontend_result = self._parse_path(HELLO_PATH)
@@ -110,8 +121,7 @@ class TestFlowCLib(unittest.TestCase):
                 self._check_bpmn(bpmn_path)
                 makefile_path = os.path.join(workflow_path, 'Makefile')
                 self._check_makefile(makefile_path)
-                task_path = os.path.join(workflow_path, 'hello_task_1')
-                self._check_task(task_path)
+                self._check_task(workflow_path, 'hello_task_1')
             finally:
                 shutil.rmtree(temp_path)
 
