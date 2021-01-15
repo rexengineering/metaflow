@@ -5,6 +5,7 @@ import os.path
 import sys
 import tempfile
 import types
+from typing import Union
 import unittest
 
 from .. import cmof
@@ -53,17 +54,24 @@ def get_bpmn_metamodel() -> cmof.CMOFModule:
     return bpmn
 
 
-def roundtrip_bpmn(tester: unittest.TestCase, bpmn: cmof.CMOFModule):
+def roundtrip_bpmn(
+        tester: unittest.TestCase,
+        bpmn: types.ModuleType):
+    '''Test that a given BPMN module
+    '''
+    assert hasattr(bpmn, 'registry')
+    registry = getattr(bpmn, 'registry')  # Hack to get typing to go through.
+    assert isinstance(registry, cmof.Registry)
     example_path = os.path.join(
         PATH, '..', '..', '..', '..', 'examples/underpants/underpants.bpmn')
     with open(example_path) as fileobj:
         example_src = fileobj.read()
-    underpants1 = bpmn.registry.from_xml(example_src)  # type: cmof.Element
+    underpants1 = registry.from_xml(example_src)  # type: cmof.Element
     xml1 = underpants1.to_xml(pretty=True, short_empty_elements=True)
     assert xml1 is not None
     if __debug__:
         print(xml1)
-    underpants2 = bpmn.registry.from_xml(xml1)  # type: cmof.Element
+    underpants2 = registry.from_xml(xml1)  # type: cmof.Element
     xml2 = underpants2.to_xml(pretty=True, short_empty_elements=True)
     if __debug__:
         print(xml2)
