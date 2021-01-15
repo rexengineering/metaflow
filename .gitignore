@@ -50,4 +50,6 @@ Thumbs.db
 
 *.vscode*
 
+*.coverage
+
 *~
