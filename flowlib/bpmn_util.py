@@ -243,6 +243,7 @@ class WorkflowProperties:
         self._id_hash = ''
         self._retry_total_attempts = 2
         self._is_recoverable = False
+        self._is_reliable_transport = False
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -276,6 +277,10 @@ class WorkflowProperties:
     def is_recoverable(self):
         return self._is_recoverable
 
+    @property
+    def is_reliable_transport(self):
+        return self._is_reliable_transport
+
     def update(self, annotations):
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
@@ -301,6 +306,10 @@ class WorkflowProperties:
         if 'retry' in annotations:
             if 'total_attempts' in annotations['retry']:
                 self._retry_total_attempts = annotations['retry']['total_attempts']
+
+        if 'reliable_transport' in annotations:
+            assert annotations['reliable_transport'] == 'kafka'
+            self._is_reliable_transport = True
 
 
 class BPMNComponent:
