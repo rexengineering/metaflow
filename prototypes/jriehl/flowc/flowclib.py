@@ -228,6 +228,8 @@ def _unparse(node: ast.expr) -> str:
             f'Unhandled subscript target at line {slice.lineno} '
             f'({ast.dump(slice)})'
         )
+    elif isinstance(node, ast.Tuple):
+        return ', '.join(_unparse(elt) for elt in node.elts)
     raise NotImplementedError(
         f'Unhandled assignment target at line {node.lineno} '
         f'({ast.dump(node)})'

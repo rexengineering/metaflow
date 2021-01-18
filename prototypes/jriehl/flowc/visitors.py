@@ -34,10 +34,14 @@ class WorkflowVisitor(ast.NodeVisitor):
         # Visit children first.
         result = super().generic_visit(node)
         if isinstance(node.func, ast.Name) and node.func.id in self.task_map:
-            targets = [
-                ast.fix_missing_locations(RewriteTargets().visit(target))
-                for target in self.targets_stack[-1]
-            ]
+            targets = (
+                [
+                    ast.fix_missing_locations(RewriteTargets().visit(target))
+                    for target in self.targets_stack[-1]
+                ]
+                if self.targets_stack[-1] is not None else
+                self.targets_stack[-1]
+            )
             self.tasks.append(
                 ServiceTaskCall(
                     task_name=node.func.id,

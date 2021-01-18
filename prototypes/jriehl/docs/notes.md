@@ -37,9 +37,8 @@ https://github.com/uber/cadence-java-samples/tree/master/src/main/java/com/uber/
 ## TODO's/Roadmap
 
 - [x] Generate BPMN
-- [ ] Handle call-site bindings (other than just binding to `$result`)
 - [ ] Automatically test BPMN against REXFlow
-- [ ] Handle function return values
+- [x] Handle function return values
     - Default is to assign to `$result` if no containing binding site
 - [ ] Handle function arguments
     - First `*args`

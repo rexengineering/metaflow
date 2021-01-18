@@ -3,7 +3,7 @@ import os
 import os.path
 import shutil
 import tempfile
-from typing import List
+from typing import List, Tuple
 import unittest
 
 import xmltodict
@@ -16,6 +16,8 @@ EXAMPLE_PATH = os.path.abspath(os.path.join(PATH, '..', 'examples'))
 
 BRANCH_PATH = os.path.join(EXAMPLE_PATH, 'branch.py')
 HELLO_PATH = os.path.join(EXAMPLE_PATH, 'hello.py')
+HELLO2_PATH = os.path.join(EXAMPLE_PATH, 'hello2.py')
+HELLO3_PATH = os.path.join(EXAMPLE_PATH, 'hello3.py')
 
 
 def _has_docker():
@@ -134,7 +136,7 @@ class TestFlowCLib(unittest.TestCase):
         self.assertEqual(actual, expected)
         return target
 
-    def _check_task(self, out_path: str, task_name: str):
+    def _check_task(self, out_path: str, task_name: str, assign_targets: str):
         task_path = os.path.join(out_path, task_name)
         self.assertTrue(
             os.path.isdir(task_path),
@@ -167,25 +169,45 @@ class TestFlowCLib(unittest.TestCase):
         }
         self.assertIn(task_name, function_map)
         target = self._check_wrapped_function(
-            function_map[task_name], 'environment["result"]'
+            function_map[task_name], assign_targets
         )
         self.assertIn(target, function_map)
 
-    def test_codegen(self):
-        frontend_result = self._parse_path(HELLO_PATH)
+    def _check_codegen(
+            self,
+            source_path: str,
+            workflow_name: str,
+            task_data: List[Tuple[str, str]]):
+        frontend_result = self._parse_path(source_path)
         with tempfile.TemporaryDirectory() as temp_path:
             try:
                 flowclib.code_gen(frontend_result, temp_path)
                 workflow_path = os.path.abspath(
-                    os.path.join(temp_path, 'hello_workflow'))
+                    os.path.join(temp_path, workflow_name))
                 self.assertTrue(os.path.exists(workflow_path))
-                bpmn_path = os.path.join(workflow_path, 'hello_workflow.bpmn')
+                bpmn_path = os.path.join(workflow_path, f'{workflow_name}.bpmn')
                 self._check_bpmn(bpmn_path)
                 makefile_path = os.path.join(workflow_path, 'Makefile')
                 self._check_makefile(makefile_path)
-                self._check_task(workflow_path, 'hello_task_1')
+                for task_name, task_assigns in task_data:
+                    self._check_task(workflow_path, task_name, task_assigns)
             finally:
                 shutil.rmtree(temp_path)
+
+    def test_codegen(self):
+        self._check_codegen(HELLO_PATH, 'hello_workflow', [
+            ('hello_task_1', 'environment[\'result\']'),
+        ])
+
+    def test_multiassign(self):
+        self._check_codegen(HELLO2_PATH, 'hello2_workflow', [
+            ('hello2_task_1', 'environment[\'hello\'], environment[\'world\']'),
+        ])
+
+    def test_noassign(self):
+        self._check_codegen(HELLO3_PATH, 'hello3_workflow', [
+            ('hello3_task_1', 'environment[\'$result\']')
+        ])
 
     @unittest.skipUnless(_has_docker(), 'Docker not present, skipping...')
     def test_make(self):
