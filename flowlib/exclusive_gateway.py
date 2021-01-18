@@ -22,7 +22,7 @@ XGATEWAY_LISTEN_PORT = "5000"
 class BPMNXGateway(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, gateway: OrderedDict, process: OrderedDict = None, global_props=None):
+    def __init__(self, gateway: OrderedDict, process: OrderedDict=None, global_props=None):
         super().__init__(gateway, process, global_props)
         self.jsonpath = ""
         self.operator = ""

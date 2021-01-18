@@ -14,6 +14,7 @@ import xmltodict
 from .etcd_utils import get_etcd
 from .task import BPMNTask
 from .exclusive_gateway import BPMNXGateway
+from .parallel_gateway import BPMNParallelGateway
 from .start_event import BPMNStartEvent
 from .end_event import BPMNEndEvent
 from .throw_event import BPMNThrowEvent
@@ -73,6 +74,13 @@ class BPMNProcess:
             self.xgateways.append(bpmn_gw)
             self.component_map[gw['@id']] = bpmn_gw
 
+        # Parallel Gateways
+        self.pgateways = []
+        for gw in iter_xmldict_for_key(process, 'bpmn:parallelGateway'):
+            bpmn_gw = BPMNParallelGateway(gw, process, self.properties)
+            self.pgateways.append(bpmn_gw)
+            self.component_map[gw['@id']] = bpmn_gw
+
         # Don't forget BPMN Start Event!
         self.start_event = BPMNStartEvent(self.entry_point, process, self.properties)
         self.component_map[self.entry_point['@id']] = self.start_event
@@ -113,6 +121,7 @@ class BPMNProcess:
         self.all_components = []
         self.all_components.extend([t for t in self.tasks if not t.is_preexisting])
         self.all_components.extend(self.xgateways)
+        self.all_components.extend(self.pgateways)
         self.all_components.extend(self.throws)
         self.all_components.extend(self.catches)
         # don't yet add start/end events to self.all_components because we don't want
@@ -186,6 +195,9 @@ class BPMNProcess:
             ['istioctl', 'kube-inject', '-f', '-'],
             input=temp_yaml, capture_output=True, text=True,
         )
+
+        result = None
+
         if istioctl_result.returncode == 0:
             result = istioctl_result.stdout.replace(
                 ': Always',
@@ -194,4 +206,5 @@ class BPMNProcess:
             stream.write(result)
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
+
         return result

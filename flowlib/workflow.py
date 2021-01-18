@@ -41,6 +41,7 @@ class Workflow:
     @classmethod
     def from_id(cls, id):
         etcd = get_etcd(is_not_none=True)
+
         proc_key = WorkflowKeys.proc_key(id)
         proc_bytes = etcd.get(proc_key)[0]
         proc_odict = xmltodict.parse(proc_bytes)['bpmn:process']
