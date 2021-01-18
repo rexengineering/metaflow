@@ -34,13 +34,35 @@ Implementation Strategies
 https://github.com/berndruecker/trip-booking-saga-java
 https://github.com/uber/cadence-java-samples/tree/master/src/main/java/com/uber/cadence/samples/bookingsaga
 
-## TODO's
+## TODO's/Roadmap
 
-- [ ] Generate BPMN
-    - [ ] Generate workflow object from workflow function
-        - [ ] Identify call sites
-        - [ ]
-
+- [x] Generate BPMN
+- [ ] Handle call-site bindings (other than just binding to `$result`)
+- [ ] Automatically test BPMN against REXFlow
+- [ ] Handle function return values
+    - Default is to assign to `$result` if no containing binding site
+- [ ] Handle function arguments
+    - First `*args`
+    - Then `**kws`
+- [ ] Handle `if...else` control flow
+- [ ] Handle `while` control flow
+- [ ] Plumbing solution
+    - This refers to handling any loose Python code in the workflow,
+    particularly calls to non-service functions.
+- [ ] Handle package dependencies
+    - [ ] User modules
+    - [ ] Packages in the `${PYTHONPATH}`.
+- [ ] Parallel gateways...
+- [ ] Javascript support
+- Nice to haves...
+    - [ ] Exception control flow
+        - Could include exception handling...
+        - (?) What happens when an exception occurs? (I imagine Hypercorn takes
+        care of it somehow...it should have a top-level exception handler.)
+        What should happen?
+    - [ ] Diagrams, automated layout, roundtrip support
+        - This would let us use the Zeebe modeler to view and edit generated
+        BPMN.
 
 ---
 ```python
@@ -102,7 +124,7 @@ globals5 = task4(globals4)
 ```
 ==>
 ```graphviz
-digraph {
+digraph G {
     task1 -> gateway1
     gateway1 -> task2
     gateway1 -> task3

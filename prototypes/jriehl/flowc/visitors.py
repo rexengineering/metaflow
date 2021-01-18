@@ -1,11 +1,12 @@
 import ast
-from typing import Any, NamedTuple
+from typing import Any, List, NamedTuple, Optional
 
 
 class ServiceTaskCall(NamedTuple):
     task_name: str
     index: int
     call_site: ast.Call
+    targets: Optional[List[ast.expr]]
 
     @property
     def service_name(self) -> str:
@@ -20,14 +21,30 @@ class WorkflowVisitor(ast.NodeVisitor):
             if hasattr(value, '_service_task')
         }
         self.tasks = []
+        self.targets_stack = [None]  # type: List[Optional[List[ast.expr]]]
         super().__init__()
+
+    def visit_Assign(self, node: ast.Assign) -> Any:
+        self.targets_stack.append(node.targets)
+        result = super().generic_visit(node)
+        self.targets_stack.pop()
+        return result
 
     def visit_Call(self, node: ast.Call) -> Any:
         # Visit children first.
         result = super().generic_visit(node)
         if isinstance(node.func, ast.Name) and node.func.id in self.task_map:
+            targets = [
+                ast.fix_missing_locations(RewriteTargets().visit(target))
+                for target in self.targets_stack[-1]
+            ]
             self.tasks.append(
-                ServiceTaskCall(node.func.id, len(self.tasks) + 1, node)
+                ServiceTaskCall(
+                    task_name=node.func.id,
+                    index=len(self.tasks) + 1,
+                    call_site=node,
+                    targets=targets
+                )
             )
         return result
 
@@ -40,3 +57,12 @@ class WorkflowVisitor(ast.NodeVisitor):
                     f'{node.id} is not allowed by flowc.'
                 )
         return super().generic_visit(node)
+
+
+class RewriteTargets(ast.NodeTransformer):
+    def visit_Name(self, node: ast.Name) -> Any:
+        return ast.Subscript(
+            value=ast.Name(id='environment', ctx=ast.Load()),
+            slice=ast.Index(value=ast.Constant(value=node.id)),
+            ctx=node.ctx
+        )

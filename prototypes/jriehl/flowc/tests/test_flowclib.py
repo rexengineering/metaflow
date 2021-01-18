@@ -3,6 +3,7 @@ import os
 import os.path
 import shutil
 import tempfile
+from typing import List
 import unittest
 
 import xmltodict
@@ -85,6 +86,54 @@ class TestFlowCLib(unittest.TestCase):
         self.assertRegex(makefile_src, r'test\w*:')
         self.assertRegex(makefile_src, r'.PHONY\w*:')
 
+    def __parse_targets(self, targets_string: str) -> List[ast.expr]:
+        assignment = ast.parse(f'{targets_string} = None', 'exec')
+        assert isinstance(assignment, ast.Module)
+        assert len(assignment.body) == 1
+        stmt = assignment.body[0]
+        assert isinstance(stmt, ast.Assign)
+        return stmt.targets
+
+    def _check_wrapped_function(
+            self,
+            function_definition: ast.FunctionDef,
+            assign_targets: str) -> str:
+        target = function_definition.name.rsplit('_', 1)[0]
+        expected = ast.dump(
+            ast.FunctionDef(
+                name=function_definition.name,
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[ast.arg(
+                        arg='environment', annotation=None, type_comment=None
+                    )],
+                    vararg=None,
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    kwarg=None,
+                    defaults=[]
+                ),
+                body=[
+                    ast.Assign(
+                        targets=self.__parse_targets(assign_targets),
+                        value=ast.Call(
+                            func=ast.Name(id=target, ctx=ast.Load()),
+                            args=[],
+                            keywords=[]
+                        ),
+                        type_comment=None
+                    ),
+                    ast.Return(value=ast.Name(id='environment', ctx=ast.Load()))
+                ],
+                decorator_list=[],
+                returns=None,
+                type_comment=None
+            )
+        )
+        actual = ast.dump(function_definition)
+        self.assertEqual(actual, expected)
+        return target
+
     def _check_task(self, out_path: str, task_name: str):
         task_path = os.path.join(out_path, task_name)
         self.assertTrue(
@@ -117,7 +166,10 @@ class TestFlowCLib(unittest.TestCase):
             for function_definition in function_definitions
         }
         self.assertIn(task_name, function_map)
-        self.assertIn(task_name.rsplit('_', 1)[0], function_map)
+        target = self._check_wrapped_function(
+            function_map[task_name], 'environment["result"]'
+        )
+        self.assertIn(target, function_map)
 
     def test_codegen(self):
         frontend_result = self._parse_path(HELLO_PATH)

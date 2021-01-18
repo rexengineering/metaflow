@@ -38,14 +38,15 @@ TARGET_TEMPLATE = '''{target}: {target}/Dockerfile {target}/app.py
 \tdocker build -t {target} {target}'''
 
 DOCKERFILE_TEMPLATE = '''FROM python:3-alpine
-COPY requirements.txt *.py /
-RUN pip install -r /requirements.txt
+COPY requirements.txt *.py /opt/wf/
+RUN pip install -r /opt/wf/requirements.txt
+ENV PYTHONPATH=/opt/wf
 EXPOSE 8000
 ENTRYPOINT ["hypercorn", "-b", "0.0.0.0", "app:app"]
 '''
 
-SERVICE_TASK_FUNCTION_TEMPLATE = '''def {function_name} (environment):
-    environment['$result'] = {target_name}({args})
+SERVICE_TASK_FUNCTION_TEMPLATE = '''def {function_name}(environment):
+    {assign_targets} = {call_target_name}({args})
     return environment
 '''
 
@@ -122,8 +123,6 @@ class ToplevelVisitor(ast.NodeVisitor):
             id=f'StartEvent_{self.counter}', name='Start'
         )
         self.counter += 1
-        # FIXME: Don't forget to change the following to only emit the tasks
-        # called in the workflow.
         service_tasks = [self.task_to_bpmn(task) for task in self.tasks]
         end_event = bpmn.EndEvent(id=f'EndEvent_{self.counter}', name='End')
         self.counter += 1
@@ -216,6 +215,34 @@ class ToplevelVisitor(ast.NodeVisitor):
         return result
 
 
+def _unparse(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    elif isinstance(node, ast.Constant):
+        return repr(node.value)
+    elif isinstance(node, ast.Subscript):
+        slice = node.slice
+        if isinstance(slice, ast.Index):
+            return f'{_unparse(node.value)}[{_unparse(slice.value)}]'
+        raise NotImplementedError(
+            f'Unhandled subscript target at line {slice.lineno} '
+            f'({ast.dump(slice)})'
+        )
+    raise NotImplementedError(
+        f'Unhandled assignment target at line {node.lineno} '
+        f'({ast.dump(node)})'
+    )
+
+
+def unparse(node: ast.expr) -> str:
+    if hasattr(ast, 'unparse'):
+        python_unparse = getattr(ast, 'unparse')
+        result = python_unparse(node)
+    else:
+        result = _unparse(node)
+    return result
+
+
 def parse(file_obj: TextIO) -> ToplevelVisitor:
     '''Parse an input file object.
     '''
@@ -274,7 +301,12 @@ def gen_service_task(
         wrapper_name = f'{call.task_name}_{call.index}'
         wrapper_source = SERVICE_TASK_FUNCTION_TEMPLATE.format(
             function_name=wrapper_name,
-            target_name=call.task_name,
+            assign_targets=(
+                'environment[\'$result\']'
+                if call.targets is None else
+                ', '.join(unparse(target) for target in call.targets)
+            ),
+            call_target_name=call.task_name,
             args='',
         )
         app_file.write(APP_TEMPLATE.render(
