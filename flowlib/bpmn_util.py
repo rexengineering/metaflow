@@ -301,7 +301,7 @@ class WorkflowProperties:
                 self._namespace = self._id
 
         if 'recoverable' in annotations:
-            self._is_recoverable = annotations['recoverable']
+            self._is_recoverable = (annotations['recoverable'] or self.is_reliable_transport)
 
         if 'retry' in annotations:
             if 'total_attempts' in annotations['retry']:
@@ -310,6 +310,7 @@ class WorkflowProperties:
         if 'reliable_transport' in annotations:
             assert annotations['reliable_transport'] == 'kafka'
             self._is_reliable_transport = True
+            self._is_recoverable = True
 
 
 class BPMNComponent:

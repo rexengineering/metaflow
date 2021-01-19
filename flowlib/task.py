@@ -214,19 +214,22 @@ class BPMNTask(BPMNComponent):
             },
         ]
 
+        throw_service_name = f'{self.id}-{forward_component.transport_kafka_topic}'.lower()
+        throw_service_name = throw_service_name.replace('_', '-')
+
         k8s_objects.append(
-            create_serviceaccount(self._namespace, forward_component.transport_kafka_topic)
+            create_serviceaccount(self._namespace, throw_service_name)
         )
         k8s_objects.append(
             create_service(
                 self._namespace,
-                forward_component.transport_kafka_topic,
+                throw_service_name,
                 KAFKA_LISTEN_PORT,
             )
         )
         k8s_objects.append(create_deployment(
             self._namespace,
-            forward_component.transport_kafka_topic,
+            throw_service_name,
             'throw-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
@@ -234,19 +237,23 @@ class BPMNTask(BPMNComponent):
 
         # Finally, create the envoyfilter.
         k8s_objects.append(
-            self._generate_envoyfilter(Upstream(
-                forward_component.transport_kafka_topic,
-                f'{forward_component.transport_kafka_topic}.{self._namespace}.svc.cluster.local',
-                KAFKA_LISTEN_PORT,
-                '/',
-                'POST',
-                1,
-                self.id,
-            ))
+            self._generate_envoyfilter(
+                [
+                    Upstream(
+                        forward_component.transport_kafka_topic,
+                        f'{throw_service_name}.{self._namespace}.svc.cluster.local',
+                        KAFKA_LISTEN_PORT,
+                        '/',
+                        'POST',
+                        1,
+                        self.id,
+                    )
+                ]
+            )
         )
 
         if not self._is_preexisting:
-            k8s_objects.append(self._generate_microservice())
+            k8s_objects.extend(self._generate_microservice())
         return k8s_objects
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
