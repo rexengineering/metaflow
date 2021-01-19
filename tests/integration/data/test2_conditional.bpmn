@@ -57,7 +57,9 @@
     <bpmn:textAnnotation id="TextAnnotation_1xkepmy">
       <bpmn:text>rexflow:
   gateway_name: did-apply
-  expression: req_json['val'] &gt; 137
+  jsonpath: 'val'
+  operator: '&gt;'
+  value: 137
   gateway_true: 
     next_step: ns_1
   gateway_false:
@@ -80,10 +82,24 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
-      <bpmndi:BPMNEdge id="Flow_0k6avy4_di" bpmnElement="Flow_0k6avy4">
-        <di:waypoint x="525" y="237" />
-        <di:waypoint x="650" y="237" />
-      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
+        <dc:Bounds x="650" y="80" width="128" height="96" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1qwmy6c_di" bpmnElement="TextAnnotation_1qwmy6c">
+        <dc:Bounds x="840" y="130" width="100" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
+        <dc:Bounds x="160" y="120" width="160" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
+        <dc:Bounds x="330" y="60" width="120" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1xkepmy_di" bpmnElement="TextAnnotation_1xkepmy">
+        <dc:Bounds x="470" y="50" width="154" height="152" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0yhtde9_di" bpmnElement="TextAnnotation_0yhtde9">
+        <dc:Bounds x="520" y="460" width="132" height="68" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_1exi1ky_di" bpmnElement="Flow_1exi1ky">
         <di:waypoint x="500" y="262" />
         <di:waypoint x="500" y="372" />
@@ -100,6 +116,10 @@
         <di:waypoint x="265" y="237" />
         <di:waypoint x="320" y="237" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0k6avy4_di" bpmnElement="Flow_0k6avy4">
+        <di:waypoint x="525" y="237" />
+        <di:waypoint x="650" y="237" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="229" y="219" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -108,6 +128,12 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0ogjpx6_di" bpmnElement="Task_1dqvybv">
         <dc:Bounds x="320" y="197" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_124y97k_di" bpmnElement="Gateway_124y97k" isMarkerVisible="true">
+        <dc:Bounds x="475" y="212" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_11avm5h_di" bpmnElement="Event_11avm5h">
+        <dc:Bounds x="482" y="372" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0hj12ju_di" bpmnElement="Task_1mrtiy4">
         <dc:Bounds x="650" y="197" width="100" height="80" />
@@ -118,30 +144,14 @@
           <dc:Bounds x="805" y="262" width="30" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_124y97k_di" bpmnElement="Gateway_124y97k" isMarkerVisible="true">
-        <dc:Bounds x="475" y="212" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_11avm5h_di" bpmnElement="Event_11avm5h">
-        <dc:Bounds x="482" y="372" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
-        <dc:Bounds x="160" y="120" width="160" height="40" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
-        <dc:Bounds x="330" y="60" width="120" height="82" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
-        <dc:Bounds x="650" y="80" width="128" height="96" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1xkepmy_di" bpmnElement="TextAnnotation_1xkepmy">
-        <dc:Bounds x="470" y="50" width="154" height="138" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_0yhtde9_di" bpmnElement="TextAnnotation_0yhtde9">
-        <dc:Bounds x="520" y="460" width="132" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1qwmy6c_di" bpmnElement="TextAnnotation_1qwmy6c">
-        <dc:Bounds x="840" y="130" width="100" height="68" />
-      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
+        <di:waypoint x="705" y="197" />
+        <di:waypoint x="707" y="176" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0r6nful_di" bpmnElement="Association_0r6nful">
+        <di:waypoint x="831" y="223" />
+        <di:waypoint x="850" y="198" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_0hwix5o_di" bpmnElement="Association_0hwix5o">
         <di:waypoint x="243" y="220" />
         <di:waypoint x="235" y="160" />
@@ -150,21 +160,13 @@
         <di:waypoint x="377" y="197" />
         <di:waypoint x="387" y="142" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
-        <di:waypoint x="705" y="197" />
-        <di:waypoint x="707" y="176" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_13ai2p4_di" bpmnElement="Association_13ai2p4">
         <di:waypoint x="503" y="215" />
-        <di:waypoint x="505" y="188" />
+        <di:waypoint x="504" y="202" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_13haf1m_di" bpmnElement="Association_13haf1m">
         <di:waypoint x="512" y="404" />
         <di:waypoint x="559" y="460" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_0r6nful_di" bpmnElement="Association_0r6nful">
-        <di:waypoint x="831" y="223" />
-        <di:waypoint x="850" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

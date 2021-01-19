@@ -162,7 +162,9 @@
     <bpmn:textAnnotation id="TextAnnotation_08qh7xr">
       <bpmn:text>rexflow:
   gateway_name: is-pos
-  expression: req_json['val'] &gt; 0
+  jsonpath: 'val'
+  operator: '&gt;'
+  value: 0
   gateway_true: 
     next_step: balance-pos
   gateway_false:
@@ -172,7 +174,9 @@
     <bpmn:textAnnotation id="TextAnnotation_1ypr2ng">
       <bpmn:text>rexflow:
   gateway_name: is-big
-  expression: req_json['val'] &gt; 100
+  jsonpath: 'val'
+  operator: '&gt;'
+  value: 100
   gateway_true: 
     next_step: balance-big
   gateway_false:
@@ -321,10 +325,10 @@
         <dc:Bounds x="1460" y="590" width="130" height="82" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_08qh7xr_di" bpmnElement="TextAnnotation_08qh7xr">
-        <dc:Bounds x="415" y="182" width="170" height="124" />
+        <dc:Bounds x="415" y="182" width="170" height="140" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1ypr2ng_di" bpmnElement="TextAnnotation_1ypr2ng">
-        <dc:Bounds x="1240" y="148" width="170" height="124" />
+        <dc:Bounds x="1240" y="148" width="170" height="138" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0us41ix_di" bpmnElement="TextAnnotation_0us41ix">
         <dc:Bounds x="1090" y="455" width="100" height="110" />
@@ -379,11 +383,11 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_0r8nsv3_di" bpmnElement="Association_0r8nsv3">
         <di:waypoint x="501" y="373" />
-        <di:waypoint x="502" y="306" />
+        <di:waypoint x="502" y="322" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1119fae_di" bpmnElement="Association_1119fae">
         <di:waypoint x="1297" y="375" />
-        <di:waypoint x="1282" y="272" />
+        <di:waypoint x="1284" y="286" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_0uhcztl_di" bpmnElement="Association_0uhcztl">
         <di:waypoint x="1198" y="410" />
