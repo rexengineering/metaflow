@@ -24,13 +24,21 @@ class BPMNXGateway(BPMNComponent):
     '''
     def __init__(self, gateway: OrderedDict, process: OrderedDict = None, global_props=None):
         super().__init__(gateway, process, global_props)
-        self.expression = ""
+        self.jsonpath = ""
+        self.operator = ""
+        self.comparison_value = ""
         self.true_forward_componentid = None
         self.false_forward_componentid = None
         self._gateway = gateway
 
-        assert 'expression' in self._annotation, "XGateway: Must specify comparison expression."
-        self.expression = self.annotation['expression']
+        assert 'jsonpath' in self._annotation, "XGateway: Must specify jsonpath to compare."
+        assert 'value' in self._annotation, "XGatewway: Must specify `value` to compare to."
+        assert 'operator' in self._annotation, "XGatewway: Must specify `operator` (==, <, >)"
+
+        self.jsonpath = self.annotation['jsonpath']
+        self.comparison_value = self.annotation['value']
+        self.operator = self.annotation['operator']
+        assert self.operator in ['==', '<', '>'], "XGatewway: Must specify `operator` (==, <, >)"
 
         # We've got the annotation. From here, let's find out the name of the resulting
         # gateway service.
@@ -104,7 +112,9 @@ class BPMNXGateway(BPMNComponent):
         port = self.service_properties.port
 
         env_config = [
-            {'name': 'REXFLOW_XGW_EXPRESSION', 'value': self.expression},
+            {'name': 'REXFLOW_XGW_JSONPATH', 'value': self.jsonpath},
+            {'name': 'REXFLOW_XGW_OPERATOR', 'value': self.operator},
+            {'name': 'REXFLOW_XGW_COMPARISON_VALUE', 'value': self.comparison_value},
             {
                 'name': 'REXFLOW_XGW_TRUE_URL',
                 'value': component_map[self.true_forward_componentid].k8s_url,

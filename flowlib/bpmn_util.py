@@ -243,6 +243,7 @@ class WorkflowProperties:
         self._id_hash = ''
         self._retry_total_attempts = 2
         self._is_recoverable = False
+        self._is_reliable_transport = False
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -276,6 +277,10 @@ class WorkflowProperties:
     def is_recoverable(self):
         return self._is_recoverable
 
+    @property
+    def is_reliable_transport(self):
+        return self._is_reliable_transport
+
     def update(self, annotations):
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
@@ -296,11 +301,16 @@ class WorkflowProperties:
                 self._namespace = self._id
 
         if 'recoverable' in annotations:
-            self._is_recoverable = annotations['recoverable']
+            self._is_recoverable = (annotations['recoverable'] or self.is_reliable_transport)
 
         if 'retry' in annotations:
             if 'total_attempts' in annotations['retry']:
                 self._retry_total_attempts = annotations['retry']['total_attempts']
+
+        if 'reliable_transport' in annotations:
+            assert annotations['reliable_transport'] == 'kafka'
+            self._is_reliable_transport = True
+            self._is_recoverable = True
 
 
 class BPMNComponent:
@@ -435,6 +445,12 @@ class BPMNComponent:
         '''Returns the WorkflowProperties object for this BPMNComponent.
         '''
         return self._global_props
+
+    @property
+    def transport_kafka_topic(self) -> str:
+        if not self.workflow_properties.is_reliable_transport:
+            return None
+        return f'{self.id}-kafka-{self._global_props.id_hash}'.replace('_', '-').lower()
 
     @property
     def k8s_url(self) -> str:
