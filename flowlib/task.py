@@ -135,7 +135,6 @@ class BPMNTask(BPMNComponent):
         # preexisting)
 
         # Step 1: Make the first python service. Uses the catch_gateway.
-        self._incoming_topic = f'req-{self.id}'
         env_config = [
             {
                 "name": "KAFKA_HOST",
@@ -143,7 +142,7 @@ class BPMNTask(BPMNComponent):
             },
             {
                 "name": "KAFKA_TOPIC",
-                "value": self._incoming_topic,
+                "value": self.transport_kafka_topic,
             },
             {
                 "name": "KAFKA_GROUP_ID",
@@ -151,8 +150,7 @@ class BPMNTask(BPMNComponent):
             },
             {
                 "name": "FORWARD_URL",
-                # Note: k8s_url != service_k8s_url
-                "value": self.service_k8s_url,
+                "value": self.k8s_url,
             },
             {
                 "name": "WF_ID",
@@ -177,22 +175,78 @@ class BPMNTask(BPMNComponent):
                 "value": os.environ['ETCD_HOST'],
             },
         ]
-        incoming_kafka_name = f'{self.id}-kafka'.replace('_', '-').lower()
-        if self._is_in_shared_ns:
-            incoming_kafka_name += f'-{self._global_props.id_hash}'
-        k8s_objects.append(create_serviceaccount(self._namespace, incoming_kafka_name))
-        k8s_objects.append(create_service(self._namespace, incoming_kafka_name, KAFKA_LISTEN_PORT))
+        k8s_objects.append(create_serviceaccount(self._namespace, self.transport_kafka_topic))
+        k8s_objects.append(create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT))
         k8s_objects.append(create_deployment(
             self._namespace,
-            incoming_kafka_name,
+            self.transport_kafka_topic,
             'catch-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
         ))
 
         # Step 2: Make the Kafka thing that receives the response and throws it at the next object.
-        
+        forward_set = list(digraph.get(self.id, set()))
+        assert len(forward_set) == 1
+        forward_id = forward_set[0]
+        forward_component = component_map[forward_id]
 
+        env_config = [
+            {
+                "name": "KAFKA_TOPIC",
+                "value": forward_component.transport_kafka_topic,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": None,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": None,
+            },
+            {
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": forward_component.id,
+            },
+        ]
+
+        k8s_objects.append(
+            create_serviceaccount(self._namespace, forward_component.transport_kafka_topic)
+        )
+        k8s_objects.append(
+            create_service(
+                self._namespace,
+                forward_component.transport_kafka_topic,
+                KAFKA_LISTEN_PORT,
+            )
+        )
+        k8s_objects.append(create_deployment(
+            self._namespace,
+            forward_component.transport_kafka_topic,
+            'throw-gateway:1.0.0',
+            KAFKA_LISTEN_PORT,
+            env_config,
+        ))
+
+        # Finally, create the envoyfilter.
+        k8s_objects.append(
+            self._generate_envoyfilter(Upstream(
+                forward_component.transport_kafka_topic,
+                f'{forward_component.transport_kafka_topic}.{self._namespace}.svc.cluster.local',
+                KAFKA_LISTEN_PORT,
+                '/',
+                'POST',
+                1,
+                self.id,
+            ))
+        )
+
+        if not self._is_preexisting:
+            k8s_objects.append(self._generate_microservice())
         return k8s_objects
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
