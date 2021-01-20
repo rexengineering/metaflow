@@ -41,6 +41,9 @@ class BPMNThrowEvent(BPMNComponent):
             "host": self.name,
         })
 
+    def _generate_reliable_kafka_catcher(self, component_map, digraph):
+        
+    
     def to_kubernetes(self,
                       id_hash,
                       component_map: Mapping[str, BPMNComponent],
@@ -102,5 +105,8 @@ class BPMNThrowEvent(BPMNComponent):
             port,
             env_config,
         ))
+
+        if self._global_props._is_reliable_transport:
+            k8s_objects.extend(self._generate_reliable_kafka_catcher(component_map, digraph))
 
         return k8s_objects
