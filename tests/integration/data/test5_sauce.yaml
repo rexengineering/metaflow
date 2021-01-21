@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: default
+  name: my-secret-sauce
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-secret-sauce
+  namespace: default
+  labels:
+    app: my-secret-sauce
+spec:
+  ports:
+  - name: http
+    port: 5000
+    targetPort: 5000
+  selector:
+    app: my-secret-sauce
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-secret-sauce
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-secret-sauce
+  template:
+    metadata:
+      labels:
+        app: my-secret-sauce
+    spec:
+      serviceAccountName: my-secret-sauce
+      containers:
+      - image: sauce-test
+        imagePullPolicy: IfNotPresent
+        name: my-secret-sauce
+        ports:
+        - containerPort: 5000

@@ -134,7 +134,6 @@ class EventThrowApp(QuartApp):
         self.app.route('/', methods=['POST'])(self.throw_event)
 
     def health_check(self):
-        kafka.poll(0)
         return jsonify(flow_result(0, ""))
 
     async def throw_event(self):

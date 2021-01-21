@@ -211,6 +211,16 @@ def transition_state(etcd, state_key, from_states, to_state):
         if crnt_state in from_states:
             if etcd.replace(state_key, crnt_state, to_state):
                 result = True
+            else:
+                # The `with etcd.lock(state_key)` line doesn't actually work sometimes.
+                # It's possible in one edge case that crnt_state == STARTING but the state key
+                # is now in the RUNNING state, so the replace fails.
+                new_crnt_state = etcd.get(state_key)[0]
+                if new_crnt_state != crnt_state:
+                    logging.warning("The etcd.lock() failed again.")
+                    if new_crnt_state in from_states and \
+                            etcd.replace(state_key, new_crnt_state, to_state):
+                        result = True
     if result:
         logging.debug(f'State transition was successful. {state_key} : {crnt_state} -> {to_state}')
     else:

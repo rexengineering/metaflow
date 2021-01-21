@@ -12,7 +12,6 @@ from confluent_kafka import Consumer
 import json
 import os
 import requests
-import time
 
 from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
@@ -35,7 +34,7 @@ KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
 FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
-KAFKA_POLLING_PERIOD = 1
+KAFKA_POLLING_PERIOD = 10
 
 FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
@@ -70,18 +69,10 @@ class EventCatchPoller:
         self.running = False
 
     def get_event(self):
-        msg = kafka.poll()
+        msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
 
-    def create_instance(self, incoming_data, content_type):
-        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
-        etcd = get_etcd()
-        keys = WorkflowInstanceKeys(instance_id)
-        if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
-            # Should never happen...unless there's a collision in uuid1
-            logging.error(f'{keys.state} already defined in etcd!')
-            return f"Internal Error: ID {instance_id} already exists"
-
+    def run_instance(self, keys, incoming_data, instance_id, content_type, etcd):
         etcd.put(keys.parent, WF_ID)
         first_task_response = self.make_call_(
             incoming_data,
@@ -95,6 +86,19 @@ class EventCatchPoller:
         else:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
+
+    def create_instance(self, incoming_data, content_type):
+        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
+        etcd = get_etcd()
+        keys = WorkflowInstanceKeys(instance_id)
+        if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
+            # Should never happen...unless there's a collision in uuid1
+            logging.error(f'{keys.state} already defined in etcd!')
+            return f"Internal Error: ID {instance_id} already exists"
+
+        self.executor.submit(
+            self.run_instance, keys, incoming_data, instance_id, content_type, etcd
+        )
         return {"id": instance_id}
 
     def save_traceid(self, headers, flow_id):
@@ -157,6 +161,7 @@ class EventCatchPoller:
                 if FUNCTION == 'CATCH':
                     assert 'x-flow-id' in headers
                     assert 'x-rexflow-wf-id' in headers
+                    assert headers['x-rexflow-wf-id'].decode() == WF_ID
                     self.make_call_(
                         data.decode(),
                         flow_id=headers['x-flow-id'].decode(),
@@ -168,8 +173,6 @@ class EventCatchPoller:
             except Exception as exn:
                 logging.exception("Failed processing event", exc_info=exn)
 
-            time.sleep(KAFKA_POLLING_PERIOD)
-
 
 class EventCatchApp(QuartApp):
     def __init__(self, **kws):
@@ -179,9 +182,6 @@ class EventCatchApp(QuartApp):
         self.app.route('/', methods=['POST'])(self.catch_event)
 
     def health_check(self):
-        if kafka is not None:
-            # ensure we still have healthy connection to kafka
-            kafka.poll(0)
         return jsonify(flow_result(0, ""))
 
     async def catch_event(self):
