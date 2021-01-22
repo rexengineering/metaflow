@@ -7,6 +7,8 @@ class ServiceTaskCall(NamedTuple):
     index: int
     call_site: ast.Call
     targets: Optional[List[ast.expr]]
+    args: List[ast.expr]
+    keywords: List[ast.keyword]
 
     @property
     def service_name(self) -> str:
@@ -42,12 +44,27 @@ class WorkflowVisitor(ast.NodeVisitor):
                 if self.targets_stack[-1] is not None else
                 self.targets_stack[-1]
             )
+            args = [
+                ast.fix_missing_locations(RewriteTargets().visit(arg))
+                for arg in node.args
+            ]
+            keywords = [
+                ast.keyword(
+                    keyword.arg,
+                    ast.fix_missing_locations(RewriteTargets().visit(
+                        keyword.value
+                    ))
+                )
+                for keyword in node.keywords
+            ]
             self.tasks.append(
                 ServiceTaskCall(
                     task_name=node.func.id,
                     index=len(self.tasks) + 1,
                     call_site=node,
-                    targets=targets
+                    targets=targets,
+                    args=args,
+                    keywords=keywords
                 )
             )
         return result

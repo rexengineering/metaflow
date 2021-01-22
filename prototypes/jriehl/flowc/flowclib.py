@@ -284,6 +284,44 @@ def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
     return workflow_path
 
 
+def gen_service_task_app(
+        visitor: ToplevelVisitor,
+        call: visitors.ServiceTaskCall) -> str:
+    task_function = visitor.get_module_value(call.task_name)
+    assert hasattr(task_function, '_service_task') and \
+        isinstance(task_function._service_task, flowcode.ServiceTask)
+    task_definition = task_function._service_task.definition
+    wrapper_name = f'{call.task_name}_{call.index}'
+    args = ', '.join(unparse(arg) for arg in call.args)
+    if len(call.keywords) > 0:
+        if len(args) > 0:
+            args += ', '
+        args += ', '.join(
+            f'{keyword.arg}={unparse(keyword.value)}'
+            for keyword in call.keywords
+        )
+    wrapper_source = SERVICE_TASK_FUNCTION_TEMPLATE.format(
+        function_name=wrapper_name,
+        assign_targets=(
+            'environment[\'$result\']'
+            if call.targets is None else
+            ', '.join(unparse(target) for target in call.targets)
+        ),
+        call_target_name=call.task_name,
+        args=args
+    )
+    return APP_TEMPLATE.render(
+        dependencies=[
+            visitor.get_source(
+                task_definition.lineno, task_definition.col_offset,
+                task_definition.end_lineno, task_definition.end_col_offset,
+            ),
+        ],
+        service_task_function=wrapper_source,
+        service_task_function_name=wrapper_name,
+    )
+
+
 def gen_service_task(
         visitor: ToplevelVisitor,
         output_path: str,
@@ -296,31 +334,7 @@ def gen_service_task(
         dockerfile_file.write(DOCKERFILE_TEMPLATE)
     app_path = os.path.join(task_path, 'app.py')
     with open(app_path, 'w') as app_file:
-        task_function = visitor.get_module_value(call.task_name)
-        assert hasattr(task_function, '_service_task') and \
-            isinstance(task_function._service_task, flowcode.ServiceTask)
-        task_definition = task_function._service_task.definition
-        wrapper_name = f'{call.task_name}_{call.index}'
-        wrapper_source = SERVICE_TASK_FUNCTION_TEMPLATE.format(
-            function_name=wrapper_name,
-            assign_targets=(
-                'environment[\'$result\']'
-                if call.targets is None else
-                ', '.join(unparse(target) for target in call.targets)
-            ),
-            call_target_name=call.task_name,
-            args='',
-        )
-        app_file.write(APP_TEMPLATE.render(
-            dependencies=[
-                visitor.get_source(
-                    task_definition.lineno, task_definition.col_offset,
-                    task_definition.end_lineno, task_definition.end_col_offset,
-                ),
-            ],
-            service_task_function=wrapper_source,
-            service_task_function_name=wrapper_name,
-        ))
+        app_file.write(gen_service_task_app(visitor, call))
     target_path = os.path.join(task_path, 'quart_wrapper.py')
     shutil.copyfile(quart_wrapper.__file__, target_path)
     requirements_path = os.path.join(task_path, 'requirements.txt')

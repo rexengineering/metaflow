@@ -18,6 +18,7 @@ BRANCH_PATH = os.path.join(EXAMPLE_PATH, 'branch.py')
 HELLO_PATH = os.path.join(EXAMPLE_PATH, 'hello.py')
 HELLO2_PATH = os.path.join(EXAMPLE_PATH, 'hello2.py')
 HELLO3_PATH = os.path.join(EXAMPLE_PATH, 'hello3.py')
+ARGS_PATH = os.path.join(EXAMPLE_PATH, 'args.py')
 
 
 def _has_docker():
@@ -88,19 +89,21 @@ class TestFlowCLib(unittest.TestCase):
         self.assertRegex(makefile_src, r'test\w*:')
         self.assertRegex(makefile_src, r'.PHONY\w*:')
 
-    def __parse_targets(self, targets_string: str) -> List[ast.expr]:
-        assignment = ast.parse(f'{targets_string} = None', 'exec')
-        assert isinstance(assignment, ast.Module)
-        assert len(assignment.body) == 1
-        stmt = assignment.body[0]
-        assert isinstance(stmt, ast.Assign)
-        return stmt.targets
-
-    def _check_wrapped_function(
+    def _check_function(
             self,
             function_definition: ast.FunctionDef,
-            assign_targets: str) -> str:
-        target = function_definition.name.rsplit('_', 1)[0]
+            expected_assigns: str) -> str:
+        expected_module = ast.parse(expected_assigns, mode='exec')
+        assert isinstance(expected_module, ast.Module)
+        assert len(expected_module.body) > 0
+        expected_body = expected_module.body
+        assert all(
+            isinstance(expected_assign_tree, ast.Assign)
+            for expected_assign_tree in expected_body
+        )
+        expected_body.append(
+            ast.Return(value=ast.Name(id='environment', ctx=ast.Load()))
+        )
         expected = ast.dump(
             ast.FunctionDef(
                 name=function_definition.name,
@@ -115,18 +118,7 @@ class TestFlowCLib(unittest.TestCase):
                     kwarg=None,
                     defaults=[]
                 ),
-                body=[
-                    ast.Assign(
-                        targets=self.__parse_targets(assign_targets),
-                        value=ast.Call(
-                            func=ast.Name(id=target, ctx=ast.Load()),
-                            args=[],
-                            keywords=[]
-                        ),
-                        type_comment=None
-                    ),
-                    ast.Return(value=ast.Name(id='environment', ctx=ast.Load()))
-                ],
+                body=expected_body,
                 decorator_list=[],
                 returns=None,
                 type_comment=None
@@ -134,6 +126,32 @@ class TestFlowCLib(unittest.TestCase):
         )
         actual = ast.dump(function_definition)
         self.assertEqual(actual, expected)
+        return function_definition.name
+
+    def _check_task_app(
+            self, task_name: str, app_source: str, wrapped_body: str):
+        app_tree = ast.parse(app_source, 'app.py', 'exec')
+        self.assertNotEmpty(app_tree.body)
+        function_definitions = [
+            stmt for stmt in app_tree.body if isinstance(stmt, ast.FunctionDef)
+        ]
+        self.assertNotEmpty(function_definitions)
+        function_map = {
+            function_definition.name: function_definition
+            for function_definition in function_definitions
+        }
+        self.assertIn(task_name, function_map)
+        target = self._check_function(function_map[task_name], wrapped_body)
+        self.assertIn(target, function_map)
+
+    def _check_wrapped_function_noargs(
+            self,
+            function_definition: ast.FunctionDef,
+            assign_targets: str) -> str:
+        target = function_definition.name.rsplit('_', 1)[0]
+        self._check_function(
+            function_definition, f'{assign_targets} = {target}()'
+        )
         return target
 
     def _check_task(self, out_path: str, task_name: str, assign_targets: str):
@@ -168,7 +186,7 @@ class TestFlowCLib(unittest.TestCase):
             for function_definition in function_definitions
         }
         self.assertIn(task_name, function_map)
-        target = self._check_wrapped_function(
+        target = self._check_wrapped_function_noargs(
             function_map[task_name], assign_targets
         )
         self.assertIn(target, function_map)
@@ -208,6 +226,25 @@ class TestFlowCLib(unittest.TestCase):
         self._check_codegen(HELLO3_PATH, 'hello3_workflow', [
             ('hello3_task_1', 'environment[\'$result\']')
         ])
+
+    def test_args(self):
+        with open(ARGS_PATH) as file_obj:
+            parse_result = flowclib.parse(file_obj)
+        self.assertNotEmpty(parse_result.tasks)
+        expected_args = (
+            "'test subject'",
+            "environment['result0']",
+            "name='Joe Bob'",
+            "name=environment['result2']",
+        )
+        for call, args in zip(parse_result.tasks, expected_args):
+            app_source = flowclib.gen_service_task_app(parse_result, call)
+            self._check_task_app(
+                f'hello_arg_task_{call.index}',
+                app_source,
+                f"environment['result{call.index - 1}'] = hello_arg_task("
+                    f'{args})'
+            )
 
     @unittest.skipUnless(_has_docker(), 'Docker not present, skipping...')
     def test_make(self):
