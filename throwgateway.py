@@ -32,6 +32,8 @@ FUNCTION = os.getenv('REXFLOW_THROW_END_FUNCTION', 'THROW')
 WF_ID = os.getenv('WF_ID', None)
 END_EVENT_NAME = os.getenv('END_EVENT_NAME', None)
 
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", "http://kafka-shadow.rexflow:5000/")
+
 
 kafka = None
 if KAFKA_TOPIC:
@@ -52,6 +54,16 @@ def send_to_stream(data, flow_id, wf_id, content_type):
     kafka.poll(0)  # good practice: flush the toilet
 
 
+def _shadow_to_kafka(data, headers):
+    o = urlparse(FORWARD_URL)
+    headers['x-rexflow-original-host'] = o.netloc
+    headers['x-rexflow-original-path'] = o.path
+    try:
+        requests.post(KAFKA_SHADOW_URL, headers=headers, data=data).raise_for_status()
+    except Exception:
+        logging.warning("Failed shadowing traffic to Kafka")
+
+
 def make_call_(data):
     headers = {
         'x-flow-id': request.headers['x-flow-id'],
@@ -70,6 +82,7 @@ def make_call_(data):
             next_response = requests.post(FORWARD_URL, headers=headers, data=data)
             next_response.raise_for_status()
             success = True
+            _shadow_to_kafka(data, headers)
             break
         except Exception:
             print(
@@ -83,6 +96,8 @@ def make_call_(data):
         headers['x-rexflow-original-host'] = o.netloc
         headers['x-rexflow-original-path'] = o.path
         requests.post(FAIL_URL, data=data, headers=headers)
+        headers['x-rexflow-failure'] = True
+        _shadow_to_kafka(data, headers)
 
 
 def complete_instance(instance_id, wf_id, payload):

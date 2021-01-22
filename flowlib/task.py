@@ -24,6 +24,11 @@ KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 ETCD_HOST = os.getenv("ETCD_HOST", "rexflow-etcd.rexflow:9002")
 KAFKA_LISTEN_PORT = 5000
 
+KAFKA_SHADOW_CLUSTER = os.getenv(
+    "KAFKA_SHADOW_CLUSTER",
+    'outbound|5000||kafka-shadow.rexflow.svc.cluster.local'
+)
+
 
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
@@ -78,6 +83,7 @@ class BPMNTask(BPMNComponent):
             'flowd_envoy_cluster': 'outbound|9002||flowd.rexflow.svc.cluster.local',
             'flowd_path': '/instancefail',
             'task_id': self.id,
+            'kafka_cluster': KAFKA_SHADOW_CLUSTER,
         }
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',

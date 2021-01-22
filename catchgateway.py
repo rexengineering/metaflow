@@ -40,6 +40,7 @@ FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", "http://kafka-shadow.rexflow:5000/")
 
 
 kafka = None
@@ -120,6 +121,15 @@ class EventCatchPoller:
                 current_traces = list(set(current_traces))
                 etcd.put(trace_key, json.dumps(current_traces).encode())
 
+    def _shadow_to_kafka(self, data, headers):
+        o = urlparse(FORWARD_URL)
+        headers['x-rexflow-original-host'] = o.netloc
+        headers['x-rexflow-original-path'] = o.path
+        try:
+            requests.post(KAFKA_SHADOW_URL, headers=headers, data=data).raise_for_status()
+        except Exception:
+            logging.warning("Failed shadowing traffic to Kafka")
+
     def make_call_(self, data, flow_id, wf_id, content_type):
         next_headers = {
             'x-flow-id': str(flow_id),
@@ -135,6 +145,7 @@ class EventCatchPoller:
                     self.save_traceid(svc_response.headers, flow_id)
                 except Exception as exn:
                     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
+                self._shadow_to_kafka(data, next_headers)
                 return svc_response
             except Exception as exn:
                 logging.exception(
@@ -147,6 +158,8 @@ class EventCatchPoller:
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
         requests.post(FAIL_URL, data=data, headers=next_headers)
+        next_headers['x-rexflow-failure'] = True
+        self._shadow_to_kafka(data, next_headers)
 
     def __call__(self):
         while True:  # do forever
