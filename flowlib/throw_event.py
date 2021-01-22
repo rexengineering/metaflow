@@ -11,6 +11,7 @@ from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
+    create_deployment_affinity,
 )
 
 Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
@@ -86,13 +87,18 @@ class BPMNThrowEvent(BPMNComponent):
 
         k8s_objects.append(create_serviceaccount(self._namespace, catch_daemon_name))
         k8s_objects.append(create_service(self._namespace, catch_daemon_name, KAFKA_LISTEN_PORT))
-        k8s_objects.append(create_deployment(
+        deployment = create_deployment(
             self._namespace,
             catch_daemon_name,
             'catch-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            catch_daemon_name,
+        )
+        k8s_objects.append(deployment)
         return k8s_objects
 
     def to_kubernetes(self,

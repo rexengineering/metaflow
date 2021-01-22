@@ -14,6 +14,7 @@ from .k8s_utils import (
     create_service,
     create_serviceaccount,
     create_rexflow_ingress_vs,
+    create_deployment_affinity,
 )
 
 END_EVENT_PREFIX = 'end'
@@ -114,13 +115,19 @@ class BPMNEndEvent(BPMNComponent):
 
         k8s_objects.append(create_serviceaccount(namespace, catch_service_name))
         k8s_objects.append(create_service(namespace, catch_service_name, port))
-        k8s_objects.append(create_deployment(
+        deployment = create_deployment(
             namespace,
             catch_service_name,
             "catch-gateway:1.0.0",
             port,
             deployment_env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            end_service_name,
+            catch_service_name,
+        )
+        k8s_objects.append(deployment)
+
         k8s_objects.append(create_rexflow_ingress_vs(
             namespace,
             catch_service_name,

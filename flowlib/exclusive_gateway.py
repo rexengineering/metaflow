@@ -13,6 +13,7 @@ from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
+    create_deployment_affinity,
 )
 
 
@@ -97,14 +98,21 @@ class BPMNXGateway(BPMNComponent):
             },
         ]
         k8s_objects.append(create_serviceaccount(self._namespace, self.transport_kafka_topic))
-        k8s_objects.append(create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT))
-        k8s_objects.append(create_deployment(
+        k8s_objects.append(
+            create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT)
+        )
+        deployment = create_deployment(
             self._namespace,
             self.transport_kafka_topic,
             'catch-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            self.transport_kafka_topic,
+        )
+        k8s_objects.append(deployment)
 
         # Step 2: The thing that throws to the "true" service
         true_component = component_map[self.true_forward_componentid]
@@ -144,13 +152,18 @@ class BPMNXGateway(BPMNComponent):
                 KAFKA_LISTEN_PORT,
             )
         )
-        k8s_objects.append(create_deployment(
+        deployment = create_deployment(
             self._namespace,
             true_throw_service_name,
             'throw-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            true_throw_service_name,
+        )
+        k8s_objects.append(deployment)
 
         # Step 3: The Kafka util if the thing evaluates to False
         false_component = component_map[self.false_forward_componentid]
@@ -190,13 +203,18 @@ class BPMNXGateway(BPMNComponent):
                 KAFKA_LISTEN_PORT,
             )
         )
-        k8s_objects.append(create_deployment(
+        deployment = create_deployment(
             self._namespace,
             false_throw_service_name,
             'throw-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            false_throw_service_name,
+        )
+        k8s_objects.append(deployment)
 
         # Step 4: The actual Exclusive gateway
         service_name = self.service_properties.host

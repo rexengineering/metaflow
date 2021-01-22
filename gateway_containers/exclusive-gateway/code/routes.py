@@ -4,7 +4,6 @@ import logging
 import os
 import requests
 from urllib.parse import urlparse
-import logging
 
 
 REXFLOW_XGW_EXPRESSION = os.environ['REXFLOW_XGW_EXPRESSION']
@@ -59,7 +58,7 @@ def conditional():
     o = urlparse(url)
     headers['x-rexflow-original-host'] = o.netloc
     headers['x-rexflow-original-path'] = o.path
-    
+
     if not success:
         # Notify Flowd that we failed.
         requests.post(REXFLOW_XGW_FAIL_URL, json=req_json, headers=headers)
