@@ -72,6 +72,7 @@ class WorkflowInstanceKeys:
         self.parent = self.parent_key(id)
         self.end_event = self.end_event_key(id)
         self.traceid = self.traceid_key(id)
+        self.content_type = self.content_type_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -112,6 +113,10 @@ class WorkflowInstanceKeys:
     @classmethod
     def traceid_key(cls, id):
         return f'{cls.key_of(id)}/traceid'
+
+    @classmethod
+    def content_type_key(cls, id):
+        return f'{cls.key_of(id)}/content_type'
 
 
 def split_key(instance_id: str):
