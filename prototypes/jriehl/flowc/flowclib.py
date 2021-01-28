@@ -91,7 +91,7 @@ class ToplevelVisitor(ast.NodeVisitor):
         ]
         if len(source_lines) == 1:
             if end_column < 0:
-                return source_lines[0][start_column:] + '\n'
+                return source_lines[0][start_column:] + self._newline
             return source_lines[0][start_column:end_column]
         elif len(source_lines) > 1:
             source_lines[0] = source_lines[0][start_column:]
@@ -101,31 +101,35 @@ class ToplevelVisitor(ast.NodeVisitor):
 
     def task_to_bpmn(self, call: visitors.ServiceTaskCall):
         service_task = bpmn.ServiceTask(
-            id=f'Task_{self.counter}', name=call.service_name
+            id=f'Task_{self.counter_postinc}', name=call.service_name
         )
-        self.counter += 1
         return service_task
 
     def _make_edge(self, source: bpmn.BaseElement, target: bpmn.BaseElement):
         sequence_flow = bpmn.SequenceFlow(
-            id=f'SequenceFlow_{self.counter}',
+            id=f'SequenceFlow_{self.counter_postinc}',
             sourceRef=source.id,
             targetRef=target.id
         )
-        self.counter += 1
         source.append(bpmn.Outgoing(sequence_flow.id))
         target.append(bpmn.Incoming(sequence_flow.id))
         return sequence_flow
 
+    @property
+    def counter_postinc(self) -> int:
+        result = self.counter
+        self.counter += 1
+        return result
+
     def to_bpmn(self) -> bpmn.Definitions:
         self.counter = 1
         start_event = bpmn.StartEvent(
-            id=f'StartEvent_{self.counter}', name='Start'
+            id=f'StartEvent_{self.counter_postinc}', name='Start'
         )
-        self.counter += 1
         service_tasks = [self.task_to_bpmn(task) for task in self.tasks]
-        end_event = bpmn.EndEvent(id=f'EndEvent_{self.counter}', name='End')
-        self.counter += 1
+        end_event = bpmn.EndEvent(
+            id=f'EndEvent_{self.counter_postinc}', name='End'
+        )
         # FIXME: This is just ridiculous, but true for the current test cases.
         sequence_flows = []
         current = start_event
@@ -194,7 +198,7 @@ class ToplevelVisitor(ast.NodeVisitor):
                     (f'Service task {name} already defined on line '
                         f'{value.lineno}')
                 value._service_task.definition = node
-        self._bind(node.name, node)
+        self._bind(name, node)
 
     def _handle_import(self, node: Union[ast.Import, ast.ImportFrom]) -> Any:
         for alias in node.names:

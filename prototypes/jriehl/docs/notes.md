@@ -40,7 +40,7 @@ https://github.com/uber/cadence-java-samples/tree/master/src/main/java/com/uber/
 - [ ] Automatically test BPMN against REXFlow
 - [x] Handle function return values
     - Default is to assign to `$result` if no containing binding site
-- [ ] Handle function arguments
+- [x] Handle function arguments
     - First `*args`
     - Then `**kws`
 - [ ] Handle `if...else` control flow

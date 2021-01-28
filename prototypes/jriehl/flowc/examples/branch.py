@@ -4,7 +4,7 @@ from prototypes.jriehl.flowc.flowcode import service_task, workflow
 
 @service_task()
 def get_random():
-    return {'random': random.random()}
+    return random.random() < 0.6
 
 @service_task()
 def original_task():
@@ -16,8 +16,8 @@ def new_hotness():
 
 @workflow
 def branch_example():
-    rand_obj = get_random()
-    if rand_obj['random'] < 0.6:
+    rand_bool = get_random()
+    if rand_bool:
         result_obj = original_task()
     else:
         result_obj = new_hotness()
