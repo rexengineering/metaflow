@@ -190,7 +190,7 @@ class EventCatchPoller:
                 else:
                     self.create_instance(data, headers['content-type'])
             except Exception as exn:
-                logging.exception("Failed processing ev ent", exc_info=exn)
+                logging.exception("Failed processing event", exc_info=exn)
 
 
 class EventCatchApp(QuartApp):
