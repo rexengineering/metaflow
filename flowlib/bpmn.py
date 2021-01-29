@@ -65,6 +65,7 @@ class BPMNProcess:
             bpmn_task = BPMNTask(task, process, self.properties)
             self.tasks.append(bpmn_task)
             self.component_map[task['@id']] = bpmn_task
+            self.kafka_topics.extend(bpmn_task.kafka_topics)
 
         # Exclusive Gateways (conditional)
         self.xgateways = []

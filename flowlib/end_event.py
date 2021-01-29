@@ -1,5 +1,6 @@
 '''
-Implements BPMNEndEvent object, which for now is just a pass-through to Flowd.
+Implements BPMNEndEvent object, which does the bookkeeping associated with marking a WF Instance
+as COMPLETED.
 '''
 
 from collections import OrderedDict
@@ -13,11 +14,13 @@ from .k8s_utils import (
     create_service,
     create_serviceaccount,
     create_rexflow_ingress_vs,
+    create_deployment_affinity,
 )
 
 END_EVENT_PREFIX = 'end'
 END_EVENT_LISTEN_PORT = '5000'
 END_EVENT_CONTAINER = 'throw-gateway:1.0.0'
+KAFKA_LISTEN_PORT = '5000'
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
@@ -50,9 +53,144 @@ class BPMNEndEvent(BPMNComponent):
         if 'queue' in self._annotation:
             self._queue = self._annotation['queue']
 
+    def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                                digraph: OrderedDict) -> list:
+        '''Sets us up for reliable transport over Kafka.
+        '''
+        # Two things we need to do:
+        # 1. Create the End Event (which uses the catch-gateway image)
+        # 2. Per Hong's design, set up a python daemon that connects the End Event to the
+        # previous step in the WF through its designated Kafka topic.
+
+        k8s_objects = []
+        end_service_name = self.service_properties.host.replace('_', '-')
+        port = self.service_properties.port
+        namespace = self._namespace
+
+        catch_service_name = f'{self.id}-{self.transport_kafka_topic}'.lower().replace("_", '-')
+
+        # First, the Catch Event.
+        deployment_env_config = [
+            {
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "REXFLOW_CATCH_START_FUNCTION",
+                "value": "CATCH",
+            },
+            {
+                "name": "WF_ID",
+                "value": self._global_props.id,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": 2,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": f"http://{end_service_name}.{self._namespace}:{KAFKA_LISTEN_PORT}/",
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": self.id,
+            },
+            {
+                "name": "FAIL_URL",
+                "value": "http://flowd.rexflow:9002/instancefail",
+            },
+            {
+                "name": "KAFKA_GROUP_ID",
+                "value": catch_service_name,
+            },
+            {
+                "name": "ETCD_HOST",
+                "value": os.environ['ETCD_HOST'],
+            },
+            {
+                "name": "KAFKA_TOPIC",
+                "value": self.transport_kafka_topic,
+            }
+        ]
+
+        k8s_objects.append(create_serviceaccount(namespace, catch_service_name))
+        k8s_objects.append(create_service(namespace, catch_service_name, port))
+        deployment = create_deployment(
+            namespace,
+            catch_service_name,
+            "catch-gateway:1.0.0",
+            port,
+            deployment_env_config,
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            end_service_name,
+            catch_service_name,
+        )
+        k8s_objects.append(deployment)
+
+        k8s_objects.append(create_rexflow_ingress_vs(
+            namespace,
+            catch_service_name,
+            uri_prefix=f'/{catch_service_name}',
+            dest_port=port,
+            dest_host=f'{catch_service_name}.{namespace}.svc.cluster.local',
+        ))
+
+        # Now create the daemon to connect End Event to First Task
+        env_config = [
+            {
+                "name": "FORWARD_URL",
+                "value": None,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": "",
+            },
+            {
+                "name": "WF_ID",
+                "value": self._global_props.id,
+            },
+
+            {
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": '',
+            },
+            {
+                "name": "REXFLOW_THROW_END_FUNCTION",
+                "value": "END"
+            },
+            {
+                "name": "ETCD_HOST",
+                "value": os.getenv('ETCD_HOST', 'rexflow-etcd.rexflow:9002'),
+            },
+        ]
+        if self._queue is not None:
+            # We can still throw an Event at the end of the WF Instance
+            env_config.append({
+                "name": "KAFKA_TOPIC",
+                "value": self._queue,
+            })
+
+        k8s_objects.append(create_serviceaccount(self._namespace, end_service_name))
+        k8s_objects.append(create_service(self._namespace, end_service_name, port))
+        k8s_objects.append(create_deployment(
+            self._namespace,
+            end_service_name,
+            'throw-gateway:1.0.0',
+            port,
+            env_config,
+        ))
+        return k8s_objects
+
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict) -> list:
         assert self._namespace, "new-grad programmer error: namespace should be set by now."
+        if self._global_props._is_reliable_transport:
+            return self._to_kubernetes_reliable(id_hash, component_map, digraph)
 
         k8s_objects = []
         dns_safe_name = self.service_properties.host.replace('_', '-')

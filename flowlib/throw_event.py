@@ -11,6 +11,7 @@ from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
+    create_deployment_affinity,
 )
 
 Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
@@ -18,6 +19,7 @@ Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 THROW_GATEWAY_LISTEN_PORT = 5000
 THROW_GATEWAY_SVC_PREFIX = "throw"
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+KAFKA_LISTEN_PORT = 5000
 
 
 class BPMNThrowEvent(BPMNComponent):
@@ -40,6 +42,64 @@ class BPMNThrowEvent(BPMNComponent):
             "port": THROW_GATEWAY_LISTEN_PORT,
             "host": self.name,
         })
+
+    def _generate_reliable_kafka_catcher(self, component_map, digraph, throw_svc):
+        k8s_objects = []
+        env_config = [
+            {
+                "name": "KAFKA_HOST",
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "KAFKA_TOPIC",
+                "value": self.transport_kafka_topic,
+            },
+            {
+                "name": "KAFKA_GROUP_ID",
+                "value": self.id,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": self.k8s_url,
+            },
+            {
+                "name": "WF_ID",
+                "value": self._global_props.id,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": self.id,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": "2",
+            },
+            {
+                "name": "FAIL_URL",
+                "value": "http://flowd.rexflow:9002/instancefail",
+            },
+            {
+                "name": "ETCD_HOST",
+                "value": os.environ['ETCD_HOST'],
+            },
+        ]
+        catch_daemon_name = f'{self.id}-{self.transport_kafka_topic}'.lower().replace('_', '-')
+
+        k8s_objects.append(create_serviceaccount(self._namespace, catch_daemon_name))
+        k8s_objects.append(create_service(self._namespace, catch_daemon_name, KAFKA_LISTEN_PORT))
+        deployment = create_deployment(
+            self._namespace,
+            catch_daemon_name,
+            'catch-gateway:1.0.0',
+            KAFKA_LISTEN_PORT,
+            env_config,
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            catch_daemon_name,
+        )
+        k8s_objects.append(deployment)
+        return k8s_objects
 
     def to_kubernetes(self,
                       id_hash,
@@ -102,5 +162,10 @@ class BPMNThrowEvent(BPMNComponent):
             port,
             env_config,
         ))
+
+        if self._global_props._is_reliable_transport:
+            k8s_objects.extend(
+                self._generate_reliable_kafka_catcher(component_map, digraph, dns_safe_name)
+            )
 
         return k8s_objects

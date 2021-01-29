@@ -4,8 +4,11 @@ stream for events that are published into the WF instance and calls the next
 step in the workflow with that data.
 '''
 import logging
+import asyncio
+import threading
+import datetime
 
-from quart import request, jsonify
+from quart import request, jsonify, Response
 from urllib.parse import urlparse
 
 from confluent_kafka import Consumer
@@ -40,6 +43,9 @@ FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", "http://kafka-shadow.rexflow:5000/")
+API_WRAPPER_ENABLED = os.getenv("REXFLOW_API_WRAPPER_ENABLED") != "FALSE"
+API_WRAPPER_TIMEOUT = int(os.getenv("REXFLOW_API_WRAPPER_TIMEOUT", "5"))
 
 
 kafka = None
@@ -87,8 +93,9 @@ class EventCatchPoller:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
 
-    def create_instance(self, incoming_data, content_type):
-        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
+    def create_instance(self, incoming_data, content_type, instance_id=None):
+        if instance_id is None:
+            instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
         etcd = get_etcd()
         keys = WorkflowInstanceKeys(instance_id)
         if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
@@ -120,6 +127,15 @@ class EventCatchPoller:
                 current_traces = list(set(current_traces))
                 etcd.put(trace_key, json.dumps(current_traces).encode())
 
+    def _shadow_to_kafka(self, data, headers):
+        o = urlparse(FORWARD_URL)
+        headers['x-rexflow-original-host'] = o.netloc
+        headers['x-rexflow-original-path'] = o.path
+        try:
+            requests.post(KAFKA_SHADOW_URL, headers=headers, data=data).raise_for_status()
+        except Exception:
+            logging.warning("Failed shadowing traffic to Kafka")
+
     def make_call_(self, data, flow_id, wf_id, content_type):
         next_headers = {
             'x-flow-id': str(flow_id),
@@ -135,6 +151,7 @@ class EventCatchPoller:
                     self.save_traceid(svc_response.headers, flow_id)
                 except Exception as exn:
                     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
+                self._shadow_to_kafka(data, next_headers)
                 return svc_response
             except Exception as exn:
                 logging.exception(
@@ -147,6 +164,8 @@ class EventCatchPoller:
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
         requests.post(FAIL_URL, data=data, headers=next_headers)
+        next_headers['x-rexflow-failure'] = True
+        self._shadow_to_kafka(data, next_headers)
 
     def __call__(self):
         while True:  # do forever
@@ -180,6 +199,9 @@ class EventCatchApp(QuartApp):
         self.manager = EventCatchPoller(FORWARD_URL)
         self.app.route('/', methods=['GET'])(self.health_check)
         self.app.route('/', methods=['POST'])(self.catch_event)
+        self.executor = get_executor()
+        if FUNCTION == 'START' and API_WRAPPER_ENABLED:
+            self.app.route('/wrapper', methods=['POST'])(self.synchronous_wrapper)
 
     def health_check(self):
         return jsonify(flow_result(0, ""))
@@ -198,6 +220,54 @@ class EventCatchApp(QuartApp):
                 request.headers['content-type'],
             )
         return response
+
+    async def get_result(self, instance_id, watch_iter, cancel_watch):
+        key_results = {
+            "state": None,
+            "result": None,
+            "content_type": None,
+        }
+        for event in watch_iter:
+            full_key = event.key.decode('utf-8')
+            key = full_key.split('/')[-1]
+            if key in key_results:
+                value = event.value.decode('utf-8')
+                key_results[key] = value
+                if all([key_results[k] != None for k in key_results.keys()]):
+                    cancel_watch()
+                    return key_results
+        return None
+
+    async def synchronous_wrapper(self):
+        start = datetime.datetime.now()
+        etcd = get_etcd()
+        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
+        data = await request.data
+        watch_iter, cancel_watch = etcd.watch_prefix(WorkflowInstanceKeys.key_of(instance_id))
+        wait_task = asyncio.create_task(self.get_result(instance_id, watch_iter, cancel_watch))
+        self.manager.create_instance(
+            data, request.headers['content-type'], instance_id=instance_id
+        )
+        timer = threading.Timer(API_WRAPPER_TIMEOUT, self._cleanup_watch_iter, [cancel_watch])
+        timer.start()
+        result = await wait_task
+        if not result:
+            response = Response("WF Instance Timed Out.", 500)
+        else:
+            response = Response(result['result'])
+            response.headers['content-type'] = result['content_type']
+        response.headers['x-flow-id'] = instance_id
+
+        end = datetime.datetime.now()
+        print("start: ", start, "end:", end)
+        print(end - start, flush=True)
+        return response
+
+    def _cleanup_watch_iter(self, cancel_watch):
+        try:
+            cancel_watch()
+        except Exception as e:
+            logging.exception("failed...", exc_info=e)
 
     def _shutdown(self):
         self.manager.stop()

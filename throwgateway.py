@@ -32,6 +32,8 @@ FUNCTION = os.getenv('REXFLOW_THROW_END_FUNCTION', 'THROW')
 WF_ID = os.getenv('WF_ID', None)
 END_EVENT_NAME = os.getenv('END_EVENT_NAME', None)
 
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", "http://kafka-shadow.rexflow:5000/")
+
 
 kafka = None
 if KAFKA_TOPIC:
@@ -52,6 +54,16 @@ def send_to_stream(data, flow_id, wf_id, content_type):
     kafka.poll(0)  # good practice: flush the toilet
 
 
+def _shadow_to_kafka(data, headers):
+    o = urlparse(FORWARD_URL)
+    headers['x-rexflow-original-host'] = o.netloc
+    headers['x-rexflow-original-path'] = o.path
+    try:
+        requests.post(KAFKA_SHADOW_URL, headers=headers, data=data).raise_for_status()
+    except Exception:
+        logging.warning("Failed shadowing traffic to Kafka")
+
+
 def make_call_(data):
     headers = {
         'x-flow-id': request.headers['x-flow-id'],
@@ -70,6 +82,7 @@ def make_call_(data):
             next_response = requests.post(FORWARD_URL, headers=headers, data=data)
             next_response.raise_for_status()
             success = True
+            _shadow_to_kafka(data, headers)
             break
         except Exception:
             print(
@@ -83,9 +96,11 @@ def make_call_(data):
         headers['x-rexflow-original-host'] = o.netloc
         headers['x-rexflow-original-path'] = o.path
         requests.post(FAIL_URL, data=data, headers=headers)
+        headers['x-rexflow-failure'] = True
+        _shadow_to_kafka(data, headers)
 
 
-def complete_instance(instance_id, wf_id, payload):
+def complete_instance(instance_id, wf_id, payload, content_type):
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
     etcd = get_etcd()
     state_key = WorkflowInstanceKeys.state_key(instance_id)
@@ -94,6 +109,7 @@ def complete_instance(instance_id, wf_id, payload):
     headers_key = WorkflowInstanceKeys.headers_key(instance_id)
     result_key = WorkflowInstanceKeys.result_key(instance_id)
     end_event_key = WorkflowInstanceKeys.end_event_key(instance_id)
+    content_type_key = WorkflowInstanceKeys.content_type_key(instance_id)
 
     # We insist that only ONE End Event is reached. Therefore, there should
     # be no result key.
@@ -105,6 +121,9 @@ def complete_instance(instance_id, wf_id, payload):
             etcd.delete(headers_key)
             etcd.delete(payload_key)
             etcd.put(was_error_key, BStates.TRUE)
+
+        if not etcd.put_if_not_exists(content_type_key, content_type):
+            logging.error(f"Couldn't store content type {content_type} on instance {instance_id}.")
 
         # Mark the WF Instance with the name of the End Event that terminated it.
         if END_EVENT_NAME:
@@ -151,7 +170,8 @@ class EventThrowApp(QuartApp):
             complete_instance(
                 request.headers['x-flow-id'],
                 request.headers['x-rexflow-wf-id'],
-                data
+                data,
+                request.headers['content-type']
             )
         resp = await make_response(flow_result(0, ""))
 

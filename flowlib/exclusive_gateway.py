@@ -3,6 +3,7 @@ Implements the BPMNXGateway object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict
+import os
 from typing import Mapping
 
 import yaml
@@ -12,11 +13,14 @@ from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
+    create_deployment_affinity,
 )
 
 
 XGATEWAY_SVC_PREFIX = "xgateway"
-XGATEWAY_LISTEN_PORT = "5000"
+XGATEWAY_LISTEN_PORT = 5000
+KAFKA_LISTEN_PORT = 5000
+KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
 class BPMNXGateway(BPMNComponent):
@@ -24,21 +28,13 @@ class BPMNXGateway(BPMNComponent):
     '''
     def __init__(self, gateway: OrderedDict, process: OrderedDict = None, global_props=None):
         super().__init__(gateway, process, global_props)
-        self.jsonpath = ""
-        self.operator = ""
-        self.comparison_value = ""
+        self.expression = ""
         self.true_forward_componentid = None
         self.false_forward_componentid = None
         self._gateway = gateway
 
-        assert 'jsonpath' in self._annotation, "XGateway: Must specify jsonpath to compare."
-        assert 'value' in self._annotation, "XGatewway: Must specify `value` to compare to."
-        assert 'operator' in self._annotation, "XGatewway: Must specify `operator` (==, <, >)"
-
-        self.jsonpath = self.annotation['jsonpath']
-        self.comparison_value = self.annotation['value']
-        self.operator = self.annotation['operator']
-        assert self.operator in ['==', '<', '>'], "XGatewway: Must specify `operator` (==, <, >)"
+        assert 'expression' in self._annotation, "XGateway: Must specify comparison expression."
+        self.expression = self.annotation['expression']
 
         # We've got the annotation. From here, let's find out the name of the resulting
         # gateway service.
@@ -49,6 +45,224 @@ class BPMNXGateway(BPMNComponent):
             "port": XGATEWAY_LISTEN_PORT,
             "host": self.name,
         })
+
+    def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                                digraph: OrderedDict) -> list:
+        # Need to create 4 things:
+        # 1. The Kafka listener
+        # 2. The actual Exclusive Gateway
+        # 3. The Kafka pusher for the component if gateway evaluates to true
+        # 4. The Kafka pusher for component if gateway evaluates to false
+        k8s_objects = []
+
+        # Kafka listener
+        # Step 1: Make the first python service. Uses the catch_gateway.
+        env_config = [
+            {
+                "name": "KAFKA_HOST",
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "KAFKA_TOPIC",
+                "value": self.transport_kafka_topic,
+            },
+            {
+                "name": "KAFKA_GROUP_ID",
+                "value": self.id,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": self.k8s_url,
+            },
+            {
+                "name": "WF_ID",
+                "value": self._global_props.id,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                # Despite this being a separate K8s service, the envoyfilter on the service we
+                # forward to expects the same task id as the id of this BPMNTask Object.
+                "value": self.id,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": 1,  # For reliable workflows, only try once.
+            },
+            {
+                "name": "FAIL_URL",
+                "value": "http://flowd.rexflow:9002/instancefail",
+            },
+            {
+                "name": "ETCD_HOST",
+                "value": os.environ['ETCD_HOST'],
+            },
+        ]
+        k8s_objects.append(create_serviceaccount(self._namespace, self.transport_kafka_topic))
+        k8s_objects.append(
+            create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT)
+        )
+        deployment = create_deployment(
+            self._namespace,
+            self.transport_kafka_topic,
+            'catch-gateway:1.0.0',
+            KAFKA_LISTEN_PORT,
+            env_config,
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            self.transport_kafka_topic,
+        )
+        k8s_objects.append(deployment)
+
+        # Step 2: The thing that throws to the "true" service
+        true_component = component_map[self.true_forward_componentid]
+        env_config = [
+            {
+                "name": "KAFKA_TOPIC",
+                "value": true_component.transport_kafka_topic,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": None,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": None,
+            },
+            {
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": self.true_forward_componentid,
+            },
+        ]
+
+        true_throw_service_name = f'{self.id}-{true_component.transport_kafka_topic}'.lower()
+        true_throw_service_name = true_throw_service_name.replace('_', '-')
+
+        k8s_objects.append(
+            create_serviceaccount(self._namespace, true_throw_service_name)
+        )
+        k8s_objects.append(
+            create_service(
+                self._namespace,
+                true_throw_service_name,
+                KAFKA_LISTEN_PORT,
+            )
+        )
+        deployment = create_deployment(
+            self._namespace,
+            true_throw_service_name,
+            'throw-gateway:1.0.0',
+            KAFKA_LISTEN_PORT,
+            env_config,
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            true_throw_service_name,
+        )
+        k8s_objects.append(deployment)
+
+        # Step 3: The Kafka util if the thing evaluates to False
+        false_component = component_map[self.false_forward_componentid]
+        env_config = [
+            {
+                "name": "KAFKA_TOPIC",
+                "value": false_component.transport_kafka_topic,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": None,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": None,
+            },
+            {
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": self.false_forward_componentid,
+            },
+        ]
+
+        false_throw_service_name = f'{self.id}-{false_component.transport_kafka_topic}'.lower()
+        false_throw_service_name = false_throw_service_name.replace('_', '-')
+
+        k8s_objects.append(
+            create_serviceaccount(self._namespace, false_throw_service_name)
+        )
+        k8s_objects.append(
+            create_service(
+                self._namespace,
+                false_throw_service_name,
+                KAFKA_LISTEN_PORT,
+            )
+        )
+        deployment = create_deployment(
+            self._namespace,
+            false_throw_service_name,
+            'throw-gateway:1.0.0',
+            KAFKA_LISTEN_PORT,
+            env_config,
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            self.service_properties.host.replace('_', '-'),
+            false_throw_service_name,
+        )
+        k8s_objects.append(deployment)
+
+        # Step 4: The actual Exclusive gateway
+        service_name = self.service_properties.host
+        dns_safe_name = service_name.replace('_', '-')
+        port = self.service_properties.port
+
+        env_config = [
+            {'name': 'REXFLOW_XGW_EXPRESSION', 'value': self.expression},
+            {
+                'name': 'REXFLOW_XGW_TRUE_URL',
+                'value': f'http://{true_throw_service_name}:{KAFKA_LISTEN_PORT}/'
+            },
+            {
+                'name': 'REXFLOW_XGW_FALSE_URL',
+                'value': f'http://{false_throw_service_name}:{KAFKA_LISTEN_PORT}/'
+            },
+            {
+                'name': 'REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS',
+                'value': 2,
+            },
+            {
+                'name': 'REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS',
+                'value': 2,
+            },
+            {
+                'name': 'REXFLOW_XGW_FAIL_URL',
+                'value': 'http://flowd.rexflow:9002/instancefail'
+            },
+            {
+                'name': 'REXFLOW_TRUE_TASK_ID',
+                'value': self.true_forward_componentid,
+            },
+            {
+                'name': 'REXFLOW_FALSE_TASK_ID',
+                'value': self.false_forward_componentid,
+            }
+        ]
+
+        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
+        k8s_objects.append(create_service(self._namespace, dns_safe_name, port))
+        k8s_objects.append(create_deployment(
+            self._namespace,
+            dns_safe_name,
+            'exclusive-gateway:1.0.0',
+            port,
+            env_config,
+        ))
+        return k8s_objects
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict) -> list:
@@ -105,6 +319,9 @@ class BPMNXGateway(BPMNComponent):
         assert self.false_forward_componentid
 
         # Ok, now we're ready to go for creating k8s specs.
+        if self._global_props._is_reliable_transport:
+            return self._to_kubernetes_reliable(id_hash, component_map, digraph)
+
         k8s_objects = []
 
         service_name = self.service_properties.host
@@ -112,9 +329,7 @@ class BPMNXGateway(BPMNComponent):
         port = self.service_properties.port
 
         env_config = [
-            {'name': 'REXFLOW_XGW_JSONPATH', 'value': self.jsonpath},
-            {'name': 'REXFLOW_XGW_OPERATOR', 'value': self.operator},
-            {'name': 'REXFLOW_XGW_COMPARISON_VALUE', 'value': self.comparison_value},
+            {'name': 'REXFLOW_XGW_EXPRESSION', 'value': self.expression},
             {
                 'name': 'REXFLOW_XGW_TRUE_URL',
                 'value': component_map[self.true_forward_componentid].k8s_url,
