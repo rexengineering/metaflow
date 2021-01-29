@@ -7,10 +7,15 @@ namespace (the Flow Daemon will setup the sidecar for you).  It also assumes you
 have no other Istio gateways or virtual services running.  Running the REXFlow
 system under different conditions is outside the scope of this example.
 
-It also assumes you have built or pulled a copy of the `rex-proxy:1.7.1`
+It also assumes you have built or pulled a copy of the `rex-proxy:1.8.2`
 container using a blessed branch containing the BAVS filter with support for
 REXFlow response routing.  For details on building this container, see the
-README for the `rex-workflow-devtools` repository.
+README for the REX `istio-proxy` repository.
+
+Lastly, you must set the `ISTIO_VERSION` environment variable to the version
+of your istio: see `istioctl version`, and you must set `REX_ISTIO_PROXY_IMAGE`
+to the image name for your preferred Istio Proxy image (the one described in
+the above paragraph).
 
 Preliminaries
 -------------
