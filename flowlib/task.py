@@ -24,11 +24,6 @@ KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 ETCD_HOST = os.getenv("ETCD_HOST", "rexflow-etcd.rexflow:9002")
 KAFKA_LISTEN_PORT = 5000
 
-KAFKA_SHADOW_CLUSTER = os.getenv(
-    "KAFKA_SHADOW_CLUSTER",
-    'outbound|5000||kafka-shadow.rexflow.svc.cluster.local'
-)
-
 
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
@@ -74,6 +69,11 @@ class BPMNTask(BPMNComponent):
 
         port = self.service_properties.port
         namespace = self._namespace  # namespace in which the k8s objects live.
+        traffic_shadow_cluster = ''
+        traffic_shadow_path = ''
+        if self._global_props.traffic_shadow_svc:
+            traffic_shadow_cluster = self._global_props.traffic_shadow_svc['envoy_cluster']
+            traffic_shadow_path = self._global_props.traffic_shadow_svc['path']
 
         bavs_config = {
             'forwards': [
@@ -83,7 +83,8 @@ class BPMNTask(BPMNComponent):
             'flowd_envoy_cluster': 'outbound|9002||flowd.rexflow.svc.cluster.local',
             'flowd_path': '/instancefail',
             'task_id': self.id,
-            'kafka_cluster': KAFKA_SHADOW_CLUSTER,
+            'traffic_shadow_cluster': traffic_shadow_cluster,
+            'traffic_shadow_path': traffic_shadow_path,
         }
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',

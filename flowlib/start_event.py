@@ -216,6 +216,12 @@ class BPMNStartEvent(BPMNComponent):
                 "value": os.environ['ETCD_HOST'],
             }
         ]
+        if self._global_props.traffic_shadow_svc:
+            deployment_env_config.append({
+                "name": "KAFKA_SHADOW_URL",
+                "value": self._global_props.traffic_shadow_svc['k8s_url'],
+            })
+
         if self._queue is not None:
             deployment_env_config.append({
                 "name": "KAFKA_TOPIC",
