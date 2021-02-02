@@ -128,6 +128,8 @@ class EventCatchPoller:
                 etcd.put(trace_key, json.dumps(current_traces).encode())
 
     def _shadow_to_kafka(self, data, headers):
+        if not KAFKA_SHADOW_URL:
+            return
         o = urlparse(FORWARD_URL)
         headers['x-rexflow-original-host'] = o.netloc
         headers['x-rexflow-original-path'] = o.path
