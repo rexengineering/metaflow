@@ -43,6 +43,8 @@ https://github.com/uber/cadence-java-samples/tree/master/src/main/java/com/uber/
 - [x] Handle function arguments
     - First `*args`
     - Then `**kws`
+- [ ] Diagram generation via `graphviz`.
+- [ ] Diagram layout via `graphviz`. (+ any tweaks for Zeebe/Camunda modeler)
 - [ ] Handle `if...else` control flow
 - [ ] Handle `while` control flow
 - [ ] Plumbing solution
@@ -59,7 +61,7 @@ https://github.com/uber/cadence-java-samples/tree/master/src/main/java/com/uber/
         - (?) What happens when an exception occurs? (I imagine Hypercorn takes
         care of it somehow...it should have a top-level exception handler.)
         What should happen?
-    - [ ] Diagrams, automated layout, roundtrip support
+    - [ ] Roundtrip support
         - This would let us use the Zeebe modeler to view and edit generated
         BPMN.
 
