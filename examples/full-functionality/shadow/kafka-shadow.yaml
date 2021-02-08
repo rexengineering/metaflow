@@ -1,0 +1,54 @@
+##################################################################################################
+# Kafka Traffic Shadow Service
+##################################################################################################
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kafka-shadow
+  namespace: rexflow
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-shadow
+  namespace: rexflow
+  labels:
+    app: kafka-shadow
+spec:
+  ports:
+  - name: http
+    port: 5000
+    targetPort: 5000
+  selector:
+    app: kafka-shadow
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-shadow
+  namespace: rexflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-shadow
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: kafka-shadow
+        version: v1
+    spec:
+      serviceAccountName: kafka-shadow
+      containers:
+      - image: throw-gateway:1.0.0
+        imagePullPolicy: IfNotPresent
+        name: kafka-shadow
+        ports:
+        - containerPort: 5000
+        env:
+        - name: KAFKA_TOPIC
+          value: rexflow-all-traffic
+        - name: KAFKA_HOST
+          value: "my-cluster-kafka-bootstrap.kafka:9092"
+
