@@ -40,7 +40,7 @@ FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
-KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", "http://kafka-shadow.rexflow:5000/")
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 
 kafka = None
@@ -122,6 +122,8 @@ class EventCatchPoller:
                 etcd.put(trace_key, json.dumps(current_traces).encode())
 
     def _shadow_to_kafka(self, data, headers):
+        if not KAFKA_SHADOW_URL:
+            return
         o = urlparse(FORWARD_URL)
         headers['x-rexflow-original-host'] = o.netloc
         headers['x-rexflow-original-path'] = o.path
