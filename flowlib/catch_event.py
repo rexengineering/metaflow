@@ -144,6 +144,12 @@ class BPMNCatchEvent(BPMNComponent):
                 "value": os.environ['ETCD_HOST'],
             },
         ]
+        if self._global_props.traffic_shadow_svc:
+            env_config.append({
+                "name": "KAFKA_SHADOW_URL",
+                "value": self._global_props.traffic_shadow_svc['k8s_url'],
+            })
+        dns_safe_name = self.service_properties.host.replace('_', '-')
         k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
         k8s_objects.append(create_service(self._namespace, dns_safe_name, KAFKA_LISTEN_PORT))
         k8s_objects.append(create_deployment(

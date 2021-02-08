@@ -112,6 +112,11 @@ class BPMNEndEvent(BPMNComponent):
                 "value": self.transport_kafka_topic,
             }
         ]
+        if self._global_props.traffic_shadow_svc:
+            deployment_env_config.append({
+                "name": "KAFKA_SHADOW_URL",
+                "value": self._global_props.traffic_shadow_svc['k8s_url'],
+            })
 
         k8s_objects.append(create_serviceaccount(namespace, catch_service_name))
         k8s_objects.append(create_service(namespace, catch_service_name, port))

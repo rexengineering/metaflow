@@ -12,7 +12,7 @@ REXFLOW_XGW_FALSE_URL = os.environ['REXFLOW_XGW_FALSE_URL']
 FALSE_ATTEMPTS = int(os.environ['REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS'])
 TRUE_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS'])
 REXFLOW_XGW_FAIL_URL = os.environ['REXFLOW_XGW_FAIL_URL']
-KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", "http://kafka-shadow.rexflow:5000/")
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 TRACEID_HEADER = 'x-b3-traceid'
 
@@ -63,11 +63,12 @@ def conditional():
         # Notify Flowd that we failed.
         requests.post(REXFLOW_XGW_FAIL_URL, json=req_json, headers=headers)
 
-    try:
-        headers['x-rexflow-failure'] = True
-        requests.post(KAFKA_SHADOW_URL, headers=headers, json=req_json).raise_for_status()
-    except Exception:
-        logging.warning("Failed shadowing traffic to Kafka")
+    if KAFKA_SHADOW_URL:
+        try:
+            headers['x-rexflow-failure'] = True
+            requests.post(KAFKA_SHADOW_URL, headers=headers, json=req_json).raise_for_status()
+        except Exception:
+            logging.warning("Failed shadowing traffic to Kafka")
 
     resp = make_response({"status": 200, "msg": ""})
     if TRACEID_HEADER in request.headers:

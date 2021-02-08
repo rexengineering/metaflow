@@ -32,7 +32,7 @@ FUNCTION = os.getenv('REXFLOW_THROW_END_FUNCTION', 'THROW')
 WF_ID = os.getenv('WF_ID', None)
 END_EVENT_NAME = os.getenv('END_EVENT_NAME', None)
 
-KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", "http://kafka-shadow.rexflow:5000/")
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 
 kafka = None
@@ -55,6 +55,8 @@ def send_to_stream(data, flow_id, wf_id, content_type):
 
 
 def _shadow_to_kafka(data, headers):
+    if not KAFKA_SHADOW_URL:
+        return
     o = urlparse(FORWARD_URL)
     headers['x-rexflow-original-host'] = o.netloc
     headers['x-rexflow-original-path'] = o.path
