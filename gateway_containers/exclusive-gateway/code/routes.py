@@ -1,16 +1,14 @@
 from code import app
 from flask import request, make_response, jsonify
+import json
 import logging
 import os
 import requests
 from urllib.parse import urlparse
 
 
-REXFLOW_XGW_EXPRESSION = os.environ['REXFLOW_XGW_EXPRESSION']
-REXFLOW_XGW_TRUE_URL = os.environ['REXFLOW_XGW_TRUE_URL']
-REXFLOW_XGW_FALSE_URL = os.environ['REXFLOW_XGW_FALSE_URL']
-FALSE_ATTEMPTS = int(os.environ['REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS'])
-TRUE_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS'])
+CONDITIONAL_PATHS = json.loads(os.environ['REXFLOW_XGW_CONDITIONAL_PATHS'])
+DEFAULT_PATH = json.loads(os.environ['REXFLOW_XGW_DEFAULT_PATH'])
 REXFLOW_XGW_FAIL_URL = os.environ['REXFLOW_XGW_FAIL_URL']
 KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
@@ -26,36 +24,56 @@ FORWARD_HEADERS = [
     'x-ot-span-context',
 ]
 
-TRUE_TASK_ID = os.environ['REXFLOW_TRUE_TASK_ID']
-FALSE_TASK_ID = os.environ['REXFLOW_FALSE_TASK_ID']
-
 
 @app.route('/', methods=['POST'])
 def conditional():
     req_json = request.json
-    comparison_result = eval(REXFLOW_XGW_EXPRESSION)
+    total_attempts = None
+    target_url = None
+    target_component_id = None
 
-    url = REXFLOW_XGW_TRUE_URL if comparison_result else REXFLOW_XGW_FALSE_URL
+    # For now, the following loop just iterates over one item (since we haven't yet
+    # worked with Jon to figure out how to support multiple outgoing branches in
+    # a single XGW).
+    for path in CONDITIONAL_PATHS:
+        if path['type'] == 'python':
+            if eval(path['expression']):
+                total_attempts = path['total_attempts']
+                target_url = path['k8s_url']
+                target_component_id = path['component_id']
+                break
+        elif path['type'] == 'feel':
+            assert False, "TODO: Do the FEEL stuff."
+        else:
+            assert False, "unsupported expression type."
+
+    if not target_url and not total_attempts and not target_component_id:
+        total_attempts = DEFAULT_PATH['total_attempts']
+        target_url = DEFAULT_PATH['k8s_url']
+        target_component_id = DEFAULT_PATH['component_id']
+
     headers = {
         'x-flow-id': request.headers['x-flow-id'],
         'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
-        'x-rexflow-task-id': TRUE_TASK_ID if comparison_result else FALSE_TASK_ID
+        'x-rexflow-task-id': target_component_id,
     }
     for h in FORWARD_HEADERS:
         if h in request.headers:
             headers[h] = request.headers[h]
 
     success = False
-    for _ in range(TRUE_ATTEMPTS if comparison_result else FALSE_ATTEMPTS):
+    for _ in range(total_attempts):
         try:
-            response = requests.post(url, json=req_json, headers=headers)
+            response = requests.post(target_url, json=req_json, headers=headers)
             response.raise_for_status()
             success = True
             break
         except Exception:
-            logging.error(f"failed making a call to {url} on wf {request.headers['x-flow-id']}")
+            logging.error(
+                f"failed making a call to {target_url} on wf {request.headers['x-flow-id']}"
+            )
 
-    o = urlparse(url)
+    o = urlparse(target_url)
     headers['x-rexflow-original-host'] = o.netloc
     headers['x-rexflow-original-path'] = o.path
 

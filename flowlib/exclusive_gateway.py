@@ -3,11 +3,16 @@ Implements the BPMNXGateway object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict
+import json
 import os
 from typing import Mapping
 
 import yaml
-from .bpmn_util import iter_xmldict_for_key, BPMNComponent
+from .bpmn_util import (
+    iter_xmldict_for_key,
+    BPMNComponent,
+    outgoing_sequence_flow_table,
+)
 
 from .k8s_utils import (
     create_deployment,
@@ -29,25 +34,26 @@ class BPMNXGateway(BPMNComponent):
     def __init__(self, gateway: OrderedDict, process: OrderedDict = None, global_props=None):
         super().__init__(gateway, process, global_props)
         self.expression = ""
-        self.true_forward_componentid = None
-        self.false_forward_componentid = None
         self._gateway = gateway
+        self._branches = []
 
-        assert 'expression' in self._annotation, "XGateway: Must specify comparison expression."
-        self.expression = self.annotation['expression']
-
-        # We've got the annotation. From here, let's find out the name of the resulting
-        # gateway service.
-        self.name = f"{XGATEWAY_SVC_PREFIX}-{self.annotation['gateway_name']}"
-        assert ('service' not in self.annotation), "X-Gateway service-name must be auto-inferred"
+        if 'gateway_name' in self._annotation:
+            self.name = self.annotation['gateway_name']
+        else:
+            self.name = self.id.lower().replace('_', '-')
 
         self._service_properties.update({
             "port": XGATEWAY_LISTEN_PORT,
             "host": self.name,
         })
 
+        self.default_path = None
+        self.conditional_paths = []
+
     def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
                                 digraph: OrderedDict) -> list:
+        assert False, "Reliable WF needs to be updated with new XGW architecture."
+
         # Need to create 4 things:
         # 1. The Kafka listener
         # 2. The actual Exclusive Gateway
@@ -286,37 +292,37 @@ class BPMNXGateway(BPMNComponent):
            so that the developer may send traffic from his/her terminal into
            the cluster (i.e. the VS attaches to a Gateway).
         '''
-        # First, use the component_map and digraph to figure out what needs to be sent to where
-        true_next_cookie = self.annotation['gateway_true']['next_step']
-        false_next_cookie = self.annotation['gateway_false']['next_step']
+        self.outgoing_edges = outgoing_sequence_flow_table(self._proc)[self.id]
+        for edge in self.outgoing_edges:
+            if 'bpmn:conditionExpression' in edge:
+                expr = edge['bpmn:conditionExpression']['#text']
+                assert expr.startswith('python: ') or expr.startswith('feel: ')
+                bpmn_component = component_map[edge['@targetRef']]
+                if expr.startswith('python: '):
+                    self.conditional_paths.append({
+                        'type': 'python',
+                        'expression': expr[8:],
+                        'component_id': bpmn_component.id,  # equivalent to edge['@targetRef']
+                        'k8s_url': bpmn_component.k8s_url,
+                        'total_attempts': bpmn_component.call_properties.total_attempts,
+                    })
+                else:
+                    assert False, "Need to implement the FEEL stuff..."
+            else:
+                assert self.default_path is None, "Can only have one default path for XGW."
+                default_component = component_map[edge['@targetRef']]
+                self.default_path = {
+                    "component_id": edge['@targetRef'],  # equivalent to default_component.id
+                    "k8s_url": default_component.k8s_url,
+                    "total_attempts": default_component.call_properties.total_attempts,
+                }
+        
+        # Note: we may or may not take this out for FEEL...
+        assert self.default_path is not None, "Must have a default path"
 
-        # Look at the digraph to find out the two possible next steps. Then check the annotations
-        # for each of the steps to see which we go to for "true" evaluations and which we go to
-        # for "false" evaluations.
-        outgoing_calls = digraph[self.id]
-        assert len(outgoing_calls) == 2  # for now, XGateways only implement binary choice.
-
-        outgoing_component_targets = {
-            association['@targetRef']: association['@sourceRef']
-            for association in iter_xmldict_for_key(self._proc, 'bpmn:association')
-            if association['@sourceRef'] in outgoing_calls
-        }
-        for annotation in iter_xmldict_for_key(self._proc, 'bpmn:textAnnotation'):
-            if (annotation['@id'] not in outgoing_component_targets.keys()):
-                continue
-            if not annotation['bpmn:text'].startswith('rexflow:'):
-                continue
-
-            annot_dict = yaml.safe_load(annotation['bpmn:text'].replace('\xa0', ''))['rexflow']
-            if 'next_step_id' in annot_dict:
-                if annot_dict['next_step_id'] == true_next_cookie:
-                    assert not self.true_forward_componentid
-                    self.true_forward_componentid = outgoing_component_targets[annotation['@id']]
-                if annot_dict['next_step_id'] == false_next_cookie:
-                    assert not self.false_forward_componentid
-                    self.false_forward_componentid = outgoing_component_targets[annotation['@id']]
-        assert self.true_forward_componentid
-        assert self.false_forward_componentid
+        # TODO: Work with Jon to see what a BPMN document would look like with more than
+        # two outgoing edges from a BPMN diagram.
+        assert len(self.conditional_paths) == 1, "Not implemented."
 
         # Ok, now we're ready to go for creating k8s specs.
         if self._global_props._is_reliable_transport:
@@ -329,42 +335,20 @@ class BPMNXGateway(BPMNComponent):
         port = self.service_properties.port
 
         env_config = [
-            {'name': 'REXFLOW_XGW_EXPRESSION', 'value': self.expression},
-            {
-                'name': 'REXFLOW_XGW_TRUE_URL',
-                'value': component_map[self.true_forward_componentid].k8s_url,
-            },
-            {
-                'name': 'REXFLOW_XGW_FALSE_URL',
-                'value': component_map[self.false_forward_componentid].k8s_url,
-            },
-            {
-                'name': 'REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS',
-                'value': component_map[
-                    self.false_forward_componentid
-                ].call_properties.total_attempts,
-            },
-            {
-                'name': 'REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS',
-                'value': component_map[
-                    self.true_forward_componentid
-                ].call_properties.total_attempts,
-            },
             {
                 'name': 'REXFLOW_XGW_FAIL_URL',
                 'value': 'http://flowd.rexflow:9002/instancefail'
             },
+            # TODO: (?) move the following two env vars to a k8s configMap, and mount as a file
+            # on the XGW container. Could be too much data for env vars in a non-trivial
+            # future use-case. Or, it might be fine as-is. Not sure.
             {
-                'name': 'REXFLOW_TRUE_TASK_ID',
-                'value': component_map[
-                    self.true_forward_componentid
-                ].id
+                'name': 'REXFLOW_XGW_CONDITIONAL_PATHS',
+                'value': json.dumps(self.conditional_paths),
             },
             {
-                'name': 'REXFLOW_FALSE_TASK_ID',
-                'value': component_map[
-                    self.false_forward_componentid
-                ].id
+                'name': 'REXFLOW_XGW_DEFAULT_PATH',
+                'value': json.dumps(self.default_path),
             }
         ]
         if self._global_props.traffic_shadow_svc:

@@ -37,6 +37,20 @@ def raw_proc_to_digraph(proc: OrderedDict):
     return digraph
 
 
+def outgoing_sequence_flow_table(proc: OrderedDict):
+    '''Takes in an OrderedDict (just the BPMN Process).
+    Returns a dict mapping from a BPMN Component ID to a List of the outward
+    edge id's flowing from that component.
+    '''
+    outflows = {}
+    for sequence_flow in iter_xmldict_for_key(proc, 'bpmn:sequenceFlow'):
+        source_id = sequence_flow['@sourceRef']
+        if source_id not in outflows:
+            outflows[source_id] = []
+        outflows[source_id].append(sequence_flow)
+    return outflows
+
+
 def get_annotations(process: OrderedDict, source_ref=None):
     '''Takes in a BPMN process and BPMN Component ID and returns a generator.
     Yields python dictionaries containing the yaml-like REXFlow annotations
