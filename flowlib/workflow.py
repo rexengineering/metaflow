@@ -75,7 +75,7 @@ class Workflow:
                 self._create_kafka_topics()
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'create', '-f', '-'],
+                ['kubectl', 'apply', '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
             if kubectl_result.stdout:
