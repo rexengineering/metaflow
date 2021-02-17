@@ -347,7 +347,7 @@ class WorkflowProperties:
             proto = svc_annots.get('protocol', 'http')
             self._traffic_shadow_svc = {}
             k8s_url = f'{proto}://{svc_annots["host"]}.{svc_annots["namespace"]}:'
-            k8s_url +=f'{svc_annots["port"]}{path}'
+            k8s_url += f'{svc_annots["port"]}{path}'
 
             envoy_host = f'{svc_annots["host"]}.{svc_annots["namespace"]}.svc.cluster.local'
             envoy_cluster = f'outbound|{svc_annots["port"]}||{envoy_host}'

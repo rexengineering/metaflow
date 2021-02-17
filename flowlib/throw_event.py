@@ -14,7 +14,6 @@ from .k8s_utils import (
     create_deployment_affinity,
 )
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,

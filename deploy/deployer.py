@@ -52,8 +52,8 @@ class Deployer:
             self.custom_api.delete_namespaced_custom_object)
 
     def create(self, _):
-        print("The deploy module is used for dev deployments. As such, we are now " +\
-            "setting the kube context to docker-desktop.", flush=True)
+        print("The deploy module is used for dev deployments. As such, we are now "
+              "setting the kube context to docker-desktop.", flush=True)
         subprocess.check_output("kubectl config use-context docker-desktop".split())
         self.create_namespace(specs.rexflow_namespace_spec)
         # ETCD
@@ -100,8 +100,8 @@ class Deployer:
                   "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
 
     def delete(self, _):
-        print("The deploy module is used for dev deployments. As such, we are now " +\
-            "setting the kube context to docker-desktop.", flush=True)
+        print("The deploy module is used for dev deployments. As such, we are now "
+              "setting the kube context to docker-desktop.", flush=True)
         subprocess.check_output("kubectl config use-context docker-desktop".split())
         self.delete_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
@@ -126,7 +126,7 @@ class Deployer:
         self.delete_namespaced_service_account('rexflow-etcd', 'rexflow')
         self.delete_namespace('rexflow')
 
-        # os.system("kubectl delete -f "
-        #           "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
-        # os.system("kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
-        # os.system("kubectl delete ns kafka")
+        os.system("kubectl delete -f "
+                  "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
+        os.system("kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
+        os.system("kubectl delete ns kafka")

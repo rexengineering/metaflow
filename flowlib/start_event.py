@@ -222,7 +222,7 @@ class BPMNStartEvent(BPMNComponent):
             },
             {
                 "name": "ETCD_HOST",
-                "value": os.environ['ETCD_HOST'],
+                "value": ETCD_HOST,
             }
         ]
         if self._global_props.traffic_shadow_svc:

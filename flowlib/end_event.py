@@ -167,7 +167,7 @@ class BPMNEndEvent(BPMNComponent):
             },
             {
                 "name": "ETCD_HOST",
-                "value": os.getenv('ETCD_HOST', 'rexflow-etcd.rexflow:9002'),
+                "value": ETCD_HOST,
             },
         ]
         if self._queue is not None:

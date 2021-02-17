@@ -235,7 +235,7 @@ class EventCatchApp(QuartApp):
             if key in key_results:
                 value = event.value.decode('utf-8')
                 key_results[key] = value
-                if all([key_results[k] != None for k in key_results.keys()]):
+                if all([key_results[k] is not None for k in key_results.keys()]):
                     cancel_watch()
                     return key_results
         return None
