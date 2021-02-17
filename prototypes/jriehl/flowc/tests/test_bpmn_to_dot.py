@@ -2,14 +2,17 @@ import unittest
 
 import graphviz
 
+from flowc.bpmn2 import bpmn
+
 from .. import flowclib, bpmn_to_dot
 from .test_flowclib import HELLO_PATH
+
 
 class TestBPMNToDot(unittest.TestCase):
     def _get_bpmn(self):
         with open(HELLO_PATH) as file_obj:
             visitor = flowclib.parse(file_obj)
-        definitions = visitor.to_bpmn()
+        definitions = visitor.to_bpmn(include_diagram=False)
         assert (
             len(definitions) == 1 and
             isinstance(definitions[0], flowclib.bpmn.Process)
@@ -45,6 +48,23 @@ class TestBPMNToDot(unittest.TestCase):
         digraph = bpmn_to_dot.bpmn_to_dot(process)
         svg = bpmn_to_dot.dot_to_svg(digraph)
         self.assertEqual(len(svg), 1)
+
+    def test_svg_to_bpmndi(self):
+        definitions = self._get_bpmn()
+        process = definitions[0]
+        assert isinstance(process, flowclib.bpmn.Process)
+        process_elements = set(
+            getattr(element, 'id', None) for element in process
+        )
+        diagram = bpmn_to_dot.process_to_diagram(process)
+        self.assertIsInstance(diagram, bpmn_to_dot.bpmndi.BPMNDiagram)
+        self.assertEqual(len(diagram), 1)
+        plane = diagram[0]
+        self.assertIsInstance(plane, bpmn_to_dot.bpmndi.BPMNPlane)
+        diagram_elements = set(
+            getattr(element, 'bpmnElement') for element in plane
+        )
+        self.assertEqual(process_elements, diagram_elements)
 
 if __name__ == '__main__':
     unittest.main()

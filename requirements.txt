@@ -15,6 +15,7 @@ gql[aiohttp]==3.0.0a5
 pydantic==1.8.*
 isodate
 graphviz
+Pillow
 # Optional development dependency
 grpcio-tools
 pudb

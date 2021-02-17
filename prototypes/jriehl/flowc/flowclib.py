@@ -10,8 +10,8 @@ from typing import Any, TextIO, Union
 
 import jinja2
 
-from . import cmof, flowcode, quart_wrapper, visitors
-from .bpmn2 import bpmn
+from . import cmof, flowcode, quart_wrapper, visitors, bpmn_to_dot
+from .bpmn2 import bpmn, registry
 
 
 LHSs = Union[
@@ -121,7 +121,7 @@ class ToplevelVisitor(ast.NodeVisitor):
         self.counter += 1
         return result
 
-    def to_bpmn(self) -> bpmn.Definitions:
+    def to_bpmn(self, include_diagram: bool = True) -> bpmn.Definitions:
         self.counter = 1
         start_event = bpmn.StartEvent(
             id=f'StartEvent_{self.counter_postinc}', name='Start'
@@ -142,7 +142,16 @@ class ToplevelVisitor(ast.NodeVisitor):
         process.extend(service_tasks)
         process.append(end_event)
         process.extend(sequence_flows)
-        return bpmn.Definitions([process])
+        packages = registry.package_map
+        attrs = {
+            f'xmlns:{prefix}': package_data['uri']
+            for prefix, package_data in packages.items()
+        }
+        attrs.update(exporter='REXFlow Compiler', exporterVersion='0.0.1')
+        result = bpmn.Definitions([process], **attrs)
+        if include_diagram:
+            result.append(bpmn_to_dot.process_to_diagram(process))
+        return result
 
     def generic_visit(self, node: ast.AST) -> Any:
         raise ValueError(
