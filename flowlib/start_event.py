@@ -16,12 +16,18 @@ from .k8s_utils import (
     create_deployment_affinity,
 )
 
+from .config import (
+    ETCD_HOST,
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+    IS_PRODUCTION,
+)
+
 
 START_EVENT_PREFIX = 'start'
-START_EVENT_LISTEN_PORT = '5000'
-KAFKA_LISTEN_PORT = '5000'
-START_EVENT_CONTAINER = 'catch-gateway:1.0.0'
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 ATTEMPTS = 2
 
 
@@ -36,8 +42,8 @@ class BPMNStartEvent(BPMNComponent):
 
         self._service_properties.update({
             'host': self._service_name,
-            'port': START_EVENT_LISTEN_PORT,
-            'container': START_EVENT_CONTAINER,
+            'port': CATCH_LISTEN_PORT,
+            'container': CATCH_IMAGE,
         })
 
         # Check if we listen to a kafka topic to start events.
@@ -52,10 +58,10 @@ class BPMNStartEvent(BPMNComponent):
         # 1. Create the Start Event (which uses the catch-gateway image)
         # 2. Per Hong's design, set up a python daemon that connects the Start Event to the
         # first step in the WF through its designated Kafka topic.
+        assert KAFKA_HOST is not None, "Kafka Installation required for reliable WF."
 
         k8s_objects = []
         start_service_name = self.service_properties.host.replace('_', '-')
-        port = self.service_properties.port
         namespace = self._namespace
 
         forward_set = list(digraph.get(self.id, set()))
@@ -84,7 +90,7 @@ class BPMNStartEvent(BPMNComponent):
             },
             {
                 "name": "FORWARD_URL",
-                "value": f"http://{throw_service_name}.{self._namespace}:{KAFKA_LISTEN_PORT}/",
+                "value": f"http://{throw_service_name}.{self._namespace}:{THROW_LISTEN_PORT}/",
             },
             {
                 "name": "FORWARD_TASK_ID",
@@ -111,21 +117,23 @@ class BPMNStartEvent(BPMNComponent):
             })
 
         k8s_objects.append(create_serviceaccount(namespace, start_service_name))
-        k8s_objects.append(create_service(namespace, start_service_name, port))
+        k8s_objects.append(create_service(namespace, start_service_name, CATCH_LISTEN_PORT))
         k8s_objects.append(create_deployment(
             namespace,
             start_service_name,
-            "catch-gateway:1.0.0",
-            port,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             deployment_env_config,
         ))
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            start_service_name,
-            uri_prefix=f'/{start_service_name}',
-            dest_port=port,
-            dest_host=f'{start_service_name}.{namespace}.svc.cluster.local',
-        ))
+
+        if not IS_PRODUCTION:
+            k8s_objects.append(create_rexflow_ingress_vs(
+                namespace,
+                start_service_name,
+                uri_prefix=f'/{start_service_name}',
+                dest_port=CATCH_LISTEN_PORT,
+                dest_host=f'{start_service_name}.{namespace}.svc.cluster.local',
+            ))
 
         # Now create the daemon to connect Start Event to First Task
         env_config = [
@@ -152,12 +160,12 @@ class BPMNStartEvent(BPMNComponent):
         ]
 
         k8s_objects.append(create_serviceaccount(self._namespace, throw_service_name))
-        k8s_objects.append(create_service(self._namespace, throw_service_name, port))
+        k8s_objects.append(create_service(self._namespace, throw_service_name, THROW_LISTEN_PORT))
         deployment = create_deployment(
             self._namespace,
             throw_service_name,
-            'throw-gateway:1.0.0',
-            port,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -184,10 +192,6 @@ class BPMNStartEvent(BPMNComponent):
         task = component_map[forward_set[0]]
 
         deployment_env_config = [
-            {
-                "name": 'KAFKA_HOST',
-                "value": KAFKA_HOST,
-            },
             {
                 "name": "REXFLOW_CATCH_START_FUNCTION",
                 "value": "START",
@@ -228,9 +232,14 @@ class BPMNStartEvent(BPMNComponent):
             })
 
         if self._queue is not None:
+            assert KAFKA_HOST is not None, "Kafka installation required for this BPMN Doc."
             deployment_env_config.append({
                 "name": "KAFKA_TOPIC",
                 "value": self._queue,
+            })
+            deployment_env_config.append({
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
             })
 
         k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
@@ -242,11 +251,12 @@ class BPMNStartEvent(BPMNComponent):
             port,
             deployment_env_config,
         ))
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            dns_safe_name,
-            uri_prefix=f'/{dns_safe_name}',
-            dest_port=port,
-            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
-        ))
+        if not IS_PRODUCTION:
+            k8s_objects.append(create_rexflow_ingress_vs(
+                namespace,
+                dns_safe_name,
+                uri_prefix=f'/{dns_safe_name}',
+                dest_port=port,
+                dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
+            ))
         return k8s_objects

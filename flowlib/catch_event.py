@@ -14,11 +14,16 @@ from .k8s_utils import (
     create_serviceaccount,
     create_deployment_affinity,
 )
+from .config import (
+    ETCD_HOST,
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+)
 
-CATCH_GATEWAY_LISTEN_PORT = 5000
 CATCH_GATEWAY_SVC_PREFIX = "catch"
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
-KAFKA_LISTEN_PORT = 5000
 
 
 class BPMNCatchEvent(BPMNComponent):
@@ -43,11 +48,12 @@ class BPMNCatchEvent(BPMNComponent):
 
         self._service_properties.update({
             "host": self.name,
-            "port": CATCH_GATEWAY_LISTEN_PORT,
+            "port": CATCH_LISTEN_PORT,
         })
 
     def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
                                 digraph: OrderedDict) -> list:
+        assert KAFKA_HOST is not None, "Kafka Installation required for reliable WF."
         k8s_objects = []
         # Two things to do:
         # 1. The Special Kafka Transport Pod, which then fires an event to the Kafka
@@ -88,12 +94,12 @@ class BPMNCatchEvent(BPMNComponent):
             },
         ]
         k8s_objects.append(create_serviceaccount(self._namespace, throw_service_name))
-        k8s_objects.append(create_service(self._namespace, throw_service_name, KAFKA_LISTEN_PORT))
+        k8s_objects.append(create_service(self._namespace, throw_service_name, THROW_LISTEN_PORT))
         deployment = create_deployment(
             self._namespace,
             throw_service_name,
-            'throw-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         )
         # The name for the actual Start Event
@@ -121,7 +127,7 @@ class BPMNCatchEvent(BPMNComponent):
             },
             {
                 "name": "FORWARD_URL",
-                "value": f"http://{throw_service_name}.{self._namespace}:{KAFKA_LISTEN_PORT}/",
+                "value": f"http://{throw_service_name}.{self._namespace}:{THROW_LISTEN_PORT}/",
             },
             {
                 "name": "WF_ID",
@@ -151,12 +157,12 @@ class BPMNCatchEvent(BPMNComponent):
             })
         dns_safe_name = self.service_properties.host.replace('_', '-')
         k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
-        k8s_objects.append(create_service(self._namespace, dns_safe_name, KAFKA_LISTEN_PORT))
+        k8s_objects.append(create_service(self._namespace, dns_safe_name, CATCH_LISTEN_PORT))
         k8s_objects.append(create_deployment(
             self._namespace,
             dns_safe_name,
-            'catch-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             env_config,
         ))
 
@@ -164,6 +170,7 @@ class BPMNCatchEvent(BPMNComponent):
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict) -> list:
+        assert KAFKA_HOST is not None, "Kafka Installation required for Catch Events."
         if self._global_props._is_reliable_transport:
             return self._to_kubernetes_reliable(id_hash, component_map, digraph)
 
@@ -234,8 +241,8 @@ class BPMNCatchEvent(BPMNComponent):
         k8s_objects.append(create_deployment(
             self._namespace,
             dns_safe_name,
-            'catch-gateway:1.0.0',
-            port,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             env_config,
         ))
         return k8s_objects

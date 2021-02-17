@@ -13,13 +13,18 @@ from .k8s_utils import (
     create_serviceaccount,
     create_deployment_affinity,
 )
+from .config import (
+    ETCD_HOST,
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+)
 
 Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 
-THROW_GATEWAY_LISTEN_PORT = 5000
 THROW_GATEWAY_SVC_PREFIX = "throw"
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
-KAFKA_LISTEN_PORT = 5000
 
 
 class BPMNThrowEvent(BPMNComponent):
@@ -39,7 +44,7 @@ class BPMNThrowEvent(BPMNComponent):
         assert 'service' not in self._annotation, "Service properties auto-inferred for Throw Event"
 
         self._service_properties.update({
-            "port": THROW_GATEWAY_LISTEN_PORT,
+            "port": THROW_LISTEN_PORT,
             "host": self.name,
         })
 
@@ -86,12 +91,12 @@ class BPMNThrowEvent(BPMNComponent):
         catch_daemon_name = f'{self.id}-{self.transport_kafka_topic}'.lower().replace('_', '-')
 
         k8s_objects.append(create_serviceaccount(self._namespace, catch_daemon_name))
-        k8s_objects.append(create_service(self._namespace, catch_daemon_name, KAFKA_LISTEN_PORT))
+        k8s_objects.append(create_service(self._namespace, catch_daemon_name, CATCH_LISTEN_PORT))
         deployment = create_deployment(
             self._namespace,
             catch_daemon_name,
-            'catch-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -105,6 +110,7 @@ class BPMNThrowEvent(BPMNComponent):
                       id_hash,
                       component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict) -> list:
+        assert KAFKA_HOST is not None, "Kafka Installation required for Throw Events."
         k8s_objects = []
 
         # k8s ServiceAccount
@@ -163,8 +169,8 @@ class BPMNThrowEvent(BPMNComponent):
         k8s_objects.append(create_deployment(
             self._namespace,
             dns_safe_name,
-            'throw-gateway:1.0.0',
-            port,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         ))
 

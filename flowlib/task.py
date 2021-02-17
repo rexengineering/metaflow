@@ -25,6 +25,8 @@ KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 ETCD_HOST = os.getenv("ETCD_HOST", "rexflow-etcd.rexflow:9002")
 KAFKA_LISTEN_PORT = 5000
 
+IS_PRODUCTION = os.getenv("REXFLOW_IS_PRODUCTION", False) == 'True'
+
 
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
@@ -357,13 +359,14 @@ class BPMNTask(BPMNComponent):
             port,
             env=[],
         ))
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            f'{dns_safe_name}-{self._global_props.id_hash}',
-            uri_prefix=uri_prefix,
-            dest_port=port,
-            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
-        ))
+        if not IS_PRODUCTION:
+            k8s_objects.append(create_rexflow_ingress_vs(
+                namespace,
+                f'{dns_safe_name}-{self._global_props.id_hash}',
+                uri_prefix=uri_prefix,
+                dest_port=port,
+                dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
+            ))
 
         return k8s_objects
 

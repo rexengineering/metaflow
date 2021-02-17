@@ -107,7 +107,15 @@ mk_flowd_deployment_spec = lambda etcd_host : {  # noqa
                     'imagePullPolicy': 'IfNotPresent',
                     'name': 'flowd',
                     'ports': [{'containerPort': 9001}, {'containerPort': 9002}],
-                    'env': [{'name': 'ETCD_HOST', 'value': etcd_host}]
+                    'env': [
+                        {'name': 'ETCD_HOST', 'value': etcd_host},
+                        {'name': 'KAFKA_HOST', 'value': 'my-cluster-kafka-bootstrap.kafka:9092'},
+                        {'name': 'REXFLOW_XGW_IMAGE', 'value': 'exclusive-gateway'},
+                        {'name': 'REXFLOW_CATCH_IMAGE', 'value': 'catch-gateway'},
+                        {'name': 'REXFLOW_THROW_IMAGE', 'value': 'throw-gateway'},
+                        {'name': 'REXFLOW_VERSION', 'value': '1.0.0'},
+                        {'name': 'REXFLOW_IS_PRODUCTION', 'value': 'False'},
+                    ]
                 }],
                 'serviceAccountName': 'flowd'}
         }
