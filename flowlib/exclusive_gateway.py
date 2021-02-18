@@ -306,8 +306,14 @@ class BPMNXGateway(BPMNComponent):
                         'k8s_url': bpmn_component.k8s_url,
                         'total_attempts': bpmn_component.call_properties.total_attempts,
                     })
-                else:
-                    assert False, "Need to implement the FEEL stuff..."
+                else: # elif expr.startswith('feel: '):
+                    self.conditional_paths.append({
+                        'type': 'feel',
+                        'expression': expr[6:],
+                        'component_id': bpmn_component.id,  # equivalent to edge['@targetRef']
+                        'k8s_url': bpmn_component.k8s_url,
+                        'total_attempts': bpmn_component.call_properties.total_attempts,
+                    })
             else:
                 assert self.default_path is None, "Can only have one default path for XGW."
                 default_component = component_map[edge['@targetRef']]
