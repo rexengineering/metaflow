@@ -3,6 +3,8 @@
 
 from collections import OrderedDict
 from io import IOBase
+import hashlib
+import json
 import logging
 import os
 import subprocess
@@ -39,6 +41,7 @@ REX_ISTIO_PROXY_IMAGE = os.getenv('REX_ISTIO_PROXY_IMAGE', 'rex-proxy:1.8.2')
 class BPMNProcess:
     def __init__(self, process: OrderedDict):
         self._process = process
+        self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()
         entry_point = process['bpmn:startEvent']
         assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
         self.entry_point = entry_point
