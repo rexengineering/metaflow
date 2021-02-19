@@ -299,18 +299,14 @@ class BPMNXGateway(BPMNComponent):
         for edge in self.outgoing_edges:
             if 'bpmn:conditionExpression' in edge:
                 expr = edge['bpmn:conditionExpression']['#text']
-                assert expr.startswith('python: ') or expr.startswith('feel: ')
                 bpmn_component = component_map[edge['@targetRef']]
-                if expr.startswith('python: '):
-                    self.conditional_paths.append({
-                        'type': 'python',
-                        'expression': expr[8:],
-                        'component_id': bpmn_component.id,  # equivalent to edge['@targetRef']
-                        'k8s_url': bpmn_component.k8s_url,
-                        'total_attempts': bpmn_component.call_properties.total_attempts,
-                    })
-                else:
-                    assert False, "Need to implement the FEEL stuff..."
+                self.conditional_paths.append({
+                    'type': self._global_props.xgw_expression_type,
+                    'expression': expr,
+                    'component_id': bpmn_component.id,  # equivalent to edge['@targetRef']
+                    'k8s_url': bpmn_component.k8s_url,
+                    'total_attempts': bpmn_component.call_properties.total_attempts,
+                })
             else:
                 assert self.default_path is None, "Can only have one default path for XGW."
                 default_component = component_map[edge['@targetRef']]

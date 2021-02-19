@@ -54,10 +54,29 @@ flowd-55c5876466-fvwjp         1/1     Running   0          14s
 healthd-7675dc5c99-7lhn5       1/1     Running   0          14s
 rexflow-etcd-6c879bc4b-djhft   1/1     Running   0          14s
 ```
+Fourth, build and deploy the dmnserver container.
 
-Fourth, configure your `flowctl` tool to use the Flow Daemon you just set up:
+This requires you to checkout the rexflow-dmn-server repo, and in that repo:
+
+```
+% ./build.sh && ./deploy.sh
+
+```
+Check to see that the container is running in the rexflow namespace:
+
+```
+NAME                            READY   STATUS    RESTARTS   AGE
+dmnserver-6d566d7695-lwz5r      1/1     Running   0          14s
+flowd-55c5876466-fvwjp          1/1     Running   0          24m
+healthd-7675dc5c99-7lhn5        1/1     Running   0          24m
+rexflow-etcd-6c879bc4b-djhft    1/1     Running   0          24m
+
+```
+
+Fifth, configure your `flowctl` tool to use the Flow Daemon you just set up:
 
 ```console
+-- return to your rexflow repo
 % export FLOWD_HOST=localhost
 % export FLOWD_PORT=80
 % python -m flowctl ps

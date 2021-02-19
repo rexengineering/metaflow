@@ -43,7 +43,21 @@ def conditional():
                 target_component_id = path['component_id']
                 break
         elif path['type'] == 'feel':
-            assert False, "TODO: Do the FEEL stuff."
+            headers = {'Content-type' : 'application/json'}
+            dataz = [{path['expression'] : "True", "":"False"}, req_json]
+
+            # TODO: move this hardcoded uri to somwhere configurations live
+            response = requests.post(
+                "http://dmnserver.rexflow:8001/dmn/dt", 
+                headers=headers, 
+                data=json.dumps(dataz)
+            )
+
+            if response.json()[0]['result'] == "True":
+                total_attempts = path['total_attempts']
+                target_url = path['k8s_url']
+                target_component_id = path['component_id']
+                break
         else:
             assert False, "unsupported expression type."
 
