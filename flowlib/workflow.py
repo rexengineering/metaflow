@@ -30,7 +30,8 @@ class Workflow:
     def __init__(self, process: bpmn.BPMNProcess, id=None):
         self.process = process
         if id is None:
-            self.id = f'{self.process.id}-{self.process.hash[:8]}'
+            # self.id = f'{self.process.id}-{self.process.hash[:8]}'
+            self.id = self.process.id
         else:
             self.id = id
         self.keys = WorkflowKeys(self.id)

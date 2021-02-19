@@ -41,7 +41,7 @@ REX_ISTIO_PROXY_IMAGE = os.getenv('REX_ISTIO_PROXY_IMAGE', 'rex-proxy:1.8.2')
 class BPMNProcess:
     def __init__(self, process: OrderedDict):
         self._process = process
-        self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()
+        self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
         entry_point = process['bpmn:startEvent']
         assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
         self.entry_point = entry_point
@@ -53,6 +53,12 @@ class BPMNProcess:
 
         self.namespace = self.properties.namespace
         self.namespace_shared = self.properties.namespace_shared
+
+        # Put the hash in the id
+        self.properties.update({
+            'id_hash': self.hash,
+            'id': f'{self.properties.id}-{self.hash}',
+        })
         self.id = self.properties.id
 
         # needed for calculation of some BPMN Components

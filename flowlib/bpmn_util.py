@@ -261,7 +261,7 @@ class WorkflowProperties:
         self._id = ''
         self._namespace = None
         self._namespace_shared = False
-        self._id_hash = ''
+        self._id_hash = None
         self._retry_total_attempts = 2
         self._is_recoverable = False
         self._is_reliable_transport = False
@@ -277,6 +277,7 @@ class WorkflowProperties:
 
     @property
     def id_hash(self):
+        assert self._id_hash is not None, "NewGradProgrammerError: id_hash should be set by now"
         return self._id_hash
 
     @property
@@ -327,7 +328,6 @@ class WorkflowProperties:
 
         if 'id' in annotations:
             self._id = annotations['id']
-            self._id_hash = calculate_id_hash(self._id)
             if not self._namespace_shared:
                 self._namespace = self._id
 
@@ -342,6 +342,9 @@ class WorkflowProperties:
             assert annotations['reliable_transport'] == 'kafka'
             self._is_reliable_transport = True
             self._is_recoverable = True
+
+        if 'id_hash' in annotations:
+            self._id_hash = annotations['id_hash']
 
         if 'traffic_shadow_svc' in annotations:
             assert not self._is_reliable_transport, "Shadowing traffic not allowed in Reliable WF"
