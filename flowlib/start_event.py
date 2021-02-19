@@ -86,7 +86,7 @@ class BPMNStartEvent(BPMNComponent):
             },
             {
                 "name": "TOTAL_ATTEMPTS",
-                "value": 2,
+                "value": "2",
             },
             {
                 "name": "FORWARD_URL",
@@ -202,7 +202,7 @@ class BPMNStartEvent(BPMNComponent):
             },
             {
                 "name": "TOTAL_ATTEMPTS",
-                "value": task.call_properties.total_attempts
+                "value": str(task.call_properties.total_attempts),
             },
             {
                 "name": "FORWARD_URL",
