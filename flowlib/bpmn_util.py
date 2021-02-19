@@ -244,6 +244,7 @@ class WorkflowProperties:
         self._retry_total_attempts = 2
         self._is_recoverable = False
         self._is_reliable_transport = False
+        self._traffic_shadow_svc = None
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -281,6 +282,10 @@ class WorkflowProperties:
     def is_reliable_transport(self):
         return self._is_reliable_transport
 
+    @property
+    def traffic_shadow_svc(self):
+        return self._traffic_shadow_svc
+
     def update(self, annotations):
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
@@ -311,6 +316,33 @@ class WorkflowProperties:
             assert annotations['reliable_transport'] == 'kafka'
             self._is_reliable_transport = True
             self._is_recoverable = True
+
+        if 'traffic_shadow_svc' in annotations:
+            assert not self._is_reliable_transport, "Shadowing traffic not allowed in Reliable WF"
+            shadow_annots = annotations['traffic_shadow_svc']
+            svc_annots = shadow_annots['service']
+
+            if 'call' in shadow_annots:
+                if 'path' in shadow_annots['call']:
+                    path = shadow_annots['call']['path']
+                else:
+                    path = '/'
+            if not path.startswith('/'):
+                path = '/' + path
+
+            proto = svc_annots.get('protocol', 'http')
+            self._traffic_shadow_svc = {}
+            k8s_url = f'{proto}://{svc_annots["host"]}.{svc_annots["namespace"]}:'
+            k8s_url +=f'{svc_annots["port"]}{path}'
+
+            envoy_host = f'{svc_annots["host"]}.{svc_annots["namespace"]}.svc.cluster.local'
+            envoy_cluster = f'outbound|{svc_annots["port"]}||{envoy_host}'
+
+            self._traffic_shadow_svc = {
+                'path': path,
+                'k8s_url': k8s_url,
+                'envoy_cluster': envoy_cluster,
+            }
 
 
 class BPMNComponent:

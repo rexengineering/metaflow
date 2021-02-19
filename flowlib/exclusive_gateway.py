@@ -349,6 +349,11 @@ class BPMNXGateway(BPMNComponent):
                 ].id
             }
         ]
+        if self._global_props.traffic_shadow_svc:
+            env_config.append({
+                "name": "KAFKA_SHADOW_URL",
+                "value": self._global_props.traffic_shadow_svc['k8s_url'],
+            })
 
         k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
         k8s_objects.append(create_service(self._namespace, dns_safe_name, port))

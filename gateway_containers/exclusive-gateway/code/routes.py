@@ -1,5 +1,6 @@
 from code import app
 from flask import request, make_response, jsonify
+import logging
 import os
 import requests
 from urllib.parse import urlparse
@@ -12,6 +13,7 @@ REXFLOW_XGW_FALSE_URL = os.environ['REXFLOW_XGW_FALSE_URL']
 FALSE_ATTEMPTS = int(os.environ['REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS'])
 TRUE_ATTEMPTS = int(os.environ['REXFLOW_XGW_TRUE_TOTAL_ATTEMPTS'])
 REXFLOW_XGW_FAIL_URL = os.environ['REXFLOW_XGW_FAIL_URL']
+KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 TRACEID_HEADER = 'x-b3-traceid'
 
@@ -54,12 +56,20 @@ def conditional():
         except Exception:
             logging.error(f"failed making a call to {url} on wf {request.headers['x-flow-id']}")
 
+    o = urlparse(url)
+    headers['x-rexflow-original-host'] = o.netloc
+    headers['x-rexflow-original-path'] = o.path
+    
     if not success:
         # Notify Flowd that we failed.
-        o = urlparse(url)
-        headers['x-rexflow-original-host'] = o.netloc
-        headers['x-rexflow-original-path'] = o.path
         requests.post(REXFLOW_XGW_FAIL_URL, json=req_json, headers=headers)
+
+    if KAFKA_SHADOW_URL:
+        try:
+            headers['x-rexflow-failure'] = True
+            requests.post(KAFKA_SHADOW_URL, headers=headers, json=req_json).raise_for_status()
+        except Exception:
+            logging.warning("Failed shadowing traffic to Kafka")
 
     resp = make_response({"status": 200, "msg": ""})
     if TRACEID_HEADER in request.headers:
