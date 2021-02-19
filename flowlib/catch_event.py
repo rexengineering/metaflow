@@ -17,6 +17,7 @@ from .k8s_utils import (
 CATCH_GATEWAY_LISTEN_PORT = 5000
 CATCH_GATEWAY_SVC_PREFIX = "catch"
 KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+KAFKA_LISTEN_PORT = 5000
 
 
 class BPMNCatchEvent(BPMNComponent):
@@ -44,8 +45,114 @@ class BPMNCatchEvent(BPMNComponent):
             "port": CATCH_GATEWAY_LISTEN_PORT,
         })
 
+    def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
+                                digraph: OrderedDict) -> list:
+        k8s_objects = []
+        # Two things to do:
+        # 1. The Special Kafka Transport Pod, which then fires an event to the Kafka
+        # topic of the next pod.
+        # 2. The standard Catch Event (almost as below, but not quite, since it targets
+        # the special Kafka transport pod rather than to the next step in the wf)
+
+        # Step 1: The Special Kafka Transport Pod
+        targets = [
+            component_map[component_id]
+            for component_id in digraph.get(self.id, set())
+        ]
+
+        assert len(targets) <= 1  # Multiplexing will require a Parallel Gateway.
+        target = targets[0] if len(targets) else None
+        throw_service_name = f'{self.id}-{target.transport_kafka_topic}'.lower().replace('_', '-')
+
+        env_config = [
+            {
+                "name": "KAFKA_TOPIC",
+                "value": target.transport_kafka_topic,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": '',
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": "",
+            },
+            {
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": target.id,
+            },
+        ]
+        k8s_objects.append(create_serviceaccount(self._namespace, throw_service_name))
+        k8s_objects.append(create_service(self._namespace, throw_service_name, KAFKA_LISTEN_PORT))
+        k8s_objects.append(create_deployment(
+            self._namespace,
+            throw_service_name,
+            'throw-gateway:1.0.0',
+            KAFKA_LISTEN_PORT,
+            env_config,
+        ))
+
+        # Step 2: The normal Catch Event...but it forwards to the special thing we wrote above.
+        env_config = [
+            {
+                "name": "KAFKA_HOST",
+                "value": KAFKA_HOST,
+            },
+            {
+                "name": "KAFKA_TOPIC",
+                "value": self.queue_name,
+            },
+            {
+                "name": "KAFKA_GROUP_ID",
+                "value": self.id,
+            },
+            {
+                "name": "FORWARD_URL",
+                "value": f"http://{throw_service_name}.{self._namespace}:{KAFKA_LISTEN_PORT}/",
+            },
+            {
+                "name": "WF_ID",
+                "value": self._global_props.id,
+            },
+            {
+                "name": "FORWARD_TASK_ID",
+                "value": self.id,
+            },
+            {
+                "name": "TOTAL_ATTEMPTS",
+                "value": "2",
+            },
+            {
+                "name": "FAIL_URL",
+                "value": "http://flowd.rexflow:9002/instancefail",
+            },
+            {
+                "name": "ETCD_HOST",
+                "value": os.environ['ETCD_HOST'],
+            },
+        ]
+        dns_safe_name = self.service_properties.host.replace('_', '-')
+        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
+        k8s_objects.append(create_service(self._namespace, dns_safe_name, KAFKA_LISTEN_PORT))
+        k8s_objects.append(create_deployment(
+            self._namespace,
+            dns_safe_name,
+            'catch-gateway:1.0.0',
+            KAFKA_LISTEN_PORT,
+            env_config,
+        ))
+
+        return k8s_objects
+
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict) -> list:
+        if self._global_props._is_reliable_transport:
+            return self._to_kubernetes_reliable(id_hash, component_map, digraph)
+
         k8s_objects = []
 
         # k8s ServiceAccount
