@@ -25,6 +25,8 @@ if ':' not in XGW_IMAGE:
     XGW_IMAGE += f':{REXFLOW_VERSION}'
 XGW_LISTEN_PORT = int(os.getenv("REXFLOW_XGW_LISTEN_PORT", '5000'))
 
+DMN_SERVER_URL = os.getenv("REWXFLOW_DMN_SERVER_HOST", "http://dmnserver.rexflow:8001")
+
 KAFKA_HOST = os.getenv("KAFKA_HOST", None)
 
 ETCD_HOST = os.environ["ETCD_HOST"]  # Fail if no etcd host specified.

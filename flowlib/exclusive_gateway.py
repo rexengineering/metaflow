@@ -25,6 +25,7 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     ETCD_HOST,
+    DMN_SERVER_HOST
 )
 
 XGATEWAY_SVC_PREFIX = "xgateway"
@@ -350,6 +351,13 @@ class BPMNXGateway(BPMNComponent):
                 'value': json.dumps(self.default_path),
             }
         ]
+        if self._global_props.xgw_expression_type == 'feel':
+            assert DMN_SERVER_HOST is not None, "Must provide DMN_SERVER_HOST for FEEL evaluation"
+            env_config.append({
+                "name": "DMN_SERVER_HOST",
+                "value": DMN_SERVER_HOST,
+            })
+
         if self._global_props.traffic_shadow_svc:
             env_config.append({
                 "name": "KAFKA_SHADOW_URL",
