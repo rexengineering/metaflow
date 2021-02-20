@@ -20,7 +20,7 @@ class ProbeHandlers:
         return result
 
     def handle_all_deployments(self):
-        return requests.get(self.url).json()
+        return self.handle_single_deployment('all')
 
 def handler(request):
     result = None

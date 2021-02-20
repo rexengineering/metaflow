@@ -233,7 +233,7 @@ class HealthManager:
             self.cancel_watch()
 
     def probe_all(self):
-        ''' Force a health-check rather than waitin for the timer to mature.
+        ''' Force a health-check rather than waiting for the timer to mature.
         '''
         return [self.probe(workflow_id) for workflow_id in self.probes.keys()]
  
@@ -247,7 +247,6 @@ class HealthApp(QuartApp):
         super().__init__(__name__, **kws)
         self.manager = HealthManager()
         self.app.route('/')(self.root_route)
-        self.app.route('/probe')(self.probe_all)
         self.app.route('/probe/<workflow_id>')(self.probe)
 
     def root_route(self):
@@ -256,13 +255,12 @@ class HealthApp(QuartApp):
             for task_id, probe in self.manager.probes[workflow_id].items()
         } for workflow_id in self.manager.workflows.keys()})
 
-    def probe_all(self):
-        if self.manager.workflows:
-            return jsonify( self.manager.probe_all() )
-        return jsonify({"result":"No workflows exist"})
-
     def probe(self, workflow_id):
-        if self.manager.workflows and workflow_id in self.manager.workflows.keys():
+        if not self.manager.workflows:
+            return jsonify({"result":"No workflows exist"})
+        if workflow_id == 'all':
+            return jsonify( self.manager.probe_all() )
+        if workflow_id in self.manager.workflows.keys():
             return jsonify( self.manager.probe(workflow_id) )
         return jsonify({"result":f"Workflow '{workflow_id}' not found"})
 
