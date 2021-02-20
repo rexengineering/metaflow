@@ -47,7 +47,7 @@ message PSRequest {
 }
 
 message ProbeRequest {
-    repeated string ids = 2;
+    repeated string ids = 1;
 }
 
 message RunRequest {

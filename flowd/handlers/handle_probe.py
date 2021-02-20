@@ -26,7 +26,10 @@ def handler(request):
     result = None
     handlers = ProbeHandlers()
     if request.ids:
-        result = handlers.handle_some_deployments(request.ids)
+        if len(request.ids) == 1:
+            result = handlers.handle_single_deployment(request.ids[0])
+        else:
+            result = handlers.handle_some_deployments(request.ids)
     else:
         result = handlers.handle_all_deployments()
     
