@@ -1,5 +1,10 @@
 // Example of building this when updated:
 // python -m grpc_tools.protoc --python_out=. --grpc_python_out=.  -I. flow.proto
+//
+// Also, to make this work with flowlib, need to change one import in flow_pb2_grpc.py:
+// -import flow_pb2 as flow__pb2
+// +from . import flow_pb2 as flow__pb2
+
 
 syntax = "proto3";
 
@@ -7,6 +12,7 @@ service FlowDaemon {
     rpc ApplyWorkflow (ApplyRequest) returns (FlowdResult); // flowctl apply
     rpc DeleteWorkflow (DeleteRequest) returns (FlowdResult); // flowctl delete
     rpc PSQuery (PSRequest) returns (FlowdResult); // flowctl ps
+    rpc ProbeWorkflow (ProbeRequest) returns (FlowdResult); // flowctl probe
     rpc RunWorkflow (RunRequest) returns (FlowdResult); // flowctl run
     rpc StartWorkflow (StartRequest) returns (FlowdResult); // flowctl start
     rpc StopWorkflow (StopRequest) returns (FlowdResult); // flowctl stop
@@ -38,6 +44,10 @@ message PSRequest {
     RequestKind kind = 1;
     repeated string ids = 2;
     // FIXME: Figure out any additional flags and/or arguments.
+}
+
+message ProbeRequest {
+    repeated string ids = 2;
 }
 
 message RunRequest {
