@@ -51,9 +51,6 @@ class BPMNProcess:
         self.properties = WorkflowProperties(self.annotation)
         assert self.properties.id, "You must annotate StartEvent with a Workflow `id`."
 
-        self.namespace = self.properties.namespace
-        self.namespace_shared = self.properties.namespace_shared
-
         # Put the hash in the id
         self.properties.update({
             'id_hash': self.hash,
@@ -158,6 +155,14 @@ class BPMNProcess:
         return digraph
 
     @property
+    def namespace(self):
+        return self.properties.namespace
+
+    @property
+    def namespace_shared(self):
+        return self.properties.namespace_shared
+
+    @property
     def digraph(self) -> Mapping[str, Set[str]]:
         if self._digraph is None:
             result = self.to_digraph()
@@ -174,7 +179,7 @@ class BPMNProcess:
         if stream is None:
             stream = sys.stdout
         results = []
-        if self.namespace != 'default':
+        if not self.namespace_shared:
             results.append(
                 {
                     'apiVersion': 'v1',
