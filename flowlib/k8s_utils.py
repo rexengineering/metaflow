@@ -123,3 +123,45 @@ def create_service(namespace, dns_safe_name, target_port):
         },
     }
     return service
+
+
+def create_deployment_affinity(service_name, anti_service_name):
+    '''Creates k8s Affinity specification. `service_name` specifies a service next to which we
+    wish to deploy something, and `anti_service_name` specifies the service next to which we
+    do not wish to deploy. A typical use case is:
+
+    `service_name` == the application for a Microservice Task in a Reliable WF
+    `anti_service_name` == the application name for a python kafka helper service.
+       ---> we want one of the kafka helper pods on the same node as the service, and
+            we don't need more than one helper pod on one node (since that's dumb).
+    '''
+    affinity = {
+        'podAffinity': {
+            "requiredDuringSchedulingIgnoredDuringExecution": [{
+                "labelSelector": {
+                    "matchExpressions": [{
+                        "key": "app",
+                        "operator": "In",
+                        "values": [service_name],
+                    }],
+                },
+                "topologyKey": "kubernetes.io/hostname",
+            }]
+        },
+        'podAntiAffinity': {
+            'preferredDuringSchedulingIgnoredDuringExecution': [{
+                "weight": 100,
+                "podAffinityTerm": {
+                    "labelSelector": {
+                        "matchExpressions": [{
+                            "key": "app",
+                            "operator": "In",
+                            "values": [anti_service_name],
+                        }],
+                    },
+                    "topologyKey": "kubernetes.io/hostname",
+                }
+            }]
+        }
+    }
+    return affinity

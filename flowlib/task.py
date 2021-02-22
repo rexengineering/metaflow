@@ -13,6 +13,7 @@ from .k8s_utils import (
     create_service,
     create_serviceaccount,
     create_rexflow_ingress_vs,
+    create_deployment_affinity,
 )
 
 
@@ -132,6 +133,10 @@ class BPMNTask(BPMNComponent):
         '''Generates kubernetes deployment for reliable workflow using Kafka transport.
         '''
         k8s_objects = []
+        if self._is_preexisting:
+            service_name = self.service_properties.host_without_hash.replace('_', '-')
+        else:
+            service_name = self.service_properties.host.replace("_", '-')
 
         # There are three things to do:
         # 1. Generate the first Python service which listens for incoming calls on the Kafka topic
@@ -183,14 +188,21 @@ class BPMNTask(BPMNComponent):
             },
         ]
         k8s_objects.append(create_serviceaccount(self._namespace, self.transport_kafka_topic))
-        k8s_objects.append(create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT))
-        k8s_objects.append(create_deployment(
+        k8s_objects.append(
+            create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT)
+        )
+        deployment = create_deployment(
             self._namespace,
             self.transport_kafka_topic,
             'catch-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            service_name,
+            self.transport_kafka_topic,
+        )
+        k8s_objects.append(deployment)
 
         # Step 2: Make the Kafka thing that receives the response and throws it at the next object.
         forward_set = list(digraph.get(self.id, set()))
@@ -234,13 +246,18 @@ class BPMNTask(BPMNComponent):
                 KAFKA_LISTEN_PORT,
             )
         )
-        k8s_objects.append(create_deployment(
+        deployment = create_deployment(
             self._namespace,
             throw_service_name,
             'throw-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            service_name,
+            throw_service_name,
+        )
+        k8s_objects.append(deployment)
 
         # Finally, create the envoyfilter.
         k8s_objects.append(
@@ -316,7 +333,7 @@ class BPMNTask(BPMNComponent):
         if not self._is_preexisting:
             k8s_objects.extend(self._generate_microservice())
         return k8s_objects
-    
+
     def _generate_microservice(self):
         k8s_objects = []
         # Reminder: ServiceProperties.host() properly handles whether or not to include

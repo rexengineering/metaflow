@@ -13,6 +13,7 @@ from .k8s_utils import (
     create_service,
     create_serviceaccount,
     create_rexflow_ingress_vs,
+    create_deployment_affinity,
 )
 
 
@@ -152,16 +153,20 @@ class BPMNStartEvent(BPMNComponent):
 
         k8s_objects.append(create_serviceaccount(self._namespace, throw_service_name))
         k8s_objects.append(create_service(self._namespace, throw_service_name, port))
-        k8s_objects.append(create_deployment(
+        deployment = create_deployment(
             self._namespace,
             throw_service_name,
             'throw-gateway:1.0.0',
             port,
             env_config,
-        ))
+        )
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            start_service_name,
+            throw_service_name,
+        )
+        k8s_objects.append(deployment)
 
         return k8s_objects
-
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict) -> list:

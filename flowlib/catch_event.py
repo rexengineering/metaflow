@@ -12,6 +12,7 @@ from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
+    create_deployment_affinity,
 )
 
 CATCH_GATEWAY_LISTEN_PORT = 5000
@@ -88,13 +89,21 @@ class BPMNCatchEvent(BPMNComponent):
         ]
         k8s_objects.append(create_serviceaccount(self._namespace, throw_service_name))
         k8s_objects.append(create_service(self._namespace, throw_service_name, KAFKA_LISTEN_PORT))
-        k8s_objects.append(create_deployment(
+        deployment = create_deployment(
             self._namespace,
             throw_service_name,
             'throw-gateway:1.0.0',
             KAFKA_LISTEN_PORT,
             env_config,
-        ))
+        )
+        # The name for the actual Start Event
+        dns_safe_name = self.service_properties.host.replace('_', '-')
+        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
+            dns_safe_name,
+            throw_service_name,
+        )
+
+        k8s_objects.append(deployment)
 
         # Step 2: The normal Catch Event...but it forwards to the special thing we wrote above.
         env_config = [
