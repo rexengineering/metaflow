@@ -4,8 +4,12 @@ stream for events that are published into the WF instance and calls the next
 step in the workflow with that data.
 '''
 import logging
+import asyncio
+import threading
+import datetime
+from typing import Dict
 
-from quart import request, jsonify
+from quart import request, jsonify, Response
 from urllib.parse import urlparse
 
 from confluent_kafka import Consumer
@@ -40,6 +44,8 @@ FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
 FUNCTION = os.getenv('REXFLOW_CATCH_START_FUNCTION', 'CATCH')
 WF_ID = os.getenv('WF_ID', None)
+API_WRAPPER_ENABLED = os.getenv("REXFLOW_API_WRAPPER_ENABLED") != "FALSE"
+API_WRAPPER_TIMEOUT = int(os.getenv("REXFLOW_API_WRAPPER_TIMEOUT", "5"))
 KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 
@@ -88,19 +94,20 @@ class EventCatchPoller:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
 
-    def create_instance(self, incoming_data, content_type):
-        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
+    def create_instance(self, incoming_data, content_type) -> Dict[str, object]:
+        instance_id = workflow.WorkflowInstance.new_instance_id(str(WF_ID))
         etcd = get_etcd()
         keys = WorkflowInstanceKeys(instance_id)
         if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
             # Should never happen...unless there's a collision in uuid1
             logging.error(f'{keys.state} already defined in etcd!')
-            return f"Internal Error: ID {instance_id} already exists"
+            return flow_result(-1, f"Internal Error: ID {instance_id} already "
+                "exists", id=None)
 
         self.executor.submit(
             self.run_instance, keys, incoming_data, instance_id, content_type, etcd
         )
-        return {"id": instance_id}
+        return flow_result(0, 'Ok', id=instance_id)
 
     def save_traceid(self, headers, flow_id):
         trace_id = None
@@ -195,6 +202,9 @@ class EventCatchApp(QuartApp):
         self.manager = EventCatchPoller(FORWARD_URL)
         self.app.route('/', methods=['GET'])(self.health_check)
         self.app.route('/', methods=['POST'])(self.catch_event)
+        self.executor = get_executor()
+        if FUNCTION == 'START' and API_WRAPPER_ENABLED:
+            self.app.route('/wrapper', methods=['POST'])(self.synchronous_wrapper)
 
     def health_check(self):
         return jsonify(flow_result(0, ""))
@@ -213,6 +223,51 @@ class EventCatchApp(QuartApp):
                 request.headers['content-type'],
             )
         return response
+
+    async def get_result(self, instance_id, watch_iter, cancel_watch):
+        key_results = {
+            "state": None,
+            "result": None,
+            "content_type": None,
+        }
+        for event in watch_iter:
+            full_key = event.key.decode('utf-8')
+            key = full_key.split('/')[-1]
+            if key in key_results:
+                value = event.value.decode('utf-8')
+                key_results[key] = value
+                if all([key_results[k] != None for k in key_results.keys()]):
+                    cancel_watch()
+                    return key_results
+        return None
+
+    async def synchronous_wrapper(self):
+        start = datetime.datetime.now()
+        etcd = get_etcd()
+        data = await request.data
+        instance_id = self.manager.create_instance(data, request.headers['content-type'])['id']
+        watch_iter, cancel_watch = etcd.watch_prefix(WorkflowInstanceKeys.key_of(instance_id))
+        wait_task = asyncio.create_task(self.get_result(instance_id, watch_iter, cancel_watch))
+        timer = threading.Timer(API_WRAPPER_TIMEOUT, self._cleanup_watch_iter, [cancel_watch])
+        timer.start()
+        result = await wait_task
+        if not result:
+            response = Response("WF Instance Timed Out.", 500)
+        else:
+            response = Response(result['result'])
+            response.headers['content-type'] = result['content_type']
+        response.headers['x-flow-id'] = instance_id
+
+        end = datetime.datetime.now()
+        print("start: ", start, "end:", end)
+        print(end - start, flush=True)
+        return response
+
+    def _cleanup_watch_iter(self, cancel_watch):
+        try:
+            cancel_watch()
+        except Exception as e:
+            logging.exception("failed...", exc_info=e)
 
     def _shutdown(self):
         self.manager.stop()

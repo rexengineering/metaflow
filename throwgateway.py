@@ -102,7 +102,7 @@ def make_call_(data):
         _shadow_to_kafka(data, headers)
 
 
-def complete_instance(instance_id, wf_id, payload):
+def complete_instance(instance_id, wf_id, payload, content_type):
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
     etcd = get_etcd()
     state_key = WorkflowInstanceKeys.state_key(instance_id)
@@ -111,6 +111,7 @@ def complete_instance(instance_id, wf_id, payload):
     headers_key = WorkflowInstanceKeys.headers_key(instance_id)
     result_key = WorkflowInstanceKeys.result_key(instance_id)
     end_event_key = WorkflowInstanceKeys.end_event_key(instance_id)
+    content_type_key = WorkflowInstanceKeys.content_type_key(instance_id)
 
     # We insist that only ONE End Event is reached. Therefore, there should
     # be no result key.
@@ -122,6 +123,9 @@ def complete_instance(instance_id, wf_id, payload):
             etcd.delete(headers_key)
             etcd.delete(payload_key)
             etcd.put(was_error_key, BStates.TRUE)
+
+        if not etcd.put_if_not_exists(content_type_key, content_type):
+            logging.error(f"Couldn't store content type {content_type} on instance {instance_id}.")
 
         # Mark the WF Instance with the name of the End Event that terminated it.
         if END_EVENT_NAME:
@@ -168,7 +172,8 @@ class EventThrowApp(QuartApp):
             complete_instance(
                 request.headers['x-flow-id'],
                 request.headers['x-rexflow-wf-id'],
-                data
+                data,
+                request.headers['content-type']
             )
         resp = await make_response(flow_result(0, ""))
 
