@@ -37,6 +37,20 @@ def raw_proc_to_digraph(proc: OrderedDict):
     return digraph
 
 
+def outgoing_sequence_flow_table(proc: OrderedDict):
+    '''Takes in an OrderedDict (just the BPMN Process).
+    Returns a dict mapping from a BPMN Component ID to a List of the outward
+    edge id's flowing from that component.
+    '''
+    outflows = {}
+    for sequence_flow in iter_xmldict_for_key(proc, 'bpmn:sequenceFlow'):
+        source_id = sequence_flow['@sourceRef']
+        if source_id not in outflows:
+            outflows[source_id] = []
+        outflows[source_id].append(sequence_flow)
+    return outflows
+
+
 def get_annotations(process: OrderedDict, source_ref=None):
     '''Takes in a BPMN process and BPMN Component ID and returns a generator.
     Yields python dictionaries containing the yaml-like REXFlow annotations
@@ -234,6 +248,13 @@ class HealthProperties:
             self._timeout = annotations['timeout']
 
 
+# TODO: Clean this up a bit
+VALID_XGW_EXPRESSION_TYPES = [
+    'python',
+    'feel',
+]
+
+
 class WorkflowProperties:
     def __init__(self, annotations=None):
         self._orchestrator = 'istio'  # default to istio...
@@ -245,6 +266,7 @@ class WorkflowProperties:
         self._is_recoverable = False
         self._is_reliable_transport = False
         self._traffic_shadow_svc = None
+        self._xgw_expression_type = 'feel'
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -285,6 +307,10 @@ class WorkflowProperties:
     @property
     def traffic_shadow_svc(self):
         return self._traffic_shadow_svc
+
+    @property
+    def xgw_expression_type(self):
+        return self._xgw_expression_type
 
     def update(self, annotations):
         if 'orchestrator' in annotations:
@@ -343,6 +369,10 @@ class WorkflowProperties:
                 'k8s_url': k8s_url,
                 'envoy_cluster': envoy_cluster,
             }
+
+        if 'xgw_expression_type' in annotations:
+            assert annotations['xgw_expression_type'] in VALID_XGW_EXPRESSION_TYPES
+            self._xgw_expression_type = annotations['xgw_expression_type']
 
 
 class BPMNComponent:
