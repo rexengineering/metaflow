@@ -4,6 +4,7 @@
 from collections import OrderedDict
 from io import IOBase
 import logging
+import os
 import subprocess
 import sys
 from typing import Mapping, Set
@@ -27,6 +28,10 @@ from .bpmn_util import (
     BPMNComponent,
     WorkflowProperties,
 )
+
+
+ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
+REX_ISTIO_PROXY_IMAGE = os.getenv('REX_ISTIO_PROXY_IMAGE', 'rex-proxy:1.8.2')
 
 
 class BPMNProcess:
@@ -191,7 +196,7 @@ class BPMNProcess:
             result = istioctl_result.stdout.replace(
                 ': Always',
                 ': IfNotPresent',
-            ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
+            ).replace(f'docker.io/istio/proxyv2:{ISTIO_VERSION}', REX_ISTIO_PROXY_IMAGE)
             stream.write(result)
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
