@@ -51,7 +51,7 @@ class Deployer:
         self.delete_namespaced_custom_object = wrap_api_call(
             self.custom_api.delete_namespaced_custom_object)
 
-    def create(self, _):
+    def create(self, namespace):
         print("The deploy module is used for dev deployments. As such, we are now "
               "setting the kube context to docker-desktop.", flush=True)
         subprocess.check_output("kubectl config use-context docker-desktop".split())
@@ -71,7 +71,9 @@ class Deployer:
         self.create_namespaced_service(
             'rexflow', specs.flowd_service_specs['rexflow'])
         self.create_namespaced_deployment(
-            'rexflow', specs.mk_flowd_deployment_spec('rexflow-etcd.rexflow'))
+            'rexflow', specs.mk_flowd_deployment_spec('rexflow-etcd.rexflow',
+            namespace.kafka
+        ))
         self.create_namespaced_role_binding(
             'default', specs.flowd_edit_default_spec)
         # healthd
@@ -94,12 +96,13 @@ class Deployer:
             'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
             specs.healthd_virtual_service_spec)
 
-        os.system("kubectl create ns kafka")
-        os.system("kubectl apply -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
-        os.system("kubectl apply -f "
-                  "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
+        if namespace.kafka:
+            os.system("kubectl create ns kafka")
+            os.system("kubectl apply -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
+            os.system("kubectl apply -f "
+                "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
 
-    def delete(self, _):
+    def delete(self, namespace):
         print("The deploy module is used for dev deployments. As such, we are now "
               "setting the kube context to docker-desktop.", flush=True)
         subprocess.check_output("kubectl config use-context docker-desktop".split())
@@ -126,7 +129,8 @@ class Deployer:
         self.delete_namespaced_service_account('rexflow-etcd', 'rexflow')
         self.delete_namespace('rexflow')
 
-        os.system("kubectl delete -f "
-                  "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
-        os.system("kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
-        os.system("kubectl delete ns kafka")
+        if namespace.kafka:
+            os.system("kubectl delete -f "
+                    "https://strimzi.io/examples/latest/kafka/kafka-persistent-single.yaml -n kafka ")
+            os.system("kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka")
+            os.system("kubectl delete ns kafka")

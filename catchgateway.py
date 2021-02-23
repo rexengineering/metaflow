@@ -30,8 +30,8 @@ from flowlib.constants import (
     flow_result,
 )
 
+from flowlib.config import KAFKA_HOST
 
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
