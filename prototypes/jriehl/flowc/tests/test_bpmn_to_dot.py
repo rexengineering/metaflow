@@ -2,8 +2,6 @@ import unittest
 
 import graphviz
 
-from flowc.bpmn2 import bpmn
-
 from .. import flowclib, bpmn_to_dot
 from .test_flowclib import HELLO_PATH
 
