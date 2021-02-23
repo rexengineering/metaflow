@@ -29,6 +29,11 @@ class FlowDaemonStub(object):
                 request_serializer=flow__pb2.PSRequest.SerializeToString,
                 response_deserializer=flow__pb2.FlowdResult.FromString,
                 )
+        self.ProbeWorkflow = channel.unary_unary(
+                '/FlowDaemon/ProbeWorkflow',
+                request_serializer=flow__pb2.ProbeRequest.SerializeToString,
+                response_deserializer=flow__pb2.FlowdResult.FromString,
+                )
         self.RunWorkflow = channel.unary_unary(
                 '/FlowDaemon/RunWorkflow',
                 request_serializer=flow__pb2.RunRequest.SerializeToString,
@@ -65,6 +70,13 @@ class FlowDaemonServicer(object):
 
     def PSQuery(self, request, context):
         """flowctl ps
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ProbeWorkflow(self, request, context):
+        """flowctl probe
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -107,6 +119,11 @@ def add_FlowDaemonServicer_to_server(servicer, server):
             'PSQuery': grpc.unary_unary_rpc_method_handler(
                     servicer.PSQuery,
                     request_deserializer=flow__pb2.PSRequest.FromString,
+                    response_serializer=flow__pb2.FlowdResult.SerializeToString,
+            ),
+            'ProbeWorkflow': grpc.unary_unary_rpc_method_handler(
+                    servicer.ProbeWorkflow,
+                    request_deserializer=flow__pb2.ProbeRequest.FromString,
                     response_serializer=flow__pb2.FlowdResult.SerializeToString,
             ),
             'RunWorkflow': grpc.unary_unary_rpc_method_handler(
@@ -181,6 +198,23 @@ class FlowDaemon(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/FlowDaemon/PSQuery',
             flow__pb2.PSRequest.SerializeToString,
+            flow__pb2.FlowdResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ProbeWorkflow(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/FlowDaemon/ProbeWorkflow',
+            flow__pb2.ProbeRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

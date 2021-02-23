@@ -6,12 +6,13 @@ from .actions import (  # noqa
     apply_action,  # noqa
     delete_action,  # noqa
     ps_action,  # noqa
+    probe_action, # noqa
     run_action,  # noqa
     start_action,  # noqa
     stop_action,  # noqa
 )  # noqa
 
-ACTIONS = ('apply', 'delete', 'ps', 'run', 'start', 'stop')
+ACTIONS = ('apply', 'delete', 'probe', 'ps', 'run', 'start', 'stop')
 
 
 def add_action(action_name, subparsers, action_map):
