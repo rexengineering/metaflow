@@ -29,6 +29,8 @@ from .bpmn_util import (
     WorkflowProperties,
 )
 
+from .config import IS_PRODUCTION
+
 
 ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
 REX_ISTIO_PROXY_IMAGE = os.getenv('REX_ISTIO_PROXY_IMAGE', 'rex-proxy:1.8.2')
@@ -188,6 +190,10 @@ class BPMNProcess:
         # could easily tell Istio to automatically inject our own custom
         # proxy image, and thus remove the code below.
         temp_yaml = yaml.safe_dump_all(results, **kws)
+        if IS_PRODUCTION:
+            stream.write(temp_yaml)
+            return temp_yaml
+
         istioctl_result = subprocess.run(
             ['istioctl', 'kube-inject', '-f', '-'],
             input=temp_yaml, capture_output=True, text=True,

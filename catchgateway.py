@@ -7,6 +7,7 @@ import logging
 import asyncio
 import threading
 import datetime
+from typing import Dict
 
 from quart import request, jsonify, Response
 from urllib.parse import urlparse
@@ -93,20 +94,20 @@ class EventCatchPoller:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition from STARTING -> ERROR.')
 
-    def create_instance(self, incoming_data, content_type, instance_id=None):
-        if instance_id is None:
-            instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
+    def create_instance(self, incoming_data, content_type) -> Dict[str, object]:
+        instance_id = workflow.WorkflowInstance.new_instance_id(str(WF_ID))
         etcd = get_etcd()
         keys = WorkflowInstanceKeys(instance_id)
         if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
             # Should never happen...unless there's a collision in uuid1
             logging.error(f'{keys.state} already defined in etcd!')
-            return f"Internal Error: ID {instance_id} already exists"
+            return flow_result(-1, f"Internal Error: ID {instance_id} already "
+                "exists", id=None)
 
         self.executor.submit(
             self.run_instance, keys, incoming_data, instance_id, content_type, etcd
         )
-        return {"id": instance_id}
+        return flow_result(0, 'Ok', id=instance_id)
 
     def save_traceid(self, headers, flow_id):
         trace_id = None
@@ -243,13 +244,10 @@ class EventCatchApp(QuartApp):
     async def synchronous_wrapper(self):
         start = datetime.datetime.now()
         etcd = get_etcd()
-        instance_id = workflow.WorkflowInstance.new_instance_id(WF_ID)
         data = await request.data
+        instance_id = self.manager.create_instance(data, request.headers['content-type'])['id']
         watch_iter, cancel_watch = etcd.watch_prefix(WorkflowInstanceKeys.key_of(instance_id))
         wait_task = asyncio.create_task(self.get_result(instance_id, watch_iter, cancel_watch))
-        self.manager.create_instance(
-            data, request.headers['content-type'], instance_id=instance_id
-        )
         timer = threading.Timer(API_WRAPPER_TIMEOUT, self._cleanup_watch_iter, [cancel_watch])
         timer.start()
         result = await wait_task

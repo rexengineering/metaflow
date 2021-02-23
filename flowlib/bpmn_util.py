@@ -344,7 +344,7 @@ class WorkflowProperties:
             self._is_recoverable = True
 
         if 'traffic_shadow_svc' in annotations:
-            assert not self._is_reliable_transport
+            assert not self._is_reliable_transport, "Shadowing traffic not allowed in Reliable WF"
             shadow_annots = annotations['traffic_shadow_svc']
             svc_annots = shadow_annots['service']
 
