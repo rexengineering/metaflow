@@ -39,6 +39,8 @@ DMN_SERVER_URL = os.getenv("REWXFLOW_DMN_SERVER_HOST", DEFAULT_DMN_SERVER_URL)
 # Kafka is not required.
 KAFKA_HOST = os.getenv("KAFKA_HOST", None)
 
-ETCD_HOST = os.getenv("ETCD_HOST")
-
 IS_PRODUCTION = (os.getenv("REXFLOW_IS_PRODUCTION") == "True")
+
+ETCD_HOST = os.getenv("ETCD_HOST")
+if IS_PRODUCTION:
+    assert ETCD_HOST is not None
