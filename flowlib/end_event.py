@@ -13,15 +13,20 @@ from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
-    create_rexflow_ingress_vs,
     create_deployment_affinity,
 )
 
+from .config import (
+    ETCD_HOST,
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+)
+
+
 END_EVENT_PREFIX = 'end'
-END_EVENT_LISTEN_PORT = '5000'
-END_EVENT_CONTAINER = 'throw-gateway:1.0.0'
-KAFKA_LISTEN_PORT = '5000'
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
 class BPMNEndEvent(BPMNComponent):
@@ -45,8 +50,8 @@ class BPMNEndEvent(BPMNComponent):
 
         self._service_properties.update({
             'host': self._service_name,
-            'port': END_EVENT_LISTEN_PORT,
-            'container': END_EVENT_CONTAINER,
+            'port': THROW_LISTEN_PORT,
+            'container': THROW_IMAGE,
         })
 
         # Check if we listen to a kafka topic to start events.
@@ -61,10 +66,10 @@ class BPMNEndEvent(BPMNComponent):
         # 1. Create the End Event (which uses the catch-gateway image)
         # 2. Per Hong's design, set up a python daemon that connects the End Event to the
         # previous step in the WF through its designated Kafka topic.
+        assert KAFKA_HOST is not None, "Kafka Installation required for reliable WF."
 
         k8s_objects = []
         end_service_name = self.service_properties.host.replace('_', '-')
-        port = self.service_properties.port
         namespace = self._namespace
 
         catch_service_name = f'{self.id}-{self.transport_kafka_topic}'.lower().replace("_", '-')
@@ -89,7 +94,7 @@ class BPMNEndEvent(BPMNComponent):
             },
             {
                 "name": "FORWARD_URL",
-                "value": f"http://{end_service_name}.{self._namespace}:{KAFKA_LISTEN_PORT}/",
+                "value": f"http://{end_service_name}.{self._namespace}:{THROW_LISTEN_PORT}/",
             },
             {
                 "name": "FORWARD_TASK_ID",
@@ -119,12 +124,12 @@ class BPMNEndEvent(BPMNComponent):
             })
 
         k8s_objects.append(create_serviceaccount(namespace, catch_service_name))
-        k8s_objects.append(create_service(namespace, catch_service_name, port))
+        k8s_objects.append(create_service(namespace, catch_service_name, CATCH_LISTEN_PORT))
         deployment = create_deployment(
             namespace,
             catch_service_name,
-            "catch-gateway:1.0.0",
-            port,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             deployment_env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -132,14 +137,6 @@ class BPMNEndEvent(BPMNComponent):
             catch_service_name,
         )
         k8s_objects.append(deployment)
-
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            catch_service_name,
-            uri_prefix=f'/{catch_service_name}',
-            dest_port=port,
-            dest_host=f'{catch_service_name}.{namespace}.svc.cluster.local',
-        ))
 
         # Now create the daemon to connect End Event to First Task
         env_config = [
@@ -170,7 +167,7 @@ class BPMNEndEvent(BPMNComponent):
             },
             {
                 "name": "ETCD_HOST",
-                "value": os.getenv('ETCD_HOST', 'rexflow-etcd.rexflow:9002'),
+                "value": ETCD_HOST,
             },
         ]
         if self._queue is not None:
@@ -181,12 +178,12 @@ class BPMNEndEvent(BPMNComponent):
             })
 
         k8s_objects.append(create_serviceaccount(self._namespace, end_service_name))
-        k8s_objects.append(create_service(self._namespace, end_service_name, port))
+        k8s_objects.append(create_service(self._namespace, end_service_name, THROW_LISTEN_PORT))
         k8s_objects.append(create_deployment(
             self._namespace,
             end_service_name,
-            'throw-gateway:1.0.0',
-            port,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         ))
         return k8s_objects
@@ -206,10 +203,6 @@ class BPMNEndEvent(BPMNComponent):
         assert len(forward_set) == 0
 
         deployment_env_config = [
-            {
-                "name": 'KAFKA_HOST',
-                "value": KAFKA_HOST,
-            },
             {
                 "name": "REXFLOW_THROW_END_FUNCTION",
                 "value": "END",
@@ -240,6 +233,11 @@ class BPMNEndEvent(BPMNComponent):
             }
         ]
         if self._queue is not None:
+            assert KAFKA_HOST is not None, "Kafka installation required for this BPMN doc."
+            deployment_env_config.append({
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            })
             deployment_env_config.append({
                 "name": "KAFKA_TOPIC",
                 "value": self._queue,
@@ -253,12 +251,5 @@ class BPMNEndEvent(BPMNComponent):
             self.service_properties.container,
             port,
             deployment_env_config,
-        ))
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            dns_safe_name,
-            uri_prefix=f'/{dns_safe_name}',
-            dest_port=port,
-            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
         ))
         return k8s_objects

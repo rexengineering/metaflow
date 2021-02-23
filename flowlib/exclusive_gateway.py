@@ -4,15 +4,10 @@ Implements the BPMNXGateway object, which inherits BPMNComponent.
 
 from collections import OrderedDict
 import json
-import os
 from typing import Mapping
 
-import yaml
-from .bpmn_util import (
-    iter_xmldict_for_key,
-    BPMNComponent,
-    outgoing_sequence_flow_table,
-)
+from .bpmn_util import BPMNComponent, outgoing_sequence_flow_table
+
 
 from .k8s_utils import (
     create_deployment,
@@ -21,11 +16,19 @@ from .k8s_utils import (
     create_deployment_affinity,
 )
 
+from .config import (
+    XGW_IMAGE,
+    XGW_LISTEN_PORT,
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+    ETCD_HOST,
+    DMN_SERVER_HOST
+)
 
 XGATEWAY_SVC_PREFIX = "xgateway"
-XGATEWAY_LISTEN_PORT = 5000
-KAFKA_LISTEN_PORT = 5000
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
 class BPMNXGateway(BPMNComponent):
@@ -43,7 +46,7 @@ class BPMNXGateway(BPMNComponent):
             self.name = self.id.lower().replace('_', '-')
 
         self._service_properties.update({
-            "port": XGATEWAY_LISTEN_PORT,
+            "port": XGW_LISTEN_PORT,
             "host": self.name,
         })
 
@@ -53,6 +56,7 @@ class BPMNXGateway(BPMNComponent):
     def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
                                 digraph: OrderedDict) -> list:
         assert False, "Reliable WF needs to be updated with new XGW architecture."
+        assert KAFKA_HOST is not None, "Kafka Installation required for reliable WF."
 
         # Need to create 4 things:
         # 1. The Kafka listener
@@ -100,18 +104,18 @@ class BPMNXGateway(BPMNComponent):
             },
             {
                 "name": "ETCD_HOST",
-                "value": os.environ['ETCD_HOST'],
+                "value": ETCD_HOST,
             },
         ]
         k8s_objects.append(create_serviceaccount(self._namespace, self.transport_kafka_topic))
         k8s_objects.append(
-            create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT)
+            create_service(self._namespace, self.transport_kafka_topic, THROW_LISTEN_PORT)
         )
         deployment = create_deployment(
             self._namespace,
             self.transport_kafka_topic,
-            'catch-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -155,14 +159,14 @@ class BPMNXGateway(BPMNComponent):
             create_service(
                 self._namespace,
                 true_throw_service_name,
-                KAFKA_LISTEN_PORT,
+                THROW_LISTEN_PORT,
             )
         )
         deployment = create_deployment(
             self._namespace,
             true_throw_service_name,
-            'throw-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -206,14 +210,14 @@ class BPMNXGateway(BPMNComponent):
             create_service(
                 self._namespace,
                 false_throw_service_name,
-                KAFKA_LISTEN_PORT,
+                THROW_LISTEN_PORT,
             )
         )
         deployment = create_deployment(
             self._namespace,
             false_throw_service_name,
-            'throw-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -231,11 +235,11 @@ class BPMNXGateway(BPMNComponent):
             {'name': 'REXFLOW_XGW_EXPRESSION', 'value': self.expression},
             {
                 'name': 'REXFLOW_XGW_TRUE_URL',
-                'value': f'http://{true_throw_service_name}:{KAFKA_LISTEN_PORT}/'
+                'value': f'http://{true_throw_service_name}:{THROW_LISTEN_PORT}/'
             },
             {
                 'name': 'REXFLOW_XGW_FALSE_URL',
-                'value': f'http://{false_throw_service_name}:{KAFKA_LISTEN_PORT}/'
+                'value': f'http://{false_throw_service_name}:{THROW_LISTEN_PORT}/'
             },
             {
                 'name': 'REXFLOW_XGW_FALSE_TOTAL_ATTEMPTS',
@@ -264,7 +268,7 @@ class BPMNXGateway(BPMNComponent):
         k8s_objects.append(create_deployment(
             self._namespace,
             dns_safe_name,
-            'exclusive-gateway:1.0.0',
+            XGW_IMAGE,
             port,
             env_config,
         ))
@@ -312,7 +316,7 @@ class BPMNXGateway(BPMNComponent):
                     "k8s_url": default_component.k8s_url,
                     "total_attempts": default_component.call_properties.total_attempts,
                 }
-        
+
         # Note: we may or may not take this out for FEEL...
         assert self.default_path is not None, "Must have a default path"
 
@@ -347,6 +351,13 @@ class BPMNXGateway(BPMNComponent):
                 'value': json.dumps(self.default_path),
             }
         ]
+        if self._global_props.xgw_expression_type == 'feel':
+            assert DMN_SERVER_HOST is not None, "Must provide DMN_SERVER_HOST for FEEL evaluation"
+            env_config.append({
+                "name": "DMN_SERVER_HOST",
+                "value": DMN_SERVER_HOST,
+            })
+
         if self._global_props.traffic_shadow_svc:
             env_config.append({
                 "name": "KAFKA_SHADOW_URL",
@@ -358,7 +369,7 @@ class BPMNXGateway(BPMNComponent):
         k8s_objects.append(create_deployment(
             self._namespace,
             dns_safe_name,
-            'exclusive-gateway:1.0.0',
+            XGW_IMAGE,
             port,
             env_config,
         ))

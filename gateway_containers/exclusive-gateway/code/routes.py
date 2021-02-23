@@ -24,6 +24,8 @@ FORWARD_HEADERS = [
     'x-ot-span-context',
 ]
 
+DMN_SERVER_HOST = os.getenv("DMN_SERVER_HOST", "http://dmnserver.rexflow:8001")
+
 
 @app.route('/', methods=['POST'])
 def conditional():
@@ -48,7 +50,7 @@ def conditional():
 
             # TODO: move this hardcoded uri to somwhere configurations live
             response = requests.post(
-                "http://dmnserver.rexflow:8001/dmn/dt", 
+                f"{DMN_SERVER_HOST}/dmn/dt",
                 headers=headers, 
                 data=json.dumps(dataz)
             )

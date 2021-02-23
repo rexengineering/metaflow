@@ -2,7 +2,6 @@ from ast import literal_eval
 from io import StringIO
 import json
 import logging
-import os
 import subprocess
 from typing import Union
 import uuid
@@ -24,7 +23,7 @@ from .constants import (
 )
 
 
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+from .config import KAFKA_HOST
 
 
 class Workflow:
@@ -87,6 +86,8 @@ class Workflow:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def _create_kafka_topics(self):
+        if KAFKA_HOST is None:
+            return
         kafka_client = AdminClient({"bootstrap.servers": KAFKA_HOST})
         topic_metadata = kafka_client.list_topics()
         new_topics = [

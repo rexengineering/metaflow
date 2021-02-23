@@ -3,7 +3,6 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict, namedtuple
-import os
 from typing import List, Mapping
 
 from .bpmn_util import WorkflowProperties, BPMNComponent
@@ -15,15 +14,21 @@ from .k8s_utils import (
     create_rexflow_ingress_vs,
     create_deployment_affinity,
 )
+from .config import (
+    ETCD_HOST,
+    IS_PRODUCTION,
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+)
 
 
 Upstream = namedtuple(
     'Upstream',
     ['name', 'host', 'port', 'path', 'method', 'total_attempts', 'task_id']
 )
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
-ETCD_HOST = os.getenv("ETCD_HOST", "rexflow-etcd.rexflow:9002")
-KAFKA_LISTEN_PORT = 5000
 
 
 class BPMNTask(BPMNComponent):
@@ -184,18 +189,18 @@ class BPMNTask(BPMNComponent):
             },
             {
                 "name": "ETCD_HOST",
-                "value": os.environ['ETCD_HOST'],
+                "value": ETCD_HOST,
             },
         ]
         k8s_objects.append(create_serviceaccount(self._namespace, self.transport_kafka_topic))
         k8s_objects.append(
-            create_service(self._namespace, self.transport_kafka_topic, KAFKA_LISTEN_PORT)
+            create_service(self._namespace, self.transport_kafka_topic, CATCH_LISTEN_PORT)
         )
         deployment = create_deployment(
             self._namespace,
             self.transport_kafka_topic,
-            'catch-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -243,14 +248,14 @@ class BPMNTask(BPMNComponent):
             create_service(
                 self._namespace,
                 throw_service_name,
-                KAFKA_LISTEN_PORT,
+                THROW_LISTEN_PORT,
             )
         )
         deployment = create_deployment(
             self._namespace,
             throw_service_name,
-            'throw-gateway:1.0.0',
-            KAFKA_LISTEN_PORT,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         )
         deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
@@ -266,7 +271,7 @@ class BPMNTask(BPMNComponent):
                     Upstream(
                         forward_component.transport_kafka_topic,
                         f'{throw_service_name}.{self._namespace}.svc.cluster.local',
-                        KAFKA_LISTEN_PORT,
+                        THROW_LISTEN_PORT,
                         '/',
                         'POST',
                         1,
@@ -357,13 +362,14 @@ class BPMNTask(BPMNComponent):
             port,
             env=[],
         ))
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            f'{dns_safe_name}-{self._global_props.id_hash}',
-            uri_prefix=uri_prefix,
-            dest_port=port,
-            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
-        ))
+        if not IS_PRODUCTION:
+            k8s_objects.append(create_rexflow_ingress_vs(
+                namespace,
+                f'{dns_safe_name}-{self._global_props.id_hash}',
+                uri_prefix=uri_prefix,
+                dest_port=port,
+                dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
+            ))
 
         return k8s_objects
 

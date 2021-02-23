@@ -31,8 +31,8 @@ from flowlib.constants import (
     flow_result,
 )
 
+from flowlib.config import KAFKA_HOST
 
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
@@ -236,7 +236,7 @@ class EventCatchApp(QuartApp):
             if key in key_results:
                 value = event.value.decode('utf-8')
                 key_results[key] = value
-                if all([key_results[k] != None for k in key_results.keys()]):
+                if all([key_results[k] is not None for k in key_results.keys()]):
                     cancel_watch()
                     return key_results
         return None
