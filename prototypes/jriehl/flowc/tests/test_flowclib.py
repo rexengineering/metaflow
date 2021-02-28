@@ -1,9 +1,10 @@
 import ast
+import collections
 import os
 import os.path
 import shutil
 import tempfile
-from typing import List, Tuple
+from typing import Any, Callable, List, NamedTuple, Optional, Tuple
 import unittest
 
 import xmltodict
@@ -31,6 +32,12 @@ def _has_docker():
     return True
 
 
+class CheckData(NamedTuple):
+    workflow_path: str
+    bpmn_dict: collections.OrderedDict
+    makefile_src: str
+
+
 class TestFlowCLib(unittest.TestCase):
     def __init__(self, *args, **kws):
         super().__init__(*args, **kws)
@@ -41,7 +48,7 @@ class TestFlowCLib(unittest.TestCase):
             self.fail('Empty or non-existant container')
         self.assertGreaterEqual(len(container), 1)
 
-    def _parse_path(self, file_path):
+    def _parse_path(self, file_path: str) -> flowclib.ToplevelVisitor:
         if file_path in self._parse_results:
             return self._parse_results[file_path]
         with open(file_path) as file_obj:
@@ -57,7 +64,12 @@ class TestFlowCLib(unittest.TestCase):
         result = self._parse_path(BRANCH_PATH)
         self.assertIsInstance(result, flowclib.ToplevelVisitor)
 
-    def _check_bpmn(self, bpmn_path: str):
+    def _check_bpmn(self, bpmn_path: str) -> collections.OrderedDict:
+        '''Ensure the given BPMN file may be parsed and contains constructs
+        understood by REXFlow.
+
+        Returns the xmltodict parse result (a nested, ordered dictionary).
+        '''
         self.assertTrue(
             os.path.exists(bpmn_path), f'{bpmn_path} does not exist'
         )
@@ -77,8 +89,14 @@ class TestFlowCLib(unittest.TestCase):
         self.assertIn('bpmn:serviceTask', process_dict)
         self.assertIn('bpmn:endEvent', process_dict)
         self.assertIn('bpmn:sequenceFlow', process_dict)
+        return definitions_dict
 
-    def _check_makefile(self, makefile_path: str):
+    def _check_makefile(self, makefile_path: str) -> str:
+        '''Ensure the given Makefile path exists, is non-empty, and contains
+        several key make targets.
+
+        Returns the Makefile source as a string.
+        '''
         self.assertTrue(
             os.path.exists(makefile_path), f'{makefile_path} does not exist'
         )
@@ -88,6 +106,7 @@ class TestFlowCLib(unittest.TestCase):
         self.assertRegex(makefile_src, r'clean\w*:')
         self.assertRegex(makefile_src, r'test\w*:')
         self.assertRegex(makefile_src, r'.PHONY\w*:')
+        return makefile_src
 
     def _check_function(
             self,
@@ -195,7 +214,11 @@ class TestFlowCLib(unittest.TestCase):
             self,
             source_path: str,
             workflow_name: str,
-            task_data: List[Tuple[str, str]]):
+            task_data: List[Tuple[str, str]] = [],
+            additional_checks: Optional[Callable[[CheckData], Any]] = None):
+        '''Ensure that flowc will successfully compile the given Python source
+        file.
+        '''
         frontend_result = self._parse_path(source_path)
         with tempfile.TemporaryDirectory() as temp_path:
             try:
@@ -204,11 +227,14 @@ class TestFlowCLib(unittest.TestCase):
                     os.path.join(temp_path, workflow_name))
                 self.assertTrue(os.path.exists(workflow_path))
                 bpmn_path = os.path.join(workflow_path, f'{workflow_name}.bpmn')
-                self._check_bpmn(bpmn_path)
+                bpmn_dict = self._check_bpmn(bpmn_path)
                 makefile_path = os.path.join(workflow_path, 'Makefile')
-                self._check_makefile(makefile_path)
+                makefile_src = self._check_makefile(makefile_path)
                 for task_name, task_assigns in task_data:
                     self._check_task(workflow_path, task_name, task_assigns)
+                check_data = CheckData(workflow_path, bpmn_dict, makefile_src)
+                if additional_checks is not None:
+                    additional_checks(check_data)
             finally:
                 shutil.rmtree(temp_path)
 
@@ -245,6 +271,20 @@ class TestFlowCLib(unittest.TestCase):
                 f"environment['result{call.index - 1}'] = hello_arg_task("
                     f'{args})'
             )
+
+    def _check_branches(self, check_data: CheckData):
+        process_dict = check_data.bpmn_dict['bpmn:process']
+        self.assertIn('bpmn:exclusiveGateway', process_dict)
+        exclusive_gateways = process_dict['bpmn:exclusiveGateway']
+        self.assertEqual(len(exclusive_gateways), 2)
+
+    @unittest.skip('FIXME: Vaporware.')
+    def test_branch(self):
+        self._check_codegen(
+            BRANCH_PATH,
+            'branch_example',
+            additional_checks=self._check_branches
+        )
 
     @unittest.skipUnless(_has_docker(), 'Docker not present, skipping...')
     def test_make(self):
