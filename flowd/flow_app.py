@@ -1,12 +1,17 @@
+import asyncio
 import logging
-
-from quart import request
 import json
+
+from async_timeout import timeout
+from quart import request
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
 from flowlib.constants import BStates, WorkflowInstanceKeys
 from flowlib.workflow import Workflow
+
+
+TIMEOUT_SECONDS = 10
 
 
 class FlowApp(QuartApp):
@@ -64,16 +69,24 @@ class FlowApp(QuartApp):
                     headers_key = WorkflowInstanceKeys.headers_key(flow_id)
 
                     if transition_state(self.etcd, state_key, good_states, b'STOPPING'):
-                        incoming_data = await request.data
                         try:
-                            self.etcd.put(payload_key, incoming_data)
                             self.etcd.put(headers_key, json.dumps(
                                 {h: request.headers[h] for h in request.headers.keys()}
                             ).encode())
+                            with timeout(TIMEOUT_SECONDS):
+                                incoming_data = await request.data
+                            self.etcd.put(payload_key, incoming_data)
                             transition_state(
                                 self.etcd, state_key, [BStates.STOPPING], BStates.STOPPED
                             )
+                        except asyncio.exceptions.TimeoutError as exn:
+                            self.etcd.put(state_key, BStates.ERROR)
+                            logging.exception(
+                                f"Timed out waiting for payload on flow {flow_id}",
+                                exc_info=exn,
+                            )
                         except Exception as exn:
+                            self.etcd.put(state_key, BStates.ERROR)
                             logging.exception(
                                 f"Was unable to save the data for flow_id {flow_id}.",
                                 exc_info=exn,

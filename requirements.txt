@@ -1,3 +1,4 @@
+async-timeout
 lxml
 beautifulsoup4
 confluent-kafka
