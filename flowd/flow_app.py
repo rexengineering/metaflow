@@ -12,7 +12,6 @@ from flowlib.workflow import Workflow
 
 from flowlib.config import INSTANCE_FAIL_ENDPOINT_PATH
 
-
 TIMEOUT_SECONDS = 10
 
 

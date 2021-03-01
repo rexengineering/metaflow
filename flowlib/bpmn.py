@@ -226,6 +226,7 @@ class BPMNProcess:
             ['istioctl', 'kube-inject', '-f', '-'],
             input=temp_yaml, capture_output=True, text=True,
         )
+        result = None
         if istioctl_result.returncode == 0:
             result = istioctl_result.stdout.replace(
                 ': Always',
