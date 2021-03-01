@@ -15,6 +15,9 @@ class CFGBranch(NamedTuple):
 class CFGReturn(NamedTuple):
     returns: ast.Return
 
+    def __repr__(self) -> str:
+        return f'CFGReturn(returns={ast.dump(self.returns)})'
+
 
 class CFGBlock:
     index: int
@@ -31,13 +34,16 @@ class CFGBlock:
         self.terminal = terminal
 
 
-def dump_blocks(blocks: List[CFGBlock]) -> str:
+def dump_blocks(blocks: List[Optional[CFGBlock]]) -> str:
     lns = []
-    for block in blocks:
-        lns.append(f'block {block.index}:')
-        for stmt in block.statements:
-            lns.append(f'    {ast.dump(stmt)}')
-        lns.append(f'    {block.terminal}\n')
+    for index, block in enumerate(blocks):
+        if block is not None:
+            lns.append(f'block {index}:')
+            for stmt in block.statements:
+                lns.append(f'    {ast.dump(stmt)}')
+            lns.append(f'    {block.terminal}\n')
+        else:
+            lns.append(f'block {index}: DEAD\n')
     return '\n'.join(lns)
 
 
@@ -69,23 +75,27 @@ class CFGTransfomer(ast.NodeVisitor):
         self.current_block.statements.append(node)
 
     def _eliminate_dead_code(self):
-        in_counts = {0: 1}
-        in_counts.update((block.index, 0) for block in self.blocks[1:])
-        for block in self.blocks[1:]:
-            terminal = block.terminal
-            assert terminal is not None, 'Internal error: unterminated ' \
-                'basic block detected during dead code elimination.'
-            if isinstance(terminal, CFGJump):
-                in_counts[terminal.branch] += 1
-            elif isinstance(terminal, CFGBranch):
-                in_counts[terminal.true_branch] += 1
-                in_counts[terminal.false_branch] += 1
-        for block_index, in_count in in_counts.items():
-            if in_count < 1:
-                if block_index == len(self.blocks) - 1:
-                    self.blocks.pop()
-                else:
-                    self.blocks[block_index] = None
+        result = frontier = {0}
+        while len(frontier) > 0:
+            next_frontier = set()
+            for index in frontier:
+                terminal = self.blocks[index].terminal
+                assert terminal is not None, 'Internal error: unterminated ' \
+                    'basic block detected during dead code elimination.'
+                if isinstance(terminal, CFGJump):
+                    next_frontier.add(terminal.branch)
+                elif isinstance(terminal, CFGBranch):
+                    next_frontier.add(terminal.true_branch)
+                    next_frontier.add(terminal.false_branch)
+            frontier = next_frontier
+            result.update(frontier)
+        self.blocks = [
+            block if block.index in result else None
+            for block in self.blocks
+        ]
+        if self.blocks[-1] is None:
+            self.blocks.pop()
+        return
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
         assert len(self.blocks) == 0, 'Nested functions in a workflow are ' \
