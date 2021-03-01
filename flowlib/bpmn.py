@@ -2,7 +2,7 @@
 '''
 
 from collections import OrderedDict
-from io import IOBase
+from io import IOBase, StringIO, BytesIO
 import hashlib
 import json
 import logging
@@ -11,6 +11,8 @@ import subprocess
 import sys
 from typing import Mapping, Set
 
+import boto3
+from botocore.exceptions import ClientError
 import yaml
 import xmltodict
 
@@ -33,7 +35,7 @@ from .bpmn_util import (
     outgoing_sequence_flow_table,
 )
 
-from .config import IS_PRODUCTION
+from .config import IS_PRODUCTION, K8S_SPECS_S3_BUCKET
 
 
 ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
@@ -146,6 +148,13 @@ class BPMNProcess:
                 assert False, f"Name {component.name} used twice! Not allowed."
             all_names.add(component.name)
 
+        self._s3_bucket = None
+        if K8S_SPECS_S3_BUCKET is not None:
+            s3 = boto3.resource('s3')
+            self._s3_bucket = s3.Bucket(K8S_SPECS_S3_BUCKET)
+        else:
+            logging.info("Not setting up s3 bucket for k8s specs: no bucket configured.")
+
     @classmethod
     def from_workflow_id(cls, workflow_id):
         etcd = get_etcd(is_not_none=True)
@@ -189,9 +198,40 @@ class BPMNProcess:
         # No longer used
         raise NotImplementedError("REXFlow requires Istio.")
 
+    def _save_specs_to_s3(self, specs, key):
+        if not self._s3_bucket:
+            logging.info("Not saving k8s specs to S3: No configured bucket.")
+            return
+        self._s3_bucket.upload_fileobj(BytesIO(specs.encode()), key)
+        logging.info(f"Successfully saved k8s specs to S3 at {key}.")
+
+    def _get_specs_from_s3(self, key):
+        if not self._s3_bucket:
+            logging.info("Not getting k8s specs from S3: No configured bucket.")
+            return None
+        fileobj = BytesIO()
+        try:
+            self._s3_bucket.download_fileobj(key, fileobj)
+            logging.info(f"Getting k8s specs from S3 at {key}.")
+            return fileobj.getvalue().decode()
+        except ClientError:
+            logging.info(f"Unable to download s3 object for {key}.")
+            return None
+
+
     def to_istio(self, stream: IOBase = None, id_hash: str = None, **kws):
         if stream is None:
             stream = sys.stdout
+
+        # First, check if the input has been cached in s3. If so, then we retrieve and
+        # do NOT recompute. This is critical so that we can update versions of flowd
+        # without worrying about version conflicts.
+        keys_obj = WorkflowKeys(self.properties.id)
+        cached_result = self._get_specs_from_s3(keys_obj.specs)
+        if cached_result:
+            stream.write(cached_result)
+            return cached_result
+
         results = []
         if not self.namespace_shared:
             results.append(
@@ -219,6 +259,7 @@ class BPMNProcess:
         # proxy image, and thus remove the code below.
         temp_yaml = yaml.safe_dump_all(results, **kws)
         if IS_PRODUCTION:
+            self._save_specs_to_s3(temp_yaml, keys_obj.specs)
             stream.write(temp_yaml)
             return temp_yaml
 
@@ -232,6 +273,7 @@ class BPMNProcess:
                 ': Always',
                 ': IfNotPresent',
             ).replace(f'docker.io/istio/proxyv2:{ISTIO_VERSION}', REX_ISTIO_PROXY_IMAGE)
+            self._save_specs_to_s3(result, keys_obj.specs)
             stream.write(result)
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')

@@ -50,3 +50,5 @@ IS_PRODUCTION = (os.getenv("REXFLOW_IS_PRODUCTION") == "True")
 ETCD_HOST = os.getenv("ETCD_HOST")
 if IS_PRODUCTION:
     assert ETCD_HOST is not None
+
+K8S_SPECS_S3_BUCKET = os.getenv("REXFLOW_K8S_SPECS_S3_BUCKET", None)

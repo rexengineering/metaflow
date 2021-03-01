@@ -43,6 +43,7 @@ message DeleteRequest {
 message PSRequest {
     RequestKind kind = 1;
     repeated string ids = 2;
+    bool include_kubernetes = 3;
     // FIXME: Figure out any additional flags and/or arguments.
 }
 
