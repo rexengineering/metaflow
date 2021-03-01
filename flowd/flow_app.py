@@ -10,6 +10,8 @@ from flowlib.quart_app import QuartApp
 from flowlib.constants import BStates, WorkflowInstanceKeys
 from flowlib.workflow import Workflow
 
+from flowlib.config import INSTANCE_FAIL_ENDPOINT_PATH
+
 
 TIMEOUT_SECONDS = 10
 
@@ -19,7 +21,7 @@ class FlowApp(QuartApp):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
         self.app.route('/', methods=('POST',))(self.root_route)
-        self.app.route('/instancefail', methods=('POST',))(self.fail_route)
+        self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=('POST',))(self.fail_route)
 
     async def root_route(self):
         # When there is a flow ID in the headers, store the result in etcd and

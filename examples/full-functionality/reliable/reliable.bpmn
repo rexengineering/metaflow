@@ -12,7 +12,7 @@
       <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_0y9yafp</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="SequenceFlow_0y9yafp" sourceRef="Task_1dqvybv" targetRef="Task_1nyu98k" />
+    <bpmn:sequenceFlow id="SequenceFlow_0y9yafp" name="transport: rpc" sourceRef="Task_1dqvybv" targetRef="Task_1nyu98k" />
     <bpmn:serviceTask id="Task_1mrtiy4" name="Profit!">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="profit" />
@@ -35,7 +35,7 @@
     <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
       <bpmn:text>rexflow:
     id: underpants
-    reliable_transport: kafka
+    transport: kafka
     namespace: default
     namespace_shared: true</bpmn:text>
     </bpmn:textAnnotation>
@@ -75,6 +75,9 @@
       <bpmndi:BPMNEdge id="SequenceFlow_0y9yafp_di" bpmnElement="SequenceFlow_0y9yafp">
         <di:waypoint x="370" y="237" />
         <di:waypoint x="430" y="237" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="368" y="219" width="65" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="SequenceFlow_190n0mt_di" bpmnElement="SequenceFlow_190n0mt">
         <di:waypoint x="215" y="237" />

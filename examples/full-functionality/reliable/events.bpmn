@@ -41,7 +41,7 @@
       <bpmn:text>rexflow:
     namespace: default
     namespace_shared: true
-    reliable_transport: kafka
+    transport: kafka
     id: events</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_0hwix5o" sourceRef="StartEvent_1" targetRef="TextAnnotation_0awc0mf" />
@@ -61,14 +61,12 @@
     <bpmn:association id="Association_1yz0l60" sourceRef="Task_1mrtiy4" targetRef="TextAnnotation_18mql5m" />
     <bpmn:textAnnotation id="TextAnnotation_06yt33r">
       <bpmn:text>rexflow:
-  queue: mytopic
-  gateway_name: stolenpants</bpmn:text>
+  kafka_topic: mytopic</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_057this" sourceRef="Event_1cptoky" targetRef="TextAnnotation_06yt33r" />
     <bpmn:textAnnotation id="TextAnnotation_0dqtqab">
       <bpmn:text>rexflow:
-  queue: mytopic
-  gateway_name: saucedpants</bpmn:text>
+  kafka_topic: mytopic</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:textAnnotation id="TextAnnotation_02eute1">
       <bpmn:text>rexflow:
@@ -78,15 +76,12 @@
     </bpmn:textAnnotation>
     <bpmn:association id="Association_189jawh" sourceRef="Activity_0bekv98" targetRef="TextAnnotation_02eute1" />
     <bpmn:association id="Association_0ahotq6" sourceRef="Event_0w7y6jt" targetRef="TextAnnotation_0dqtqab" />
-    <bpmn:textAnnotation id="TextAnnotation_1ov6vvr">
-      <bpmn:text>rexflow:
-  service:
-    host: end-events</bpmn:text>
-    </bpmn:textAnnotation>
-    <bpmn:association id="Association_0xfwgko" sourceRef="EndEvent_1pxdd1k" targetRef="TextAnnotation_1ov6vvr" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
+      <bpmndi:BPMNShape id="TextAnnotation_06yt33r_di" bpmnElement="TextAnnotation_06yt33r">
+        <dc:Bounds x="450" y="110" width="120" height="54" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_09ozihg_di" bpmnElement="Flow_09ozihg">
         <di:waypoint x="628" y="297" />
         <di:waypoint x="680" y="297" />
@@ -143,17 +138,11 @@
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
         <dc:Bounds x="816" y="140" width="128" height="68" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_06yt33r_di" bpmnElement="TextAnnotation_06yt33r">
-        <dc:Bounds x="460" y="133" width="120" height="68" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0dqtqab_di" bpmnElement="TextAnnotation_0dqtqab">
-        <dc:Bounds x="570" y="80" width="170" height="68" />
+        <dc:Bounds x="570" y="80" width="170" height="40" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_02eute1_di" bpmnElement="TextAnnotation_02eute1">
         <dc:Bounds x="690" y="160" width="100" height="82" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1ov6vvr_di" bpmnElement="TextAnnotation_1ov6vvr">
-        <dc:Bounds x="970" y="140" width="100" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0hwix5o_di" bpmnElement="Association_0hwix5o">
         <di:waypoint x="253" y="280" />
@@ -167,21 +156,17 @@
         <di:waypoint x="880" y="257" />
         <di:waypoint x="878" y="208" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_057this_di" bpmnElement="Association_057this">
-        <di:waypoint x="510" y="279" />
-        <di:waypoint x="510" y="201" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_189jawh_di" bpmnElement="Association_189jawh">
         <di:waypoint x="733" y="257" />
         <di:waypoint x="735" y="242" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_0ahotq6_di" bpmnElement="Association_0ahotq6">
         <di:waypoint x="611" y="279" />
-        <di:waypoint x="619" y="148" />
+        <di:waypoint x="621" y="120" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_0xfwgko_di" bpmnElement="Association_0xfwgko">
-        <di:waypoint x="994" y="280" />
-        <di:waypoint x="1009" y="208" />
+      <bpmndi:BPMNEdge id="Association_057this_di" bpmnElement="Association_057this">
+        <di:waypoint x="509" y="279" />
+        <di:waypoint x="501" y="164" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

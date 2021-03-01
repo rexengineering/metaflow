@@ -31,13 +31,12 @@ from flowlib.constants import (
     flow_result,
 )
 
-from flowlib.config import KAFKA_HOST
+from flowlib.config import KAFKA_HOST, INSTANCE_FAIL_ENDPOINT
 
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
-FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 KAFKA_POLLING_PERIOD = 10
 
 FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
@@ -166,7 +165,7 @@ class EventCatchPoller:
         o = urlparse(FORWARD_URL)
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
-        requests.post(FAIL_URL, data=data, headers=next_headers)
+        requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=next_headers)
         next_headers['x-rexflow-failure'] = True
         self._shadow_to_kafka(data, next_headers)
 

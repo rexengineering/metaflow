@@ -30,6 +30,7 @@ from .bpmn_util import (
     BPMNComponent,
     WorkflowProperties,
     to_valid_k8s_name,
+    outgoing_sequence_flow_table,
 )
 
 from .config import IS_PRODUCTION
@@ -65,6 +66,7 @@ class BPMNProcess:
 
         # needed for calculation of some BPMN Components
         self._digraph = raw_proc_to_digraph(process)
+        self._sequence_flow_table = outgoing_sequence_flow_table(process)
 
         # Maps an Id (eg. "Event_25dst7" or "Gateway_2sh38s") to a BPMNComponent Object.
         self.component_map = {} # type: Mapping[str, BPMNComponent]
@@ -205,7 +207,7 @@ class BPMNProcess:
         for bpmn_component in self.component_map.keys():
             results.extend(
                 self.component_map[bpmn_component].to_kubernetes(
-                    id_hash, self.component_map, self._digraph
+                    id_hash, self.component_map, self._digraph, self._sequence_flow_table
                 )
             )
 

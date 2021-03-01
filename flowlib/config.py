@@ -8,6 +8,12 @@ See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
 
+DEFAULT_FLOWD_URL = 'http://flowd.rexflow:9002'
+FLOWD_URL = os.getenv('REXFLOW_FLOWD_URL', DEFAULT_FLOWD_URL)
+
+INSTANCE_FAIL_ENDPOINT_PATH = "/instancefail"
+INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
+
 DEFAULT_REXFLOW_VERSION = '1.0.0'
 REXFLOW_VERSION = os.getenv('REXFLOW_VERSION', DEFAULT_REXFLOW_VERSION)
 

@@ -5,29 +5,20 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 from collections import OrderedDict, namedtuple
 from typing import List, Mapping
 
-from .bpmn_util import WorkflowProperties, BPMNComponent
+from .bpmn_util import WorkflowProperties, BPMNComponent, get_edge_transport
 
 from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
     create_rexflow_ingress_vs,
-    create_deployment_affinity,
 )
-from .config import (
-    ETCD_HOST,
-    IS_PRODUCTION,
-    KAFKA_HOST,
-    THROW_IMAGE,
-    THROW_LISTEN_PORT,
-    CATCH_IMAGE,
-    CATCH_LISTEN_PORT,
-)
-
+from .config import IS_PRODUCTION
+from .reliable_wf_utils import create_kafka_transport
 
 Upstream = namedtuple(
     'Upstream',
-    ['name', 'host', 'port', 'path', 'method', 'total_attempts', 'task_id']
+    ['full_hostname', 'port', 'path', 'method', 'total_attempts', 'task_id']
 )
 
 
@@ -133,160 +124,8 @@ class BPMNTask(BPMNComponent):
         }
         return envoy_filter
 
-    def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
-                                digraph: OrderedDict) -> list:
-        '''Generates kubernetes deployment for reliable workflow using Kafka transport.
-        '''
-        k8s_objects = []
-        if self._is_preexisting:
-            service_name = self.service_properties.host_without_hash.replace('_', '-')
-        else:
-            service_name = self.service_properties.host.replace("_", '-')
-
-        # There are three things to do:
-        # 1. Generate the first Python service which listens for incoming calls on the Kafka topic
-        # and calls the service
-        # 2. Generate the second Python service, which listens for the response and throws it to
-        # the next kafka topic
-        # 3. Put an envoyfilter on the service (and optionally create the service itself if not
-        # preexisting)
-
-        # Step 1: Make the first python service. Uses the catch_gateway.
-        env_config = [
-            {
-                "name": "KAFKA_HOST",
-                "value": KAFKA_HOST,
-            },
-            {
-                "name": "KAFKA_TOPIC",
-                "value": self.transport_kafka_topic,
-            },
-            {
-                "name": "KAFKA_GROUP_ID",
-                "value": self.id,
-            },
-            {
-                "name": "FORWARD_URL",
-                "value": self.k8s_url,
-            },
-            {
-                "name": "WF_ID",
-                "value": self._global_props.id,
-            },
-            {
-                "name": "FORWARD_TASK_ID",
-                # Despite this being a separate K8s service, the envoyfilter on the service we
-                # forward to expects the same task id as the id of this BPMNTask Object.
-                "value": self.id,
-            },
-            {
-                "name": "TOTAL_ATTEMPTS",
-                "value": 1,  # For reliable workflows, only try once.
-            },
-            {
-                "name": "FAIL_URL",
-                "value": "http://flowd.rexflow:9002/instancefail",
-            },
-            {
-                "name": "ETCD_HOST",
-                "value": ETCD_HOST,
-            },
-        ]
-        k8s_objects.append(create_serviceaccount(self._namespace, self.transport_kafka_topic))
-        k8s_objects.append(
-            create_service(self._namespace, self.transport_kafka_topic, CATCH_LISTEN_PORT)
-        )
-        deployment = create_deployment(
-            self._namespace,
-            self.transport_kafka_topic,
-            CATCH_IMAGE,
-            CATCH_LISTEN_PORT,
-            env_config,
-        )
-        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
-            service_name,
-            self.transport_kafka_topic,
-        )
-        k8s_objects.append(deployment)
-
-        # Step 2: Make the Kafka thing that receives the response and throws it at the next object.
-        forward_set = list(digraph.get(self.id, set()))
-        assert len(forward_set) == 1
-        forward_id = forward_set[0]
-        forward_component = component_map[forward_id]
-
-        env_config = [
-            {
-                "name": "KAFKA_TOPIC",
-                "value": forward_component.transport_kafka_topic,
-            },
-            {
-                "name": "FORWARD_URL",
-                "value": None,
-            },
-            {
-                "name": "TOTAL_ATTEMPTS",
-                "value": None,
-            },
-            {
-                "name": 'KAFKA_HOST',
-                "value": KAFKA_HOST,
-            },
-            {
-                "name": "FORWARD_TASK_ID",
-                "value": forward_component.id,
-            },
-        ]
-
-        throw_service_name = f'{self.id}-{forward_component.transport_kafka_topic}'.lower()
-        throw_service_name = throw_service_name.replace('_', '-')
-
-        k8s_objects.append(
-            create_serviceaccount(self._namespace, throw_service_name)
-        )
-        k8s_objects.append(
-            create_service(
-                self._namespace,
-                throw_service_name,
-                THROW_LISTEN_PORT,
-            )
-        )
-        deployment = create_deployment(
-            self._namespace,
-            throw_service_name,
-            THROW_IMAGE,
-            THROW_LISTEN_PORT,
-            env_config,
-        )
-        deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
-            service_name,
-            throw_service_name,
-        )
-        k8s_objects.append(deployment)
-
-        # Finally, create the envoyfilter.
-        k8s_objects.append(
-            self._generate_envoyfilter(
-                [
-                    Upstream(
-                        forward_component.transport_kafka_topic,
-                        f'{throw_service_name}.{self._namespace}.svc.cluster.local',
-                        THROW_LISTEN_PORT,
-                        '/',
-                        'POST',
-                        1,
-                        self.id,
-                    )
-                ]
-            )
-        )
-
-        if not self._is_preexisting:
-            k8s_objects.extend(self._generate_microservice())
-        return k8s_objects
-
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
-                      digraph: OrderedDict) -> list:
+                      digraph: OrderedDict, edge_map: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -307,32 +146,45 @@ class BPMNTask(BPMNComponent):
            so that the developer may send traffic from his/her terminal into
            the cluster (i.e. the VS attaches to a Gateway).
         '''
-        if self._global_props._is_reliable_transport:
-            return self._to_kubernetes_reliable(id_hash, component_map, digraph)
-
         k8s_objects = []
-        forward_bpmn_objects = [] # type: List[BPMNComponent]
-        forward_set = digraph.get(self.id, set())
-        for forward in forward_set:
-            bpmn_component = component_map[forward] # type: BPMNComponent
-            forward_bpmn_objects.append(bpmn_component)
 
-        upstreams = [] # type: list[Upstream]
-        for bpmn_component in forward_bpmn_objects:
-            path = bpmn_component.call_properties.path
-            if not path.startswith('/'):
-                path = '/' + path
-            upstreams.append(
-                Upstream(
-                    bpmn_component.service_properties.host,
-                    bpmn_component.envoy_host,
-                    bpmn_component.service_properties.port,
-                    path,
-                    bpmn_component.call_properties.method,
-                    bpmn_component.call_properties.total_attempts,
-                    bpmn_component.id,
+        outgoing_edges = list(edge_map[self.id])
+        assert len(outgoing_edges) > 0, "Cannot have dead end on service task."
+
+        upstreams = [] # list of Upstreams. This gets passed into the Envoyfilter config.
+
+        for edge in outgoing_edges:
+            assert edge['@sourceRef'] == self.id, "NewGradProgrammerError: invalid edge map."
+            transport = get_edge_transport(edge, self._global_props.transport)
+            target = component_map[edge['@targetRef']] # type: BPMNComponent
+
+            if transport == 'kafka':
+                transport_call_details = create_kafka_transport(self, target)
+                k8s_objects.extend(transport_call_details.k8s_specs)
+                upstreams.append(
+                    Upstream(
+                        transport_call_details.envoy_host,
+                        transport_call_details.port,
+                        transport_call_details.path,
+                        transport_call_details.method,
+                        transport_call_details.total_attempts,
+                        self.id,
+                    )
                 )
-            )
+            else:
+                path = target.call_properties.path
+                if not path.startswith('/'):
+                    path = '/' + path
+                upstreams.append(
+                    Upstream(
+                        target.envoy_host,
+                        target.service_properties.port,
+                        path,
+                        target.call_properties.method,
+                        target.call_properties.total_attempts,
+                        target.id,
+                    )
+                )
 
         k8s_objects.append(self._generate_envoyfilter(upstreams))
         if not self._is_preexisting:
@@ -344,7 +196,6 @@ class BPMNTask(BPMNComponent):
         # Reminder: ServiceProperties.host() properly handles whether or not to include
         # id hash.
         service_name = self.service_properties.host
-        dns_safe_name = service_name.replace('_', '-')
 
         # k8s ServiceAccount
         port = self.service_properties.port
@@ -353,11 +204,11 @@ class BPMNTask(BPMNComponent):
         uri_prefix = f'/{service_name}' if namespace == 'default' \
             else f'/{namespace}/{service_name}'
 
-        k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
-        k8s_objects.append(create_service(namespace, dns_safe_name, port))
+        k8s_objects.append(create_serviceaccount(namespace, self.service_name))
+        k8s_objects.append(create_service(namespace, self.service_name, port))
         k8s_objects.append(create_deployment(
             namespace,
-            dns_safe_name,
+            self.service_name,
             self.service_properties.container,
             port,
             env=[],
@@ -365,19 +216,17 @@ class BPMNTask(BPMNComponent):
         if not IS_PRODUCTION:
             k8s_objects.append(create_rexflow_ingress_vs(
                 namespace,
-                f'{dns_safe_name}-{self._global_props.id_hash}',
+                f'{self.service_name}-{self._global_props.id_hash}',
                 uri_prefix=uri_prefix,
                 dest_port=port,
-                dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
+                dest_host=f'{self.service_name}.{namespace}.svc.cluster.local',
             ))
 
         return k8s_objects
 
     def _make_forward(self, upstream: Upstream):
         return {
-            'name': upstream.name,
-            'cluster': upstream.name,
-            'host': upstream.host,
+            'full_hostname': upstream.full_hostname,
             'port': upstream.port,
             'path': upstream.path,
             'method': upstream.method, # TODO: Test with methods other than POST
