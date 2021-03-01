@@ -6,7 +6,7 @@ import logging
 import os
 import os.path
 import shutil
-from typing import Any, TextIO, Union
+from typing import Any, Dict, List, Optional, TextIO, Union
 
 import jinja2
 
@@ -69,10 +69,10 @@ class ToplevelVisitor(ast.NodeVisitor):
             newline: str = '\n') -> None:
         self._newline = newline
         self._module_source = module_source.split(self._newline)
-        self._module = module_dict
-        self.tasks = []
-        self.workflow = None
-        self.bindings = {}
+        self._module: Dict[str, Any] = module_dict
+        self.tasks: List[visitors.ServiceTaskCall] = []
+        self.workflow: Optional[ast.FunctionDef] = None
+        self.bindings: Dict[str, ast.AST] = {}
         self.counter = 0
         super().__init__()
 
@@ -159,7 +159,7 @@ class ToplevelVisitor(ast.NodeVisitor):
             f'{node.col_offset} ({type(node).__name__}).'
         )
 
-    def _bind(self, name, value):
+    def _bind(self, name: str, value: ast.AST) -> None:
         assert name not in self.bindings, f'A name can only be bound once ({name}).'
         self.bindings[name] = value
 

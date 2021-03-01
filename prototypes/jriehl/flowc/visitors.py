@@ -1,5 +1,5 @@
 import ast
-from typing import Any, List, NamedTuple, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 
 
 class ServiceTaskCall(NamedTuple):
@@ -16,14 +16,14 @@ class ServiceTaskCall(NamedTuple):
 
 
 class WorkflowVisitor(ast.NodeVisitor):
-    def __init__(self, module: dict) -> None:
+    def __init__(self, module: Dict[str, Any]) -> None:
         self.module = module
         self.task_map = {
             key: value for key, value in module.items()
             if hasattr(value, '_service_task')
         }
-        self.tasks = []
-        self.targets_stack = [None]  # type: List[Optional[List[ast.expr]]]
+        self.tasks: List[ServiceTaskCall] = []
+        self.targets_stack: List[Optional[List[ast.expr]]] = [None]
         super().__init__()
 
     def visit_Assign(self, node: ast.Assign) -> Any:
