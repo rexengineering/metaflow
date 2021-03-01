@@ -6,7 +6,7 @@ from collections import OrderedDict
 from typing import Mapping
 import os
 
-from .bpmn_util import BPMNComponent
+from .bpmn_util import BPMNComponent, to_valid_k8s_name
 
 from .k8s_utils import (
     create_deployment,
@@ -37,8 +37,16 @@ class BPMNStartEvent(BPMNComponent):
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
-        self._service_name = f"{START_EVENT_PREFIX}-{self._global_props.id}"
-        self._queue = None
+
+        # Just for the Start Event, if the user specifies no name on BPMN, we will
+        # provide a somewhat readable alternative: `start-{wf_id}`, where wf_id is the
+        # Workflow ID.
+        # How do we know if the user neglected to provide a name? self.name == self.id
+        if self.name == to_valid_k8s_name(self.id):
+            self.name = to_valid_k8s_name(f"{START_EVENT_PREFIX}-{self._global_props.id}")
+
+        self._service_name = self.name
+        self._kafka_topic = None
 
         self._service_properties.update({
             'host': self._service_name,
@@ -47,8 +55,9 @@ class BPMNStartEvent(BPMNComponent):
         })
 
         # Check if we listen to a kafka topic to start events.
-        if 'queue' in self._annotation:
-            self._queue = self._annotation['queue']
+        if self._annotation is not None and 'kafka_topic' in self._annotation:
+            self._kafka_topic = self._annotation['kafka_topic']
+            self._kafka_topics.append(self._kafka_topic)
 
     def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
                                 digraph: OrderedDict) -> list:
@@ -109,11 +118,11 @@ class BPMNStartEvent(BPMNComponent):
                 "value": os.environ['ETCD_HOST'],
             }
         ]
-        if self._queue is not None:
+        if self._kafka_topic is not None:
             # We can still start a WF by putting a message into a queue
             deployment_env_config.append({
                 "name": "KAFKA_TOPIC",
-                "value": self._queue,
+                "value": self._kafka_topic,
             })
 
         k8s_objects.append(create_serviceaccount(namespace, start_service_name))
@@ -231,11 +240,11 @@ class BPMNStartEvent(BPMNComponent):
                 "value": self._global_props.traffic_shadow_svc['k8s_url'],
             })
 
-        if self._queue is not None:
+        if self._kafka_topic is not None:
             assert KAFKA_HOST is not None, "Kafka installation required for this BPMN Doc."
             deployment_env_config.append({
                 "name": "KAFKA_TOPIC",
-                "value": self._queue,
+                "value": self._kafka_topic,
             })
             deployment_env_config.append({
                 "name": 'KAFKA_HOST',

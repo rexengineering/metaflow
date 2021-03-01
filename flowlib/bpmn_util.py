@@ -4,6 +4,34 @@ from collections import OrderedDict
 from typing import Any, Mapping, List
 import yaml
 from hashlib import sha1
+import re
+
+
+def to_valid_k8s_name(name):
+    '''
+    Takes in a name and massages it until it complies to the k8s name regex, which is:
+        [a-z0-9]([-a-z0-9]*[a-z0-9])?
+    Raises an AssertionError if we fail to make the name comply.
+    '''
+    name = name.lower()
+
+    # Replace space-like chars with a '-'
+    name = re.sub('[ _\n]', '-', name)
+
+    # Remove invalid characters
+    name = re.sub('[^0-9a-z-]', '', name)
+
+    # Remove repeated dashes
+    name = re.sub('-[-]+', '-', name)
+
+    # Trim leading and trailing dashes
+    name = name.rstrip('-').lstrip('-')
+
+    # K8s names limited to 63 or fewer characters.
+    name = name[:63].rstrip('-')
+
+    assert re.fullmatch('[a-z0-9]([-a-z0-9]*[a-z0-9])?', name), "NewGradProgrammerError"
+    return name
 
 
 def calculate_id_hash(wf_id: str) -> str:
@@ -401,10 +429,16 @@ class BPMNComponent:
         self.id = spec['@id']
 
         annotations = [a for a in list(get_annotations(process, self.id)) if 'rexflow' in a]
-        assert len(annotations) == 1, \
-            "Must provide exactly one 'rexflow' annotation for each BPMN Component"
+        assert len(annotations) <= 1, "Can only provide one REXFlow annotation per BPMN Component."
+        if len(annotations):
+            self._annotation = annotations[0]['rexflow']
+        else:
+            self._annotation = None
 
-        self._annotation = annotations[0]['rexflow']
+        if '@name' in spec:
+            self._name = to_valid_k8s_name(spec['@name'])
+        else:
+            self._name = to_valid_k8s_name(self.id)
 
         # Set default values. The constructors of child classes may override these values.
         # For example, a BPMNTask that calls a preexisting microservice should override
@@ -419,7 +453,7 @@ class BPMNComponent:
         self._proc = process
         self._kafka_topics = []
 
-        if 'preexisting' in self._annotation:
+        if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
 
         service_update = {
@@ -434,12 +468,13 @@ class BPMNComponent:
             {'retry': {'total_attempts': self._global_props._retry_total_attempts}}
         )
 
-        if 'call' in self._annotation:
-            self._call_properties.update(self._annotation['call'])
-        if 'health' in self._annotation:
-            self._health_properties.update(self._annotation['health'])
-        if 'service' in self._annotation:
-            self._service_properties.update(self._annotation['service'])
+        if self._annotation is not None:
+            if 'call' in self._annotation:
+                self._call_properties.update(self._annotation['call'])
+            if 'health' in self._annotation:
+                self._health_properties.update(self._annotation['health'])
+            if 'service' in self._annotation:
+                self._service_properties.update(self._annotation['service'])
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
                       digraph: OrderedDict) -> list:
@@ -464,6 +499,18 @@ class BPMNComponent:
            the cluster (i.e. the VS attaches to a Gateway).
         '''
         raise NotImplementedError("Method must be overriden.")
+
+    @property
+    def name(self) -> str:
+        '''Returns the Name of this BPMN Object, conforming to the k8s name regex.
+        This can be determined through any of two ways, in order of precedence:
+        1. Directly putting a name on the BPMN object. For example, in a service task,
+        this would be the text in the middle of the BPMN diagram. For an edge, it would
+        be the visible text displayed just next to it. May return empty string.
+        2. If the above is not specified, name() returns a k8s-safe version of the
+        BPMN Component ID.
+        '''
+        return self._name
 
     @property
     def namespace(self) -> str:

@@ -33,7 +33,7 @@ class Test6(IntegrationTest):
     def __init__(self):
         self._name = "test6_repeated_call"
         self._status = TestStatus('not_set_up')
-        self._wf_id = "test6"
+        self._wf_id = None
 
     def setup(self) -> SetupResult:
         # Step 0: set up preexisting service
@@ -71,7 +71,7 @@ class Test6(IntegrationTest):
         with open(os.devnull, 'w') as devnull:
             run_response = check_output([
                 'curl', '-H', "content-type: application/json", '-d', '{"val": ' + str(val) + '}',
-                "http://localhost:80/start-test6-a66df261",
+                f"http://localhost:80/start-{self._wf_id}",
             ], stderr=devnull)
 
         instance_id = json.loads(run_response.decode())['id']

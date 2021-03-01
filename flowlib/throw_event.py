@@ -32,15 +32,12 @@ class BPMNThrowEvent(BPMNComponent):
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
 
-        assert 'queue' in self._annotation, \
-            "Must annotate Throw Event with `queue` name (kinesis stream name)."
-        assert 'gateway_name' in self._annotation, \
-            "Must annotate Throw Event with gateway name (becomes k8s service name)."
-
-        self.queue_name = self._annotation['queue']
-        self._kafka_topics.append(self.queue_name)
-        self.name = f"{THROW_GATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
         assert 'service' not in self._annotation, "Service properties auto-inferred for Throw Event"
+        assert 'kafka_topic' in self._annotation, \
+            "Must annotate Throw Event with `kafka_topic` name."
+
+        self._kafka_topic = self._annotation['kafka_topic']
+        self._kafka_topics.append(self._kafka_topic)
 
         self._service_properties.update({
             "port": THROW_LISTEN_PORT,
@@ -138,7 +135,7 @@ class BPMNThrowEvent(BPMNComponent):
         env_config = [
             {
                 "name": "KAFKA_TOPIC",
-                "value": self.queue_name,
+                "value": self._kafka_topic,
             },
             {
                 "name": "FORWARD_URL",

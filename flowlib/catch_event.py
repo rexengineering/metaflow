@@ -31,17 +31,12 @@ class BPMNCatchEvent(BPMNComponent):
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
 
-        assert 'queue' in self._annotation, \
-            "Must annotate Catch Event with `queue` name (kinesis stream name)."
-        assert 'gateway_name' in self._annotation, \
-            "Must annotate Catch Event with gateway name (becomes k8s service name)."
+        assert 'kafka_topic' in self._annotation, \
+            "Must annotate Catch Event with `kafka_topic` name."
 
-        self.queue_name = self._annotation['queue']
-        self.kafka_topics.append(self.queue_name)
+        self._kafka_topic = self._annotation['kafka_topic']
+        self.kafka_topics.append(self._kafka_topic)
 
-        # We've got the annotation. From here, let's find out the name of the resulting
-        # gateway service.
-        self.name = f"{CATCH_GATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
         assert 'service' not in self._annotation, \
             "Service Properties auto-inferred for Catch Gateways."
 
@@ -118,7 +113,7 @@ class BPMNCatchEvent(BPMNComponent):
             },
             {
                 "name": "KAFKA_TOPIC",
-                "value": self.queue_name,
+                "value": self._kafka_topic,
             },
             {
                 "name": "KAFKA_GROUP_ID",
@@ -179,7 +174,6 @@ class BPMNCatchEvent(BPMNComponent):
         service_name = self.service_properties.host
         # FIXME: The following is a workaround; need to add a full-on regex
         # check of the service name and error on invalid spec.
-        dns_safe_name = service_name.replace('_', '-')
         port = self.service_properties.port
 
         # Here's the tricky part: we need to configure the Environment Variables for the container
@@ -203,11 +197,11 @@ class BPMNCatchEvent(BPMNComponent):
             },
             {
                 "name": "KAFKA_TOPIC",
-                "value": self.queue_name,
+                "value": self._kafka_topic,
             },
             {
                 "name": "KAFKA_GROUP_ID",
-                "value": dns_safe_name,
+                "value": service_name,
             },
             {
                 "name": "FORWARD_URL",
@@ -235,11 +229,11 @@ class BPMNCatchEvent(BPMNComponent):
             },
         ]
 
-        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
-        k8s_objects.append(create_service(self._namespace, dns_safe_name, port))
+        k8s_objects.append(create_serviceaccount(self._namespace, service_name))
+        k8s_objects.append(create_service(self._namespace, service_name, port))
         k8s_objects.append(create_deployment(
             self._namespace,
-            dns_safe_name,
+            service_name,
             CATCH_IMAGE,
             CATCH_LISTEN_PORT,
             env_config,

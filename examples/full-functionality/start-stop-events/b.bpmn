@@ -20,7 +20,7 @@
       <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_16qxrei</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="EndEvent_1pxdd1k" name="Finish">
+    <bpmn:endEvent id="EndEvent_1pxdd1k" name="finish-b">
       <bpmn:incoming>SequenceFlow_16qxrei</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="SequenceFlow_16qxrei" sourceRef="Task_1mrtiy4" targetRef="EndEvent_1pxdd1k" />
@@ -35,7 +35,7 @@
     <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
       <bpmn:text>rexflow:
     id: b
-    queue: thing-b
+    kafka_topic: thing-b
     namespace: default
     namespace_shared: true</bpmn:text>
     </bpmn:textAnnotation>
@@ -101,7 +101,7 @@
       <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
         <dc:Bounds x="752" y="219" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="755" y="262" width="30" height="14" />
+          <dc:Bounds x="752" y="262" width="36" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0n790cu_di" bpmnElement="Task_1nyu98k">

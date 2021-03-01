@@ -36,17 +36,8 @@ class BPMNEndEvent(BPMNComponent):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
 
-        assert 'service' in self._annotation, \
-            "Must provide service host annotation for all End Events."
-
-        assert 'host' in self._annotation['service'], \
-            "Must provide service host annotation for all End Events."
-
-        assert 'port' not in self._annotation['service'], \
-            "End Event Service Port is auto-configured."
-
-        self._service_name = f"{END_EVENT_PREFIX}-{self._annotation['service']['host']}"
-        self._queue = None
+        self._service_name = self.name
+        self._kafka_topic = None
 
         self._service_properties.update({
             'host': self._service_name,
@@ -55,8 +46,8 @@ class BPMNEndEvent(BPMNComponent):
         })
 
         # Check if we listen to a kafka topic to start events.
-        if 'queue' in self._annotation:
-            self._queue = self._annotation['queue']
+        if self._annotation is not None and 'kafka_topic' in self._annotation:
+            self._kafka_topic = self._annotation['kafka_topic']
 
     def _to_kubernetes_reliable(self, id_hash, component_map: Mapping[str, BPMNComponent],
                                 digraph: OrderedDict) -> list:
@@ -152,7 +143,6 @@ class BPMNEndEvent(BPMNComponent):
                 "name": "WF_ID",
                 "value": self._global_props.id,
             },
-
             {
                 "name": 'KAFKA_HOST',
                 "value": KAFKA_HOST,
@@ -170,11 +160,11 @@ class BPMNEndEvent(BPMNComponent):
                 "value": ETCD_HOST,
             },
         ]
-        if self._queue is not None:
+        if self._kafka_topic is not None:
             # We can still throw an Event at the end of the WF Instance
             env_config.append({
                 "name": "KAFKA_TOPIC",
-                "value": self._queue,
+                "value": self._kafka_topic,
             })
 
         k8s_objects.append(create_serviceaccount(self._namespace, end_service_name))
@@ -232,7 +222,7 @@ class BPMNEndEvent(BPMNComponent):
                 "value": dns_safe_name,
             }
         ]
-        if self._queue is not None:
+        if self._kafka_topic is not None:
             assert KAFKA_HOST is not None, "Kafka installation required for this BPMN doc."
             deployment_env_config.append({
                 "name": 'KAFKA_HOST',
@@ -240,7 +230,7 @@ class BPMNEndEvent(BPMNComponent):
             })
             deployment_env_config.append({
                 "name": "KAFKA_TOPIC",
-                "value": self._queue,
+                "value": self._kafka_topic,
             })
 
         k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))

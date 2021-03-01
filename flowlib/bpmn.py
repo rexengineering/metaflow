@@ -29,6 +29,7 @@ from .bpmn_util import (
     get_annotations,
     BPMNComponent,
     WorkflowProperties,
+    to_valid_k8s_name,
 )
 
 from .config import IS_PRODUCTION
@@ -46,10 +47,14 @@ class BPMNProcess:
         assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
         self.entry_point = entry_point
         annotations = list(get_annotations(process, self.entry_point['@id']))
-        assert len(annotations) == 1, "Must have only one annotation for start event."
-        self.annotation = annotations[0]
+        assert len(annotations) <= 1, "Must have only one annotation for start event."
+        self.annotation = annotations[0] if len(annotations) else None
         self.properties = WorkflowProperties(self.annotation)
-        assert self.properties.id, "You must annotate StartEvent with a Workflow `id`."
+
+        if not self.properties.id:
+            self.properties.update({
+                "id": to_valid_k8s_name(process['@id']),
+            })
 
         # Put the hash in the id
         self.properties.update({
@@ -131,6 +136,13 @@ class BPMNProcess:
         self.all_components.extend(self.catches)
         self.all_components.extend(self.end_events)
         self.all_components.append(self.start_event)
+
+        # Check that there are no duplicate service names.
+        all_names = set()
+        for component in self.all_components + [t for t in self.tasks if t.is_preexisting]:
+            if component.name in all_names:
+                assert False, f"Name {component.name} used twice! Not allowed."
+            all_names.add(component.name)
 
     @classmethod
     def from_workflow_id(cls, workflow_id):

@@ -40,11 +40,6 @@ class BPMNXGateway(BPMNComponent):
         self._gateway = gateway
         self._branches = []
 
-        if 'gateway_name' in self._annotation:
-            self.name = self.annotation['gateway_name']
-        else:
-            self.name = self.id.lower().replace('_', '-')
-
         self._service_properties.update({
             "port": XGW_LISTEN_PORT,
             "host": self.name,
@@ -331,7 +326,6 @@ class BPMNXGateway(BPMNComponent):
         k8s_objects = []
 
         service_name = self.service_properties.host
-        dns_safe_name = service_name.replace('_', '-')
         port = self.service_properties.port
 
         env_config = [
@@ -364,11 +358,11 @@ class BPMNXGateway(BPMNComponent):
                 "value": self._global_props.traffic_shadow_svc['k8s_url'],
             })
 
-        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
-        k8s_objects.append(create_service(self._namespace, dns_safe_name, port))
+        k8s_objects.append(create_serviceaccount(self._namespace, service_name))
+        k8s_objects.append(create_service(self._namespace, service_name, port))
         k8s_objects.append(create_deployment(
             self._namespace,
-            dns_safe_name,
+            service_name,
             XGW_IMAGE,
             port,
             env_config,
