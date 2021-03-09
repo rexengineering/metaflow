@@ -2,7 +2,8 @@ import unittest
 
 import graphviz
 
-from .. import flowclib, bpmn_to_dot
+from .. import bpmngen, bpmn_to_dot, flowclib
+from ..bpmn2 import bpmn
 from .test_flowclib import HELLO_PATH
 
 
@@ -10,17 +11,17 @@ class TestBPMNToDot(unittest.TestCase):
     def _get_bpmn(self):
         with open(HELLO_PATH) as file_obj:
             visitor = flowclib.parse(file_obj)
-        definitions = visitor.to_bpmn(include_diagram=False)
+        definitions = bpmngen.generate_bpmn(visitor, include_diagram=False)
         assert (
             len(definitions) == 1 and
-            isinstance(definitions[0], flowclib.bpmn.Process)
+            isinstance(definitions[0], bpmn.Process)
         )
         return definitions
 
     def test_bpmn_to_dot(self):
         definitions = self._get_bpmn()
         process = definitions[0]
-        assert isinstance(process, flowclib.bpmn.Process)
+        assert isinstance(process, bpmn.Process)
         digraph = bpmn_to_dot.bpmn_to_dot(process)
         self.assertIsInstance(digraph, graphviz.Digraph)
         digraph_output = str(digraph).split('\n')
@@ -31,7 +32,7 @@ class TestBPMNToDot(unittest.TestCase):
     def test_dot_to_xdot(self):
         definitions = self._get_bpmn()
         process = definitions[0]
-        assert isinstance(process, flowclib.bpmn.Process)
+        assert isinstance(process, bpmn.Process)
         digraph = bpmn_to_dot.bpmn_to_dot(process)
         xdot = bpmn_to_dot.dot_to_xdot(digraph)
         xdot_output = str(xdot).split('\n')
@@ -42,7 +43,7 @@ class TestBPMNToDot(unittest.TestCase):
     def test_dot_to_svg(self):
         definitions = self._get_bpmn()
         process = definitions[0]
-        assert isinstance(process, flowclib.bpmn.Process)
+        assert isinstance(process, bpmn.Process)
         digraph = bpmn_to_dot.bpmn_to_dot(process)
         svg = bpmn_to_dot.dot_to_svg(digraph)
         self.assertEqual(len(svg), 1)
@@ -50,7 +51,7 @@ class TestBPMNToDot(unittest.TestCase):
     def test_svg_to_bpmndi(self):
         definitions = self._get_bpmn()
         process = definitions[0]
-        assert isinstance(process, flowclib.bpmn.Process)
+        assert isinstance(process, bpmn.Process)
         process_elements = set(
             getattr(element, 'id', None) for element in process
         )

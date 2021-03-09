@@ -23,6 +23,8 @@ def bpmn_to_dot(process: bpmn.Process) -> graphviz.Digraph:
                 attrs['shape'] = 'circle'
             elif isinstance(elem, bpmn.EndEvent):
                 attrs['shape'] = 'doublecircle'
+            elif isinstance(elem, bpmn.Gateway):
+                attrs['shape'] = 'diamond'
             result.node(element_identifier, **attrs)
     return result
 
@@ -67,12 +69,15 @@ def _map_process_to_svg(
         else:
             # Edge...
             source, target = svg_element['title'].split('->')
+            found = None
             for bpmn_element_id, edge_attributes in bpmn_element_map.items():
                 if (edge_attributes[0] == source and
                         edge_attributes[1] == target):
                     result[bpmn_element_id] = svg_element
-                    bpmn_element_map.pop(bpmn_element_id)
+                    found = bpmn_element_id
                     break
+            if found is not None:
+                bpmn_element_map.pop(found)
     return result
 
 

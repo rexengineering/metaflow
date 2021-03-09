@@ -1,5 +1,6 @@
 import ast
-from typing import List, NamedTuple, Optional, Union
+from enum import Enum, auto
+from typing import List, NamedTuple, Optional, Set, Union
 
 
 class CFGJump(NamedTuple):
@@ -19,22 +20,43 @@ class CFGReturn(NamedTuple):
         return f'CFGReturn(returns={ast.dump(self.returns)})'
 
 
+class CFGFork(NamedTuple):
+    branches: List[int]
+
+
+CFGBlockTerminusType = Union[CFGJump, CFGBranch, CFGReturn, CFGFork]
+
+
+class CFGFlags(Enum):
+    BRANCH_JOIN = auto()
+    FORK_JOIN = auto()
+
+
 class CFGBlock:
     index: int
     statements: List[ast.stmt]
-    terminal: Optional[Union[CFGJump, CFGBranch, CFGReturn]]
+    terminal: Optional[CFGBlockTerminusType]
+    flags: Set[CFGFlags]
 
     def __init__(
             self,
             index: int,
             statements: List[ast.stmt],
-            terminal: Optional[Union[CFGJump, CFGBranch, CFGReturn]] = None):
+            terminal: Optional[CFGBlockTerminusType] = None,
+            flags: Optional[Set[CFGFlags]] = None):
         self.index = index
         self.statements = statements
         self.terminal = terminal
+        if flags is None:
+            self.flags = set()
+        else:
+            self.flags = flags
 
 
-def dump_blocks(blocks: List[Optional[CFGBlock]]) -> str:
+CFGBlocks = List[Optional[CFGBlock]]
+
+
+def dump_blocks(blocks: CFGBlocks) -> str:
     lns = []
     for index, block in enumerate(blocks):
         if block is not None:
@@ -47,9 +69,9 @@ def dump_blocks(blocks: List[Optional[CFGBlock]]) -> str:
     return '\n'.join(lns)
 
 
-class CFGTransfomer(ast.NodeVisitor):
+class CFGBuilder(ast.NodeVisitor):
     function: ast.FunctionDef
-    blocks: List[Optional[CFGBlock]]
+    blocks: CFGBlocks
     current_block: Optional[CFGBlock]
 
     def __init__(self, function: ast.FunctionDef):
@@ -61,7 +83,7 @@ class CFGTransfomer(ast.NodeVisitor):
         self.blocks.append(result)
         return result
 
-    def get_cfg(self):
+    def get_cfg(self) -> CFGBlocks:
         self.blocks = []
         self.visit(self.function)
         return self.blocks
@@ -149,6 +171,7 @@ class CFGTransfomer(ast.NodeVisitor):
                 self.visit(stmt)
         false_tail = self.current_block
         join_block = self.new_block()
+        join_block.flags.add(CFGFlags.BRANCH_JOIN)
         if true_tail != if_block:
             if true_tail.terminal is None:
                 true_tail.terminal = CFGJump(join_block.index)

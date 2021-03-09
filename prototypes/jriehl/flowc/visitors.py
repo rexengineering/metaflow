@@ -36,24 +36,23 @@ class WorkflowVisitor(ast.NodeVisitor):
         # Visit children first.
         result = super().generic_visit(node)
         if isinstance(node.func, ast.Name) and node.func.id in self.task_map:
+            transform = RewriteTargets().visit
             targets = (
                 [
-                    ast.fix_missing_locations(RewriteTargets().visit(target))
+                    ast.fix_missing_locations(transform(target))
                     for target in self.targets_stack[-1]
                 ]
                 if self.targets_stack[-1] is not None else
                 self.targets_stack[-1]
             )
             args = [
-                ast.fix_missing_locations(RewriteTargets().visit(arg))
+                ast.fix_missing_locations(transform(arg))
                 for arg in node.args
             ]
             keywords = [
                 ast.keyword(
                     keyword.arg,
-                    ast.fix_missing_locations(RewriteTargets().visit(
-                        keyword.value
-                    ))
+                    ast.fix_missing_locations(transform(keyword.value))
                 )
                 for keyword in node.keywords
             ]

@@ -9,7 +9,7 @@ import unittest
 
 import xmltodict
 
-from .. import flowclib
+from .. import flowclib, toplevel
 
 
 PATH = os.path.dirname(__file__)
@@ -48,7 +48,7 @@ class TestFlowCLib(unittest.TestCase):
             self.fail('Empty or non-existant container')
         self.assertGreaterEqual(len(container), 1)
 
-    def _parse_path(self, file_path: str) -> flowclib.ToplevelVisitor:
+    def _parse_path(self, file_path: str) -> toplevel.ToplevelVisitor:
         if file_path in self._parse_results:
             return self._parse_results[file_path]
         with open(file_path) as file_obj:
@@ -58,11 +58,11 @@ class TestFlowCLib(unittest.TestCase):
 
     def test_parse_hello(self):
         result = self._parse_path(HELLO_PATH)
-        self.assertIsInstance(result, flowclib.ToplevelVisitor)
+        self.assertIsInstance(result, toplevel.ToplevelVisitor)
 
     def test_parse_branch(self):
         result = self._parse_path(BRANCH_PATH)
-        self.assertIsInstance(result, flowclib.ToplevelVisitor)
+        self.assertIsInstance(result, toplevel.ToplevelVisitor)
 
     def _check_bpmn(self, bpmn_path: str) -> collections.OrderedDict:
         '''Ensure the given BPMN file may be parsed and contains constructs
@@ -278,7 +278,6 @@ class TestFlowCLib(unittest.TestCase):
         exclusive_gateways = process_dict['bpmn:exclusiveGateway']
         self.assertEqual(len(exclusive_gateways), 2)
 
-    @unittest.skip('FIXME: Vaporware.')
     def test_branch(self):
         self._check_codegen(
             BRANCH_PATH,

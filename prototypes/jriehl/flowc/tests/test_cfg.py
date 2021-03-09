@@ -33,18 +33,18 @@ class TestCFG(unittest.TestCase):
         with open(BRANCH_PATH) as branch_file:
             toplevel = flowclib.parse(branch_file)
         assert toplevel.workflow is not None
-        visitor = cfg.CFGTransfomer(toplevel.workflow)
+        visitor = cfg.CFGBuilder(toplevel.workflow)
         blocks = visitor.get_cfg()
         self.assertEqual(len(blocks), 4)
         real_block_count = sum(1 for block in blocks if block is not None)
         self.assertEqual(real_block_count, 4)
 
     @staticmethod
-    def _parse(src: str) -> cfg.CFGTransfomer:
+    def _parse(src: str) -> cfg.CFGBuilder:
         tree = ast.parse(src, '<unit test input>', 'exec')
         function_def = tree.body[0]
         assert isinstance(function_def, ast.FunctionDef)
-        cfg_visitor = cfg.CFGTransfomer(function_def)
+        cfg_visitor = cfg.CFGBuilder(function_def)
         return cfg_visitor
 
     def test_empty(self):
