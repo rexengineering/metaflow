@@ -10,6 +10,7 @@ from .config import (
     ETCD_CA_CERT,
     ETCD_CERT_CERT,
     ETCD_CERT_KEY,
+    IS_PRODUCTION,
 )
 from .k8s_utils import get_etcd_endpoints
 
@@ -111,8 +112,10 @@ def get_etcd(*args, is_not_none=False, **kws):
         assert _etcd is not None
         result = _etcd
     elif _etcd is None:
-        result = init_etcd()
-        # result = init_etcd_legacy(*args, **kws)
+        if IS_PRODUCTION:
+            result = init_etcd()
+        else:
+            result = init_etcd_legacy(*args, **kws)
     else:
         result = _etcd
     return result

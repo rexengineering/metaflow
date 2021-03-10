@@ -73,15 +73,3 @@ ETCD_POD_LABEL_SELECTOR = os.getenv("REXFLOW_ETCD_POD_LABEL_SELECTOR")
 
 # S3 Bucket, optionally used to store k8s specs.
 K8S_SPECS_S3_BUCKET = os.getenv("REXFLOW_K8S_SPECS_S3_BUCKET", None)
-
-
-# if ETCD_HOST_CONFIGMAP_PATH is not None:
-#     # Contract is that ETCD_HOST_CONFIGMAP_PATH contains a file with a
-#     # comma-separated list of <host>:<port> endpoints.
-#     with open(os.environ['REXFLOW_ETCD_HOST_CONFIGMAP_PATH'], 'r') as f:
-#         hosts = f.read()
-#     ETCD_HOST = hosts.lstrip(' ').split(',')[0].split(":")[0]
-#     ETCD_PORT = hosts.lstrip(' ').split(',')[0].split(":")[1]
-# else:
-#     ETCD_HOST = os.getenv("ETCD_HOST")
-#     ETCD_PORT = os.getenv("ETCD_PORT")

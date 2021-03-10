@@ -4,7 +4,7 @@ import xmltodict
 
 from flowlib import bpmn, workflow
 from flowlib.etcd_utils import get_etcd
-from flowlib.constants import States, WorkflowKeys
+from flowlib.constants import States
 
 
 def handler(request):
@@ -27,14 +27,14 @@ def handler(request):
         logging.warn('No service tasks found in BPMN specification.')
     etcd = get_etcd(is_not_none=True)
 
-    # # check that the WF hasn't already been applied, and raise an error if not.
-    # previous_application = etcd.get(workflow_obj.keys.proc)[0]
-    # assert not previous_application, "Workflow ID already exists!"
+    # check that the WF hasn't already been applied, and raise an error if not.
+    previous_application = etcd.get(workflow_obj.keys.proc)[0]
+    assert not previous_application, "Workflow ID already exists!"
 
     etcd.put(workflow_obj.keys.proc, process.to_xml())
     if request.stopped:
-        if not etcd.put_if_not_exists(workflow_obj.keys.state, States.STOPPED):
-            logging.error(f'{workflow_obj.keys.state} already defined in etcd!')
+        if not etcd.put_if_not_exists(workflow_obj.state_key, States.STOPPED):
+            logging.error(f'{workflow_obj.state_key} already defined in etcd!')
     else:
         workflow_obj.start()
     return result
