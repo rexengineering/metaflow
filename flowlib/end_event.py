@@ -74,10 +74,6 @@ class BPMNEndEvent(BPMNComponent):
                 "value": None,
             },
             {
-                "name": "ETCD_HOST",
-                "value": os.environ['ETCD_HOST'],
-            },
-            {
                 "name": "END_EVENT_NAME",
                 "value": self.name,
             },
@@ -105,5 +101,6 @@ class BPMNEndEvent(BPMNComponent):
             self.service_properties.container,
             port,
             deployment_env_config,
+            etcd_access=True,
         ))
         return k8s_objects

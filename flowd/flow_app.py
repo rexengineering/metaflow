@@ -105,4 +105,4 @@ class FlowApp(QuartApp):
         return 'Another happy landing (:'
 
     def get_etcd_hosts(self):
-        return {"etcd_hosts": get_etcd_hosts()}
+        return {"etcd_hosts": get_etcd_endpoints()}

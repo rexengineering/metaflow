@@ -110,7 +110,7 @@ class BPMNCatchEvent(BPMNComponent):
             },
             {
                 "name": "TOTAL_ATTEMPTS",
-                "value": total_attempts,
+                "value": str(total_attempts),
             },
             {
                 "name": "FAIL_URL",

@@ -27,9 +27,9 @@ def handler(request):
         logging.warn('No service tasks found in BPMN specification.')
     etcd = get_etcd(is_not_none=True)
 
-    # check that the WF hasn't already been applied, and raise an error if not.
-    previous_application = etcd.get(workflow_obj.keys.proc)[0]
-    assert not previous_application, "Workflow ID already exists!"
+    # # check that the WF hasn't already been applied, and raise an error if not.
+    # previous_application = etcd.get(workflow_obj.keys.proc)[0]
+    # assert not previous_application, "Workflow ID already exists!"
 
     etcd.put(workflow_obj.keys.proc, process.to_xml())
     if request.stopped:

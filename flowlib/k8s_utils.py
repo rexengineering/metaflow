@@ -61,7 +61,7 @@ def create_deployment(
                     'containers': [
                         {
                             'image': container,
-                            'imagePullPolicy': 'IfNotPresent',
+                            'imagePullPolicy': 'Always',
                             'name': dns_safe_name,
                             'ports': [
                                 {
@@ -98,8 +98,8 @@ def create_deployment(
                     "value": ETCD_CERT_KEY,
                 },
                 {
-                    "name": "REXFLOW_ETCD_POD_LABEL_SELECTOR",
-                    "value": ETCD_POD_LABEL_SELECTOR,
+                    "name": "REXFLOW_FLOWD_HOST",
+                    "value": FLOWD_HOST,
                 },
             ])
 
@@ -297,4 +297,4 @@ def get_etcd_endpoints():
             }]
     else:
         # Ask Flowd for the data.
-        return requests.get(LIST_ETCD_HOSTS_ENDPOINT).json
+        return requests.get(LIST_ETCD_HOSTS_ENDPOINT).json()['etcd_hosts']
