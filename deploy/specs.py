@@ -208,7 +208,7 @@ healthd_service_spec = {
     },
 }
 
-mk_healthd_deployment_spec = lambda etcd_host: {  # noqa
+mk_healthd_deployment_spec = lambda etcd_host, kafka_enabled: {  # noqa
     'apiVersion': 'apps/v1',
     'kind': 'Deployment',
     'metadata': {'name': 'healthd'},
@@ -225,6 +225,11 @@ mk_healthd_deployment_spec = lambda etcd_host: {  # noqa
                         'name': 'healthd',
                         'ports': [{'containerPort': 5050}],
                         'env': [
+                            {
+                            'name': 'KAFKA_HOST',
+                            'value': 'my-cluster-kafka-bootstrap.kafka:9092' if kafka_enabled \
+                                else None
+                            },
                             {'name': 'ETCD_HOST', 'value': etcd_host},
                             {'name': 'HEALTHD_ON_KUBERNETES', 'value': 'True'}
                         ],
