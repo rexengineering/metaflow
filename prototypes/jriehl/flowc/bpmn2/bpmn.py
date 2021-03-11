@@ -588,7 +588,10 @@ class EventBasedGateway(Gateway):
     _ns={'prefix': 'bpmn', 'localName': 'EventBasedGateway', 'name': 'bpmn:EventBasedGateway'}
 
 class ExclusiveGateway(Gateway):
-    default: SequenceFlow
+    # FIXME: Need to have CMOF generator support reference properties like 'default'.
+    # Manually coercing to string, but it should be a reference to a SequenceFlow that
+    # serializes to a string ID.
+    default: cmof.String
     _ns={'prefix': 'bpmn', 'localName': 'ExclusiveGateway', 'name': 'bpmn:ExclusiveGateway'}
 
 class GlobalBusinessRuleTask(GlobalTask):

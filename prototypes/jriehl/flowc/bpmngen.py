@@ -5,8 +5,6 @@
 import ast
 from typing import Dict, List, Optional
 
-import pudb
-
 from . import bpmn_to_dot, cfg, toplevel, visitors
 from .bpmn2 import bpmn, registry
 from .intcounter import IntCounter
@@ -109,8 +107,9 @@ def generate_bpmn_process(visitor: toplevel.ToplevelVisitor) -> bpmn.Process:
             target_element = block_map[block.terminal.branch][0]
             sequence_flows.append(_make_edge(current, target_element, counter))
         elif isinstance(block.terminal, cfg.CFGBranch):
-            next = bpmn.ExclusiveGateway(
-                id=f'ExclusiveGateway_{counter.postinc}'
+            false_target = block_map[block.terminal.false_branch][0]
+            gateway = next = bpmn.ExclusiveGateway(
+                id=f'ExclusiveGateway_{counter.postinc}',
             )
             process.append(next)
             sequence_flows.append(_make_edge(current, next, counter))
@@ -119,11 +118,11 @@ def generate_bpmn_process(visitor: toplevel.ToplevelVisitor) -> bpmn.Process:
             true_branch = _make_edge(
                 current, block_map[block.terminal.true_branch][0], counter
             )
+            #true_branch.append(bpmn.ConditionExpression())
             sequence_flows.append(true_branch)
-            false_branch = _make_edge(
-                current, block_map[block.terminal.false_branch][0], counter
-            )
+            false_branch = _make_edge(current, false_target, counter)
             sequence_flows.append(false_branch)
+            gateway.default = false_branch.id
         elif isinstance(block.terminal, cfg.CFGReturn):
             # FIXME: How do we handle a return statement with an expression?
             next = bpmn.EndEvent(id=f'EndEvent_{counter.postinc}')

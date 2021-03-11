@@ -277,6 +277,20 @@ class TestFlowCLib(unittest.TestCase):
         self.assertIn('bpmn:exclusiveGateway', process_dict)
         exclusive_gateways = process_dict['bpmn:exclusiveGateway']
         self.assertEqual(len(exclusive_gateways), 2)
+        if isinstance(exclusive_gateways[1]['bpmn:incoming'], list):
+            branch, join = exclusive_gateways
+        else:
+            join, branch = exclusive_gateways
+        self.assertIsInstance(branch['bpmn:incoming'], str)
+        self.assertIsInstance(branch['bpmn:outgoing'], list)
+        self.assertEqual(len(branch['bpmn:outgoing']), 2)
+        self.assertIsInstance(join['bpmn:incoming'], list)
+        self.assertIsInstance(join['bpmn:outgoing'], str)
+        self.assertEqual(len(join['bpmn:incoming']), 2)
+        self.assertIn('@default', branch)
+        default = branch['@default']
+        self.assertIn(default, (branch['bpmn:outgoing']))
+        self.assertNotIn('@default', join)
 
     def test_branch(self):
         self._check_codegen(
