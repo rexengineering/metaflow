@@ -12,6 +12,9 @@ parser = argparse.ArgumentParser('deploy')
 parser.add_argument(
     'subcommand', nargs='?', default='create', choices=('create', 'delete')
 )
+parser.add_argument(
+    '--kafka', action='store_true'
+)
 
 if __name__ == '__main__':
     my_deployer = deployer.Deployer()

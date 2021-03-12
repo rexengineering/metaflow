@@ -1,3 +1,11 @@
+from flowlib.config import (
+    DEFAULT_XGW_IMAGE,
+    DEFAULT_THROW_IMAGE,
+    DEFAULT_CATCH_IMAGE,
+    DEFAULT_REXFLOW_VERSION,
+
+)
+
 rexflow_namespace_spec = {
     'apiVersion': 'v1',
     'kind': 'Namespace',
@@ -92,7 +100,7 @@ flowd_service_specs = {
     },
 }
 
-mk_flowd_deployment_spec = lambda etcd_host : {  # noqa
+mk_flowd_deployment_spec = lambda etcd_host, kafka_enabled : {  # noqa
     'apiVersion': 'apps/v1',
     'kind': 'Deployment',
     'metadata': {'name': 'flowd'},
@@ -107,7 +115,19 @@ mk_flowd_deployment_spec = lambda etcd_host : {  # noqa
                     'imagePullPolicy': 'IfNotPresent',
                     'name': 'flowd',
                     'ports': [{'containerPort': 9001}, {'containerPort': 9002}],
-                    'env': [{'name': 'ETCD_HOST', 'value': etcd_host}]
+                    'env': [
+                        {'name': 'ETCD_HOST', 'value': etcd_host},
+                        {
+                            'name': 'KAFKA_HOST',
+                            'value': 'my-cluster-kafka-bootstrap.kafka:9092' if kafka_enabled \
+                                else None
+                        },
+                        {'name': 'REXFLOW_XGW_IMAGE', 'value': DEFAULT_XGW_IMAGE},
+                        {'name': 'REXFLOW_CATCH_IMAGE', 'value': DEFAULT_CATCH_IMAGE},
+                        {'name': 'REXFLOW_THROW_IMAGE', 'value': DEFAULT_THROW_IMAGE},
+                        {'name': 'REXFLOW_VERSION', 'value': DEFAULT_REXFLOW_VERSION},
+                        {'name': 'REXFLOW_IS_PRODUCTION', 'value': 'False'},
+                    ]
                 }],
                 'serviceAccountName': 'flowd'}
         }

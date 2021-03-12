@@ -6,18 +6,25 @@ from collections import OrderedDict, namedtuple
 import os
 from typing import Mapping
 
-from .bpmn_util import WorkflowProperties, BPMNComponent
+from .bpmn_util import WorkflowProperties, BPMNComponent, get_edge_transport
 from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
+    create_deployment_affinity,
 )
+from .config import (
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+)
+from .reliable_wf_utils import create_kafka_transport
 
 Upstream = namedtuple('Upstream', ['name', 'host', 'port', 'path', 'method'])
 
-THROW_GATEWAY_LISTEN_PORT = 5000
 THROW_GATEWAY_SVC_PREFIX = "throw"
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
 class BPMNThrowEvent(BPMNComponent):
@@ -26,32 +33,55 @@ class BPMNThrowEvent(BPMNComponent):
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
 
-        assert 'queue' in self._annotation, \
-            "Must annotate Throw Event with `queue` name (kinesis stream name)."
-        assert 'gateway_name' in self._annotation, \
-            "Must annotate Throw Event with gateway name (becomes k8s service name)."
-
-        self.queue_name = self._annotation['queue']
-        self._kafka_topics.append(self.queue_name)
-        self.name = f"{THROW_GATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
         assert 'service' not in self._annotation, "Service properties auto-inferred for Throw Event"
+        assert 'kafka_topic' in self._annotation, \
+            "Must annotate Throw Event with `kafka_topic` name."
+
+        self._kafka_topic = self._annotation['kafka_topic']
+        self._kafka_topics.append(self._kafka_topic)
 
         self._service_properties.update({
-            "port": THROW_GATEWAY_LISTEN_PORT,
+            "port": THROW_LISTEN_PORT,
             "host": self.name,
         })
 
     def to_kubernetes(self,
                       id_hash,
                       component_map: Mapping[str, BPMNComponent],
-                      digraph: OrderedDict) -> list:
+                      digraph: OrderedDict,
+                      edge_map: OrderedDict) -> list:
+        assert KAFKA_HOST is not None, "Kafka Installation required for Throw Events."
+
         k8s_objects = []
+        total_attempts = ''
+        target_url = ''
+        task_id = ''
+
+        outgoing_edges = list(edge_map.get(self.id, set()))
+        assert len(outgoing_edges) <= 1, "Throw Event must have zero or one outgoing edges."
+        if len(outgoing_edges):
+            edge = outgoing_edges[0]
+            transport_type = get_edge_transport(edge, self.workflow_properties.transport)
+            assert edge['@sourceRef'] == self.id, "Got an invalid edge map."
+            next_task = component_map[edge['@targetRef']]
+
+            if transport_type == 'kafka':
+                transport = create_kafka_transport(self, next_task)
+                target_url = f'http://{transport.envoy_host}:{transport.port}{transport.path}'
+                task_id = self.id
+                total_attempts = transport.total_attempts
+                k8s_objects.extend(transport.k8s_specs)
+            elif transport_type == 'rpc':
+                target_url = next_task.k8s_url
+                total_attempts = next_task.call_properties.total_attempts
+                task_id = next_task.id
+            else:
+                assert False, f"Transport '{transport_type}' is not implemented."
 
         # k8s ServiceAccount
-        service_name = self.service_properties.host
+        service_name = self.service_name
         # FIXME: The following is a workaround; need to add a full-on regex
         # check of the service name and error on invalid spec.
-        dns_safe_name = service_name.replace('_', '-')
 
         port = self.service_properties.port
 
@@ -60,28 +90,18 @@ class BPMNThrowEvent(BPMNComponent):
         # 1. Tell the container which queue to publish to.
         # 2. Tell the container which (if any) service to forward its input to.
 
-        # `targets` should be list of URL's. component_map[foo] returns a BPMNComponent, and
-        # BPMNComponent.k8s_url returns the k8s FQDN + http path for the next task.
-        targets = [
-            component_map[component_id]
-            for component_id in digraph.get(self.id, set())
-        ]
-
-        assert len(targets) <= 1  # Multiplexing will require a Parallel Gateway.
-        target = targets[0] if len(targets) else None
-
         env_config = [
             {
-                "name": "KAFKA_TOPIC",
-                "value": self.queue_name,
+                "name": "KAFKA_TOPIC",  # Topic to publish to, NOT Reliable Transport topic
+                "value": self._kafka_topic,
             },
             {
                 "name": "FORWARD_URL",
-                "value": target.k8s_url if target else None,
+                "value": target_url,
             },
             {
                 "name": "TOTAL_ATTEMPTS",
-                "value": str(target.call_properties.total_attempts) if target else "",
+                "value": str(total_attempts),
             },
             {
                 "name": 'KAFKA_HOST',
@@ -89,17 +109,22 @@ class BPMNThrowEvent(BPMNComponent):
             },
             {
                 "name": "FORWARD_TASK_ID",
-                "value": target.id if target else '',
+                "value": task_id,
             },
         ]
+        if self._global_props.traffic_shadow_svc:
+            env_config.append({
+                "name": "KAFKA_SHADOW_URL",
+                "value": self._global_props.traffic_shadow_svc['k8s_url'],
+            })
 
-        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
-        k8s_objects.append(create_service(self._namespace, dns_safe_name, port))
+        k8s_objects.append(create_serviceaccount(self._namespace, service_name))
+        k8s_objects.append(create_service(self._namespace, service_name, port))
         k8s_objects.append(create_deployment(
             self._namespace,
-            dns_safe_name,
-            'throw-gateway:1.0.0',
-            port,
+            service_name,
+            THROW_IMAGE,
+            THROW_LISTEN_PORT,
             env_config,
         ))
 

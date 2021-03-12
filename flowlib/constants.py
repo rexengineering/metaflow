@@ -37,6 +37,9 @@ class WorkflowKeys:
         self.probe = self.probe_key(id)
         self.state = self.state_key(id)
 
+        # Actually an S3 key since we don't store the k8s specs in etcd.
+        self.specs = self.specs_key(id)
+
     @classmethod
     def key_of(cls, id):
         return f'{WorkflowKeys.ROOT}/{id}'
@@ -57,6 +60,10 @@ class WorkflowKeys:
     def state_key(cls, id):
         return f'{cls.key_of(id)}/state'
 
+    @classmethod
+    def specs_key(cls, id):
+        return f'{cls.key_of(id)}/k8s_specs'
+
 
 class WorkflowInstanceKeys:
     ROOT = f'{REXFLOW_ROOT}/instances'
@@ -72,6 +79,7 @@ class WorkflowInstanceKeys:
         self.parent = self.parent_key(id)
         self.end_event = self.end_event_key(id)
         self.traceid = self.traceid_key(id)
+        self.content_type = self.content_type_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -112,6 +120,10 @@ class WorkflowInstanceKeys:
     @classmethod
     def traceid_key(cls, id):
         return f'{cls.key_of(id)}/traceid'
+
+    @classmethod
+    def content_type_key(cls, id):
+        return f'{cls.key_of(id)}/content_type'
 
 
 def split_key(instance_id: str):

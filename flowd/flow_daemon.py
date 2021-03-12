@@ -11,6 +11,9 @@ class Flow(flow_pb2_grpc.FlowDaemon):
     def DeleteWorkflow(self, request, context):
         return handler_dispatch('delete', request, context)
 
+    def ProbeWorkflow(self, request, context):
+        return handler_dispatch('probe', request, context)
+
     def PSQuery(self, request, context):
         return handler_dispatch('ps', request, context)
 

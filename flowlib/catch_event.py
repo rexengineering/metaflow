@@ -6,17 +6,26 @@ from collections import OrderedDict
 from typing import Mapping
 import os
 
-from .bpmn_util import BPMNComponent, WorkflowProperties
+from .bpmn_util import BPMNComponent, WorkflowProperties, get_edge_transport
 
 from .k8s_utils import (
     create_deployment,
     create_service,
     create_serviceaccount,
+    create_deployment_affinity,
 )
+from .config import (
+    ETCD_HOST,
+    KAFKA_HOST,
+    THROW_IMAGE,
+    THROW_LISTEN_PORT,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+    INSTANCE_FAIL_ENDPOINT,
+)
+from .reliable_wf_utils import create_kafka_transport
 
-CATCH_GATEWAY_LISTEN_PORT = 5000
 CATCH_GATEWAY_SVC_PREFIX = "catch"
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
 
 
 class BPMNCatchEvent(BPMNComponent):
@@ -25,92 +34,101 @@ class BPMNCatchEvent(BPMNComponent):
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
 
-        assert 'queue' in self._annotation, \
-            "Must annotate Catch Event with `queue` name (kinesis stream name)."
-        assert 'gateway_name' in self._annotation, \
-            "Must annotate Catch Event with gateway name (becomes k8s service name)."
+        assert 'kafka_topic' in self._annotation, \
+            "Must annotate Catch Event with `kafka_topic` name."
 
-        self.queue_name = self._annotation['queue']
-        self.kafka_topics.append(self.queue_name)
+        self._kafka_topic = self._annotation['kafka_topic']
+        self.kafka_topics.append(self._kafka_topic)
 
-        # We've got the annotation. From here, let's find out the name of the resulting
-        # gateway service.
-        self.name = f"{CATCH_GATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
         assert 'service' not in self._annotation, \
             "Service Properties auto-inferred for Catch Gateways."
 
         self._service_properties.update({
             "host": self.name,
-            "port": CATCH_GATEWAY_LISTEN_PORT,
+            "port": CATCH_LISTEN_PORT,
         })
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
-                      digraph: OrderedDict) -> list:
+                      digraph: OrderedDict, edge_map: OrderedDict) -> list:
+        assert KAFKA_HOST is not None, "Kafka Installation required for Catch Events."
+
         k8s_objects = []
+        total_attempts = None
+        target_url = None
+        task_id = None
+
+        outgoing_edges = list(edge_map[self.id])
+        assert len(outgoing_edges) == 1, "Catch Event must have excactly one outgoing edge."
+        edge = outgoing_edges[0]
+        transport_type = get_edge_transport(edge, self.workflow_properties.transport)
+        assert edge['@sourceRef'] == self.id, "Got an invalid edge map."
+        next_task = component_map[edge['@targetRef']]
+
+        if transport_type == 'kafka':
+            transport = create_kafka_transport(self, next_task)
+            target_url = f'http://{transport.envoy_host}:{transport.port}{transport.path}'
+            task_id = self.id
+            total_attempts = transport.total_attempts
+            k8s_objects.extend(transport.k8s_specs)
+        elif transport_type == 'rpc':
+            target_url = next_task.k8s_url
+            total_attempts = next_task.call_properties.total_attempts
+            task_id = next_task.id
+        else:
+            assert False, f"Transport '{transport_type}' is not implemented."
 
         # k8s ServiceAccount
-        service_name = self.service_properties.host
+        service_name = self.service_name
         # FIXME: The following is a workaround; need to add a full-on regex
         # check of the service name and error on invalid spec.
-        dns_safe_name = service_name.replace('_', '-')
         port = self.service_properties.port
 
-        # Here's the tricky part: we need to configure the Environment Variables for the container
-        # There are two goals:
-        # 1. Tell the container which queue to publish to.
-        # 2. Tell the container which (if any) service to forward its input to.
-
-        # `targets` should be list of URL's. component_map[foo] returns a BPMNComponent, and
-        # BPMNComponent.k8s_url() returns the k8s FQDN + http path for the next task.
-        targets = [
-            component_map[component_id]
-            for component_id in digraph.get(self.id, set())
-        ]
-
-        assert len(targets) <= 1  # Multiplexing will require a Parallel Gateway.
-        target = targets[0] if len(targets) else ''
         env_config = [
             {
                 "name": "KAFKA_HOST",
                 "value": KAFKA_HOST,
             },
             {
-                "name": "KAFKA_TOPIC",
-                "value": self.queue_name,
+                "name": "KAFKA_TOPIC",  # Topic which starts the wf, NOT reliable transport topic
+                "value": self._kafka_topic,
             },
             {
                 "name": "KAFKA_GROUP_ID",
-                "value": dns_safe_name,
+                "value": service_name,
             },
             {
                 "name": "FORWARD_URL",
-                "value": target.k8s_url,
+                "value": target_url,
+            },
+            {
+                "name": "WF_ID",
+                "value": self._global_props.id,
             },
             {
                 "name": "FORWARD_TASK_ID",
-                "value": target.id,
+                "value": task_id,
             },
             {
                 "name": "TOTAL_ATTEMPTS",
-                "value": str(target.call_properties.total_attempts) if target else "2",
+                "value": total_attempts,
             },
             {
                 "name": "FAIL_URL",
-                "value": "http://flowd.rexflow:9002/instancefail",
+                "value": INSTANCE_FAIL_ENDPOINT,
             },
             {
                 "name": "ETCD_HOST",
-                "value": os.environ['ETCD_HOST'],
+                "value": ETCD_HOST,
             },
         ]
 
-        k8s_objects.append(create_serviceaccount(self._namespace, dns_safe_name))
-        k8s_objects.append(create_service(self._namespace, dns_safe_name, port))
+        k8s_objects.append(create_serviceaccount(self._namespace, service_name))
+        k8s_objects.append(create_service(self._namespace, service_name, port))
         k8s_objects.append(create_deployment(
             self._namespace,
-            dns_safe_name,
-            'catch-gateway:1.0.0',
-            port,
+            service_name,
+            CATCH_IMAGE,
+            CATCH_LISTEN_PORT,
             env_config,
         ))
         return k8s_objects

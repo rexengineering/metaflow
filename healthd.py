@@ -31,12 +31,11 @@ class HealthProbe:
         self.url = f'http://{self.task.envoy_host}:{self.task.service_properties.port}{health_path}'
 
     def __call__(self):
-        self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
         health_properties = self.task.health_properties
         try:
             response = requests.request(
                 health_properties.method, self.url,
-                data=health_properties.query
+                data=health_properties.query, timeout=health_properties.timeout,
             )
             exception = None
         except requests.RequestException as exn:
@@ -49,8 +48,10 @@ class HealthProbe:
         if self.running:
             self.timer = threading.Timer(self.task.health_properties.period, self)
             self.timer.start()
+        return [self.task.id, self.status]
 
     def start(self):
+        self.logger.info(f'Starting status checks for {self.task.id} ({self.url})')
         assert self.timer is None
         self.timer = threading.Timer(self.task.health_properties.period, self)
         self.running = True
@@ -100,8 +101,10 @@ class HealthManager:
                         self.future = self.executor.submit(self.stop_workflow, workflow)
                 elif isinstance(event, DeleteEvent):
                     self.logger.info(f'{workflow_id} DELETE event - {value}')
-                    for probe in self.probes[workflow_id].values():
-                        probe.stop()
+                    # No action necessary because we stop the HealthProbes in the
+                    # stop_workflow() function. This is good practice because we don't want
+                    # a bunch of HealthProbes making calls to services that don't exist, and
+                    # is a request from Hong.
 
     def wait_for_up(self, workflow: Workflow):
         self.logger.info(f'wait_for_up() called for workflow {workflow.id}')
@@ -229,18 +232,37 @@ class HealthManager:
         if self.cancel_watch:
             self.cancel_watch()
 
+    def probe_all(self):
+        ''' Force a health-check rather than waiting for the timer to mature.
+        '''
+        return [self.probe(workflow_id) for workflow_id in self.probes.keys()]
+ 
+    def probe(self, workflow_id):
+        ''' Force a health-check on worfkow_id
+        '''
+        return {workflow_id : [probe() for probe in self.probes[workflow_id].values()]}
 
 class HealthApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.manager = HealthManager()
         self.app.route('/')(self.root_route)
+        self.app.route('/probe/<workflow_id>')(self.probe)
 
     def root_route(self):
         return jsonify({workflow_id: {
             task_id: str(probe)
             for task_id, probe in self.manager.probes[workflow_id].items()
         } for workflow_id in self.manager.workflows.keys()})
+
+    def probe(self, workflow_id):
+        if not self.manager.workflows:
+            return jsonify({"result":"No workflows exist"})
+        if workflow_id == 'all':
+            return jsonify( self.manager.probe_all() )
+        if workflow_id in self.manager.workflows.keys():
+            return jsonify( self.manager.probe(workflow_id) )
+        return jsonify({"result":f"Workflow '{workflow_id}' not found"})
 
     def _shutdown(self):
         self.manager.stop()

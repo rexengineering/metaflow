@@ -3,9 +3,9 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict, namedtuple
-from typing import Mapping
+from typing import List, Mapping
 
-from .bpmn_util import WorkflowProperties, BPMNComponent
+from .bpmn_util import WorkflowProperties, BPMNComponent, get_edge_transport
 
 from .k8s_utils import (
     create_deployment,
@@ -13,11 +13,12 @@ from .k8s_utils import (
     create_serviceaccount,
     create_rexflow_ingress_vs,
 )
-
+from .config import IS_PRODUCTION
+from .reliable_wf_utils import create_kafka_transport
 
 Upstream = namedtuple(
     'Upstream',
-    ['name', 'host', 'port', 'path', 'method', 'total_attempts', 'task_id']
+    ['full_hostname', 'port', 'path', 'method', 'total_attempts', 'task_id']
 )
 
 
@@ -39,8 +40,7 @@ class BPMNTask(BPMNComponent):
                 "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']
 
-    def _generate_envoyfilter(self, component_map: Mapping[str, BPMNComponent],
-                              digraph: OrderedDict) -> list:
+    def _generate_envoyfilter(self, upstreams: List[Upstream]) -> list:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
         FilterChain. This filter hijacks the response traffic and sends it to the next
         step of the workflow (whether that's a gateway, Event, or another ServiceTask.)
@@ -66,25 +66,12 @@ class BPMNTask(BPMNComponent):
 
         port = self.service_properties.port
         namespace = self._namespace  # namespace in which the k8s objects live.
+        traffic_shadow_cluster = ''
+        traffic_shadow_path = ''
+        if self._global_props.traffic_shadow_svc:
+            traffic_shadow_cluster = self._global_props.traffic_shadow_svc['envoy_cluster']
+            traffic_shadow_path = self._global_props.traffic_shadow_svc['path']
 
-        upstreams = [] # type: list[Upstream]
-        forward_set = digraph.get(self.id, set())
-        for forward in forward_set:
-            bpmn_component = component_map[forward] # type: BPMNComponent
-            path = bpmn_component.call_properties.path
-            if not path.startswith('/'):
-                path = '/' + path
-            upstreams.append(
-                Upstream(
-                    bpmn_component.service_properties.host,
-                    bpmn_component.envoy_host,
-                    bpmn_component.service_properties.port,
-                    path,
-                    bpmn_component.call_properties.method,
-                    bpmn_component.call_properties.total_attempts,
-                    bpmn_component.id,
-                )
-            )
         bavs_config = {
             'forwards': [
                 self._make_forward(upstream) for upstream in upstreams
@@ -93,6 +80,8 @@ class BPMNTask(BPMNComponent):
             'flowd_envoy_cluster': 'outbound|9002||flowd.rexflow.svc.cluster.local',
             'flowd_path': '/instancefail',
             'task_id': self.id,
+            'traffic_shadow_cluster': traffic_shadow_cluster,
+            'traffic_shadow_path': traffic_shadow_path,
         }
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',
@@ -136,7 +125,7 @@ class BPMNTask(BPMNComponent):
         return envoy_filter
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
-                      digraph: OrderedDict) -> list:
+                      digraph: OrderedDict, edge_map: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -157,16 +146,56 @@ class BPMNTask(BPMNComponent):
            so that the developer may send traffic from his/her terminal into
            the cluster (i.e. the VS attaches to a Gateway).
         '''
-
         k8s_objects = []
-        k8s_objects.append(self._generate_envoyfilter(component_map, digraph))
-        if self._is_preexisting:
-            return k8s_objects
 
+        outgoing_edges = list(edge_map[self.id])
+        assert len(outgoing_edges) > 0, "Cannot have dead end on service task."
+
+        upstreams = [] # list of Upstreams. This gets passed into the Envoyfilter config.
+
+        for edge in outgoing_edges:
+            assert edge['@sourceRef'] == self.id, "NewGradProgrammerError: invalid edge map."
+            transport = get_edge_transport(edge, self._global_props.transport)
+            target = component_map[edge['@targetRef']] # type: BPMNComponent
+
+            if transport == 'kafka':
+                transport_call_details = create_kafka_transport(self, target)
+                k8s_objects.extend(transport_call_details.k8s_specs)
+                upstreams.append(
+                    Upstream(
+                        transport_call_details.envoy_host,
+                        transport_call_details.port,
+                        transport_call_details.path,
+                        transport_call_details.method,
+                        transport_call_details.total_attempts,
+                        self.id,
+                    )
+                )
+            else:
+                path = target.call_properties.path
+                if not path.startswith('/'):
+                    path = '/' + path
+                upstreams.append(
+                    Upstream(
+                        target.envoy_host,
+                        target.service_properties.port,
+                        path,
+                        target.call_properties.method,
+                        target.call_properties.total_attempts,
+                        target.id,
+                    )
+                )
+
+        k8s_objects.append(self._generate_envoyfilter(upstreams))
+        if not self._is_preexisting:
+            k8s_objects.extend(self._generate_microservice())
+        return k8s_objects
+
+    def _generate_microservice(self):
+        k8s_objects = []
         # Reminder: ServiceProperties.host() properly handles whether or not to include
         # id hash.
         service_name = self.service_properties.host
-        dns_safe_name = service_name.replace('_', '-')
 
         # k8s ServiceAccount
         port = self.service_properties.port
@@ -175,30 +204,29 @@ class BPMNTask(BPMNComponent):
         uri_prefix = f'/{service_name}' if namespace == 'default' \
             else f'/{namespace}/{service_name}'
 
-        k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
-        k8s_objects.append(create_service(namespace, dns_safe_name, port))
+        k8s_objects.append(create_serviceaccount(namespace, self.service_name))
+        k8s_objects.append(create_service(namespace, self.service_name, port))
         k8s_objects.append(create_deployment(
             namespace,
-            dns_safe_name,
+            self.service_name,
             self.service_properties.container,
             port,
             env=[],
         ))
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            dns_safe_name,
-            uri_prefix=uri_prefix,
-            dest_port=port,
-            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
-        ))
+        if not IS_PRODUCTION:
+            k8s_objects.append(create_rexflow_ingress_vs(
+                namespace,
+                f'{self.service_name}-{self._global_props.id_hash}',
+                uri_prefix=uri_prefix,
+                dest_port=port,
+                dest_host=f'{self.service_name}.{namespace}.svc.cluster.local',
+            ))
 
         return k8s_objects
 
     def _make_forward(self, upstream: Upstream):
         return {
-            'name': upstream.name,
-            'cluster': upstream.name,
-            'host': upstream.host,
+            'full_hostname': upstream.full_hostname,
             'port': upstream.port,
             'path': upstream.path,
             'method': upstream.method, # TODO: Test with methods other than POST

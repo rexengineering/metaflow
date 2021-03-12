@@ -6,7 +6,7 @@ from collections import OrderedDict
 from typing import Mapping
 import os
 
-from .bpmn_util import BPMNComponent
+from .bpmn_util import BPMNComponent, to_valid_k8s_name, get_edge_transport
 
 from .k8s_utils import (
     create_deployment,
@@ -14,12 +14,19 @@ from .k8s_utils import (
     create_serviceaccount,
     create_rexflow_ingress_vs,
 )
+from .reliable_wf_utils import create_kafka_transport
+
+from .config import (
+    ETCD_HOST,
+    KAFKA_HOST,
+    CATCH_IMAGE,
+    CATCH_LISTEN_PORT,
+    IS_PRODUCTION,
+)
 
 
 START_EVENT_PREFIX = 'start'
-START_EVENT_LISTEN_PORT = '5000'
-START_EVENT_CONTAINER = 'catch-gateway:1.0.0'
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+ATTEMPTS = 2
 
 
 class BPMNStartEvent(BPMNComponent):
@@ -28,37 +35,57 @@ class BPMNStartEvent(BPMNComponent):
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
-        self._service_name = f"{START_EVENT_PREFIX}-{self._global_props.id}"
-        self._queue = None
+
+        # Just for the Start Event, if the user specifies no name on BPMN, we will
+        # provide a somewhat readable alternative: `start-{wf_id}`, where wf_id is the
+        # Workflow ID.
+        # How do we know if the user neglected to provide a name? self.name == self.id
+        if self._name == to_valid_k8s_name(self.id):
+            self._name = to_valid_k8s_name(f"{START_EVENT_PREFIX}-{self._global_props.id}")
+
+        self._kafka_topic = None
 
         self._service_properties.update({
-            'host': self._service_name,
-            'port': START_EVENT_LISTEN_PORT,
-            'container': START_EVENT_CONTAINER,
+            'host': self.name,
+            'port': CATCH_LISTEN_PORT,
+            'container': CATCH_IMAGE,
         })
 
         # Check if we listen to a kafka topic to start events.
-        if 'queue' in self._annotation:
-            self._queue = self._annotation['queue']
+        if self._annotation is not None and 'kafka_topic' in self._annotation:
+            self._kafka_topic = self._annotation['kafka_topic']
+            self._kafka_topics.append(self._kafka_topic)
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
-                      digraph: OrderedDict) -> list:
+                      digraph: OrderedDict, edge_map: OrderedDict) -> list:
         assert self._namespace, "new-grad programmer error: namespace should be set by now."
 
         k8s_objects = []
-        dns_safe_name = self.service_properties.host.replace('_', '-')
-        port = self.service_properties.port
-        namespace = self._namespace
+        total_attempts = None
+        target_url = None
+        task_id = None
 
-        forward_set = list(digraph.get(self.id, set()))
-        assert len(forward_set) == 1
-        task = component_map[forward_set[0]]
+        outgoing_edges = list(edge_map[self.id])
+        assert len(outgoing_edges) == 1, "Start Event must have excactly one outgoing edge."
+        edge = outgoing_edges[0]
+        transport_type = get_edge_transport(edge, self.workflow_properties.transport)
+        assert edge['@sourceRef'] == self.id, "Got an invalid edge map."
+        next_task = component_map[edge['@targetRef']]
+
+        if transport_type == 'kafka':
+            transport = create_kafka_transport(self, next_task)
+            target_url = f'http://{transport.envoy_host}:{transport.port}{transport.path}'
+            task_id = self.id
+            total_attempts = transport.total_attempts
+            k8s_objects.extend(transport.k8s_specs)
+        elif transport_type == 'rpc':
+            target_url = next_task.k8s_url
+            total_attempts = next_task.call_properties.total_attempts
+            task_id = next_task.id
+        else:
+            assert False, f"Transport '{transport_type}' is not implemented."
 
         deployment_env_config = [
-            {
-                "name": 'KAFKA_HOST',
-                "value": KAFKA_HOST,
-            },
             {
                 "name": "REXFLOW_CATCH_START_FUNCTION",
                 "value": "START",
@@ -69,49 +96,59 @@ class BPMNStartEvent(BPMNComponent):
             },
             {
                 "name": "TOTAL_ATTEMPTS",
-                "value": task.call_properties.total_attempts
+                "value": total_attempts,
             },
             {
                 "name": "FORWARD_URL",
-                "value": task.k8s_url,
+                "value": target_url,
             },
             {
                 "name": "FORWARD_TASK_ID",
-                "value": task.id,
-            },
-            {
-                "name": "FAIL_URL",
-                "value": "http://flowd.rexflow:9002/instancefail",
+                "value": task_id,
             },
             {
                 "name": "KAFKA_GROUP_ID",
-                "value": dns_safe_name,
+                "value": self.service_name,
             },
             {
                 "name": "ETCD_HOST",
-                "value": os.environ['ETCD_HOST'],
+                "value": ETCD_HOST,
             }
         ]
-        if self._queue is not None:
+        if self._global_props.traffic_shadow_svc:
             deployment_env_config.append({
-                "name": "KAFKA_TOPIC",
-                "value": self._queue,
+                "name": "KAFKA_SHADOW_URL",
+                "value": self._global_props.traffic_shadow_svc['k8s_url'],
             })
 
-        k8s_objects.append(create_serviceaccount(namespace, dns_safe_name))
-        k8s_objects.append(create_service(namespace, dns_safe_name, port))
+        if self._kafka_topic is not None:
+            assert KAFKA_HOST is not None, "Kafka installation required for this BPMN Doc."
+            deployment_env_config.append({
+                "name": "KAFKA_TOPIC",
+                "value": self._kafka_topic,
+            })
+            deployment_env_config.append({
+                "name": 'KAFKA_HOST',
+                "value": KAFKA_HOST,
+            })
+
+        port = self.service_properties.port
+        namespace = self._namespace
+        k8s_objects.append(create_serviceaccount(namespace, self.service_name))
+        k8s_objects.append(create_service(namespace, self.service_name, port))
         k8s_objects.append(create_deployment(
             namespace,
-            dns_safe_name,
+            self.service_name,
             self.service_properties.container,
             port,
             deployment_env_config,
         ))
-        k8s_objects.append(create_rexflow_ingress_vs(
-            namespace,
-            dns_safe_name,
-            uri_prefix=f'/{dns_safe_name}',
-            dest_port=port,
-            dest_host=f'{dns_safe_name}.{namespace}.svc.cluster.local',
-        ))
+        if not IS_PRODUCTION:
+            k8s_objects.append(create_rexflow_ingress_vs(
+                namespace,
+                self.service_name,
+                uri_prefix=f'/{self.service_name}',
+                dest_port=port,
+                dest_host=f'{self.service_name}.{namespace}.svc.cluster.local',
+            ))
         return k8s_objects

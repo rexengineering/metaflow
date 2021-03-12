@@ -4,7 +4,7 @@ import xmltodict
 
 from flowlib import bpmn, workflow
 from flowlib.etcd_utils import get_etcd
-from flowlib.constants import States
+from flowlib.constants import States, WorkflowKeys
 
 
 def handler(request):
@@ -33,8 +33,8 @@ def handler(request):
 
     etcd.put(workflow_obj.keys.proc, process.to_xml())
     if request.stopped:
-        if not etcd.put_if_not_exists(workflow_obj.state_key, States.STOPPED):
-            logging.error(f'{workflow_obj.state_key} already defined in etcd!')
+        if not etcd.put_if_not_exists(workflow_obj.keys.state, States.STOPPED):
+            logging.error(f'{workflow_obj.keys.state} already defined in etcd!')
     else:
         workflow_obj.start()
     return result

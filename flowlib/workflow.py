@@ -2,7 +2,6 @@ from ast import literal_eval
 from io import StringIO
 import json
 import logging
-import os
 import subprocess
 from typing import Union
 import uuid
@@ -24,7 +23,7 @@ from .constants import (
 )
 
 
-KAFKA_HOST = os.getenv("KAFKA_HOST", "my-cluster-kafka-bootstrap.kafka:9092")
+from .config import KAFKA_HOST
 
 
 class Workflow:
@@ -76,7 +75,7 @@ class Workflow:
                 self._create_kafka_topics()
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
-                ['kubectl', 'create', '-f', '-'],
+                ['kubectl', 'apply', '-f', '-'],
                 input=ctl_input, capture_output=True, text=True,
             )
             if kubectl_result.stdout:
@@ -88,6 +87,8 @@ class Workflow:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def _create_kafka_topics(self):
+        if KAFKA_HOST is None:
+            return
         kafka_client = AdminClient({"bootstrap.servers": KAFKA_HOST})
         topic_metadata = kafka_client.list_topics()
         new_topics = [
@@ -251,6 +252,7 @@ class WorkflowInstance:
         headers_to_send = {
             'X-Flow-Id': self.id,
             'X-Rexflow-Wf-Id': self.parent.id,
+            'X-Rexflow-Task-Id': headers['X-Rexflow-Task-Id'],
         }
 
         for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:

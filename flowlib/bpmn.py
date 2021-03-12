@@ -2,12 +2,17 @@
 '''
 
 from collections import OrderedDict
-from io import IOBase
+from io import IOBase, StringIO, BytesIO
+import hashlib
+import json
 import logging
+import os
 import subprocess
 import sys
 from typing import Mapping, Set
 
+import boto3
+from botocore.exceptions import ClientError
 import yaml
 import xmltodict
 
@@ -27,27 +32,44 @@ from .bpmn_util import (
     get_annotations,
     BPMNComponent,
     WorkflowProperties,
+    to_valid_k8s_name,
+    outgoing_sequence_flow_table,
 )
+
+from .config import IS_PRODUCTION, K8S_SPECS_S3_BUCKET
+
+
+ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
+REX_ISTIO_PROXY_IMAGE = os.getenv('REX_ISTIO_PROXY_IMAGE', 'rex-proxy:1.8.2')
 
 
 class BPMNProcess:
     def __init__(self, process: OrderedDict):
         self._process = process
+        self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
         entry_point = process['bpmn:startEvent']
         assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
         self.entry_point = entry_point
         annotations = list(get_annotations(process, self.entry_point['@id']))
-        assert len(annotations) == 1, "Must have only one annotation for start event."
-        self.annotation = annotations[0]
+        assert len(annotations) <= 1, "Must have only one annotation for start event."
+        self.annotation = annotations[0] if len(annotations) else None
         self.properties = WorkflowProperties(self.annotation)
-        assert self.properties.id, "You must annotate StartEvent with a Workflow `id`."
 
-        self.namespace = self.properties.namespace
-        self.namespace_shared = self.properties.namespace_shared
+        if not self.properties.id:
+            self.properties.update({
+                "id": to_valid_k8s_name(process['@id']),
+            })
+
+        # Put the hash in the id
+        self.properties.update({
+            'id_hash': self.hash,
+            'id': f'{self.properties.id}-{self.hash}',
+        })
         self.id = self.properties.id
 
         # needed for calculation of some BPMN Components
         self._digraph = raw_proc_to_digraph(process)
+        self._sequence_flow_table = outgoing_sequence_flow_table(process)
 
         # Maps an Id (eg. "Event_25dst7" or "Gateway_2sh38s") to a BPMNComponent Object.
         self.component_map = {} # type: Mapping[str, BPMNComponent]
@@ -66,6 +88,7 @@ class BPMNProcess:
             bpmn_task = BPMNTask(task, process, self.properties)
             self.tasks.append(bpmn_task)
             self.component_map[task['@id']] = bpmn_task
+            self.kafka_topics.extend(bpmn_task.kafka_topics)
 
         # Exclusive Gateways (conditional)
         self.xgateways = []
@@ -124,8 +147,22 @@ class BPMNProcess:
         self.all_components.extend(self.pgateways)
         self.all_components.extend(self.throws)
         self.all_components.extend(self.catches)
-        # don't yet add start/end events to self.all_components because we don't want
-        # healthchecks for them (they are just virtual components at this point)
+        self.all_components.extend(self.end_events)
+        self.all_components.append(self.start_event)
+
+        # Check that there are no duplicate service names.
+        all_names = set()
+        for component in self.all_components + [t for t in self.tasks if t.is_preexisting]:
+            if component.name in all_names:
+                assert False, f"Name {component.name} used twice! Not allowed."
+            all_names.add(component.name)
+
+        self._s3_bucket = None
+        if K8S_SPECS_S3_BUCKET is not None:
+            s3 = boto3.resource('s3')
+            self._s3_bucket = s3.Bucket(K8S_SPECS_S3_BUCKET)
+        else:
+            logging.info("Not setting up s3 bucket for k8s specs: no bucket configured.")
 
     @classmethod
     def from_workflow_id(cls, workflow_id):
@@ -150,6 +187,14 @@ class BPMNProcess:
         return digraph
 
     @property
+    def namespace(self):
+        return self.properties.namespace
+
+    @property
+    def namespace_shared(self):
+        return self.properties.namespace_shared
+
+    @property
     def digraph(self) -> Mapping[str, Set[str]]:
         if self._digraph is None:
             result = self.to_digraph()
@@ -162,11 +207,42 @@ class BPMNProcess:
         # No longer used
         raise NotImplementedError("REXFlow requires Istio.")
 
+    def _save_specs_to_s3(self, specs, key):
+        if not self._s3_bucket:
+            logging.info("Not saving k8s specs to S3: No configured bucket.")
+            return
+        self._s3_bucket.upload_fileobj(BytesIO(specs.encode()), key)
+        logging.info(f"Successfully saved k8s specs to S3 at {key}.")
+
+    def _get_specs_from_s3(self, key):
+        if not self._s3_bucket:
+            logging.info("Not getting k8s specs from S3: No configured bucket.")
+            return None
+        fileobj = BytesIO()
+        try:
+            self._s3_bucket.download_fileobj(key, fileobj)
+            logging.info(f"Getting k8s specs from S3 at {key}.")
+            return fileobj.getvalue().decode()
+        except ClientError:
+            logging.info(f"Unable to download s3 object for {key}.")
+            return None
+
+
     def to_istio(self, stream: IOBase = None, id_hash: str = None, **kws):
         if stream is None:
             stream = sys.stdout
+
+        # First, check if the input has been cached in s3. If so, then we retrieve and
+        # do NOT recompute. This is critical so that we can update versions of flowd
+        # without worrying about version conflicts.
+        keys_obj = WorkflowKeys(self.properties.id)
+        cached_result = self._get_specs_from_s3(keys_obj.specs)
+        if cached_result:
+            stream.write(cached_result)
+            return cached_result
+
         results = []
-        if self.namespace != 'default':
+        if not self.namespace_shared:
             results.append(
                 {
                     'apiVersion': 'v1',
@@ -180,7 +256,7 @@ class BPMNProcess:
         for bpmn_component in self.component_map.keys():
             results.extend(
                 self.component_map[bpmn_component].to_kubernetes(
-                    id_hash, self.component_map, self._digraph
+                    id_hash, self.component_map, self._digraph, self._sequence_flow_table
                 )
             )
 
@@ -191,6 +267,11 @@ class BPMNProcess:
         # could easily tell Istio to automatically inject our own custom
         # proxy image, and thus remove the code below.
         temp_yaml = yaml.safe_dump_all(results, **kws)
+        if IS_PRODUCTION:
+            self._save_specs_to_s3(temp_yaml, keys_obj.specs)
+            stream.write(temp_yaml)
+            return temp_yaml
+
         istioctl_result = subprocess.run(
             ['istioctl', 'kube-inject', '-f', '-'],
             input=temp_yaml, capture_output=True, text=True,
@@ -202,7 +283,8 @@ class BPMNProcess:
             result = istioctl_result.stdout.replace(
                 ': Always',
                 ': IfNotPresent',
-            ).replace('docker.io/istio/proxyv2:1.7.1', 'rex-proxy:1.7.1')
+            ).replace(f'docker.io/istio/proxyv2:{ISTIO_VERSION}', REX_ISTIO_PROXY_IMAGE)
+            self._save_specs_to_s3(result, keys_obj.specs)
             stream.write(result)
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
