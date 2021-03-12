@@ -1,7 +1,7 @@
 import logging
 
 from flowlib import workflow
-from flowlib.etcd_utils import get_etcd
+from flowlib.etcd_utils import get_etcd, EtcdDict
 from flowlib.constants import BStates
 
 
