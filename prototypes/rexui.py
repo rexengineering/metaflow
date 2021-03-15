@@ -11,10 +11,8 @@ class REXFlowUIBridge(AsyncService):
         self.app.route('/init', methods=['POST'])(self.init_route)
 
     def init_route(self):
-        # When the WF Instance is created, we want the <instance_path>/userTasks/<user_task_id> to be set to PENDING (or something like that)
-        wf_instance = request.headers['x-flow-id']
-        user_task_id = self.config.this_user_task_id
-        self.etcd.replace(f'/rexflow/instances/{wf_instance}/userTasks/{user_task_id}', 'pending', 'initialized')
+        # TODO: When the WF Instance is created, we want the <instance_path>/userTasks/<user_task_id> to be set to PENDING (or something like that)
+        self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
 
     def ui_route(self):
         state = self.get_state_from_etcd(request)  # Gets ID from request...
@@ -58,6 +56,9 @@ class REXFlowUIBridge(AsyncService):
         '''
         pass
 
-    def actual_handler(self, request):
-        # FIXME: Pass REXFlow environment from request in the result.
-        return flow_result(0, 'Ok')
+    def actual_handler(self, local_request):
+        environment = local_request.json()
+        # FIXME: The forms shouldn't be a property of the instance, rather they
+        # should be a property of the deployment.
+        environment.update(self.get_etcd_value(local_request, 'forms'))
+        return flow_result(0, 'Ok', **environment)
