@@ -1,44 +1,20 @@
-import logging
-
 from quart import request
-import json
 
-from flowlib.etcd_utils import get_etcd, transition_state
-from flowlib.quart_app import QuartApp
-
-
-class AsyncService(QuartApp):
-    def __init__(self, **kws):
-        super().__init__(__name__, **kws)
-        self.etcd = get_etcd()
-        self.app.route('/', methods=('POST',))(self.root_route)
-    
-    def root_route(self):
-        ok = self.validate_request(request)
-        if not ok:
-            return Error("invalid input")
-        else:
-            executor.submit(self.handle_request(request))
-        return "ok"
-
-    def handle_request(self, request):
-        # callback is URI of next task in workflow, for example, "Profit!"
-        callback = self.get_callback(request)
-        result = self.actual_handler(request)
-        callback(result)
+from flowlib.constants import flow_result
+from .async_service import AsyncService
 
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
         super.__init__(**kws)
-        self.app.route('/ui', methods=('POST',))(self.ui_route)
+        self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/init', methods=['POST'])(self.init_route)
 
     def init_route(self):
         # When the WF Instance is created, we want the <instance_path>/userTasks/<user_task_id> to be set to PENDING (or something like that)
         wf_instance = request.headers['x-flow-id']
         user_task_id = self.config.this_user_task_id
-        etcd.replace(f'/rexflow/instances/{wf_instance}/userTasks/{user_task_id}', 'pending', 'initialized')
+        self.etcd.replace(f'/rexflow/instances/{wf_instance}/userTasks/{user_task_id}', 'pending', 'initialized')
 
     def ui_route(self):
         state = self.get_state_from_etcd(request)  # Gets ID from request...
@@ -55,11 +31,33 @@ class REXFlowUIBridge(AsyncService):
         elif (state, command) == ('validated', 'complete'):
             return self.completed(request)
         return self.handle_error(request)
-    
+
+    def get_state_from_etcd(self, request):
+        raise NotImplementedError('Lazy developer error!')
+
+    def get_command_from_request(self, request):
+        raise NotImplementedError('Lazy developer error!')
+
+    def get_forms(self, request):
+        raise NotImplementedError('Lazy developer error!')
+
+    def save_forms(self, request):
+        raise NotImplementedError('Lazy developer error!')
+
+    def validate_forms(self, request):
+        raise NotImplementedError('Lazy developer error!')
+
+    def completed(self, request):
+        raise NotImplementedError('Lazy developer error!')
+
+    def handle_error(self, request):
+        return flow_result(-1, 'Error: Invalid command!')
+
     def get_callback(self, request):
         '''Can return one of the 4 verbs: Forms/save/validate/complete
         '''
         pass
 
     def actual_handler(self, request):
-        
+        # FIXME: Pass REXFlow environment from request in the result.
+        return flow_result(0, 'Ok')
