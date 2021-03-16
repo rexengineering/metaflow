@@ -2,6 +2,9 @@
 Removes significant copy-pasta by defining simple utilities to
 create a k8s Service, ServiceAccount, and Deployment.
 '''
+from typing import Mapping
+
+from .bpmn_util import BPMNComponent
 
 
 def create_deployment(namespace, dns_safe_name, container, container_port, env, replicas=1):
@@ -165,3 +168,48 @@ def create_deployment_affinity(service_name, anti_service_name):
         }
     }
     return affinity
+
+
+def add_labels(k8s_spec, labels: Mapping[str, str]):
+    assert 'metadata' in k8s_spec, f"Bad k8s spec: should have metadata field\n{k8s_spec}"
+    if 'labels' not in k8s_spec['metadata']:
+        k8s_spec['metadata']['labels'] = {}
+
+    if k8s_spec.get('kind', None) == 'Deployment':
+        # must label the pod spec as well
+        if 'metadata' not in k8s_spec['spec']['template']:
+            k8s_spec['spec']['template']['metadata'] = {}
+        add_labels(k8s_spec['spec']['template'], labels)
+
+    for label_key in labels.keys():
+        k8s_spec['metadata']['labels'][label_key] = labels[label_key]
+
+
+def add_annotations(k8s_spec, annotations: Mapping[str, str]):
+    assert 'metadata' in k8s_spec, f"Bad k8s spec: should have metadata field\n{k8s_spec}"
+    if 'annotations' not in k8s_spec['metadata']:
+        k8s_spec['metadata']['annotations'] = {}
+
+    if k8s_spec.get('kind', None) == 'Deployment':
+        # must annotate the pod spec as well
+        if 'metadata' not in k8s_spec['spec']['template']:
+            k8s_spec['spec']['template']['metadata'] = {}
+        add_annotations(k8s_spec['spec']['template'], annotations)
+
+    for annot_key in annotations.keys():
+        k8s_spec['metadata']['annotations'][annot_key] = annotations[annot_key]
+
+
+def get_rexflow_labels(wf_id):
+    return {
+        "cicd.rexhomes.com/deployed-by": "rexflow",
+        "rexflow.rexhomes.com/wf-id": wf_id,
+    }
+
+
+def get_rexflow_component_annotations(bpmn_component: BPMNComponent):
+    return {
+        "rexflow.rexhomes.com/bpmn-component-id": bpmn_component.id,
+        "rexflow.rexhomes.com/bpmn-component-name": bpmn_component.name,
+        "rexflow.rexhomes.com/wf-id": bpmn_component.workflow_properties.id,
+    }

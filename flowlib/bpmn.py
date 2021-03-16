@@ -35,7 +35,12 @@ from .bpmn_util import (
     to_valid_k8s_name,
     outgoing_sequence_flow_table,
 )
-
+from .k8s_utils import (
+    add_labels,
+    get_rexflow_labels,
+    add_annotations,
+    get_rexflow_component_annotations,
+)
 from .config import IS_PRODUCTION, K8S_SPECS_S3_BUCKET
 
 
@@ -253,12 +258,20 @@ class BPMNProcess:
                 }
             )
 
-        for bpmn_component in self.component_map.keys():
-            results.extend(
-                self.component_map[bpmn_component].to_kubernetes(
-                    id_hash, self.component_map, self._digraph, self._sequence_flow_table
-                )
+        for bpmn_component_id in self.component_map.keys():
+            bpmn_component = self.component_map[bpmn_component_id]
+            bpmn_component_specs = bpmn_component.to_kubernetes(
+                id_hash, self.component_map, self._digraph, self._sequence_flow_table
             )
+
+            # Annotate each k8s object with its task id.
+            for spec in bpmn_component_specs:
+                add_annotations(spec, get_rexflow_component_annotations(bpmn_component))
+            results.extend(bpmn_component_specs)
+
+        # Now, add the REXFlow labels
+        for k8s_spec in results:
+            add_labels(k8s_spec, get_rexflow_labels(self.properties.id))
 
         # This code below does manual sidecar injection. It is ONLY necessary
         # for dev on docker-desktop, since it is not easily feasible to
