@@ -120,7 +120,7 @@ mk_flowd_deployment_spec = lambda etcd_host, kafka_enabled : {  # noqa
                     'env': [
                         {'name': 'ETCD_HOST', 'value': etcd_host},
                         {
-                            'name': 'KAFKA_HOST',
+                            'name': 'REXFLOW_KAFKA_HOST',
                             'value': DEV_KAFKA_HOST if kafka_enabled else None
                         },
                         {"name": "I_AM_FLOWD", "value": "True"},
@@ -223,8 +223,8 @@ mk_healthd_deployment_spec = lambda etcd_host, kafka_enabled: {  # noqa
                         'ports': [{'containerPort': 5050}],
                         'env': [
                             {
-                            'name': 'KAFKA_HOST',
-                            'value': 'my-cluster-kafka-bootstrap.kafka:9092' if kafka_enabled \
+                            'name': 'REXFLOW_KAFKA_HOST',
+                            'value': DEV_KAFKA_HOST if kafka_enabled \
                                 else None
                             },
                             {'name': 'ETCD_HOST', 'value': etcd_host},
