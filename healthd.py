@@ -203,8 +203,8 @@ class HealthManager:
                         self.logger.error('wait_for_down(): State transition failed.')
                     return result
 
-        # If we got here, then we failed to get the thing up
-        if not self.etcd.replace(workflow.keys.state, States.STARTING, States.ERROR):
+        # If we got here, then the deployment timed out before coming down.
+        if not self.etcd.replace(workflow.keys.state, States.STOPPING, States.ERROR):
             logging.error(
                 f"Couldn't transition wf {workflow.id} to ERROR state."
             )

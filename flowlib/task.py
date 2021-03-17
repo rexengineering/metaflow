@@ -164,6 +164,7 @@ class BPMNTask(BPMNComponent):
 
             if transport == 'kafka':
                 transport_call_details = create_kafka_transport(self, target)
+                self.kafka_topics.append(transport_call_details.kafka_topic)
                 k8s_objects.extend(transport_call_details.k8s_specs)
                 upstreams.append(
                     Upstream(

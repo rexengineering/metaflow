@@ -53,10 +53,6 @@ DEFAULT_XGW_LISTEN_PORT = '5000'
 XGW_LISTEN_PORT = int(os.getenv("REXFLOW_XGW_LISTEN_PORT", DEFAULT_XGW_LISTEN_PORT))
 
 
-# Kafka is not required.
-KAFKA_HOST = os.getenv("KAFKA_HOST", None)
-
-
 # Meta-info about the deployment
 DEFAULT_CREATE_DEV_INGRESS = "True"
 CREATE_DEV_INGRESS = (
@@ -88,6 +84,29 @@ ETCD_CERT_KEY = os.getenv("REXFLOW_ETCD_CERT_KEY")
 ETCD_CERT_KEY_PATH = os.getenv("REXFLOW_ETCD_CERT_KEY_PATH")
 
 
-
 # S3 Bucket, optionally used to store k8s specs.
 K8S_SPECS_S3_BUCKET = os.getenv("REXFLOW_K8S_SPECS_S3_BUCKET", None)
+
+
+# Kafka Configuration (pass-through as configuration to confluent_kafka)
+KAFKA_HOST = os.getenv("REXFLOW_KAFKA_HOST", None)
+KAFKA_API_KEY = os.getenv("REXFLOW_KAFKA_API_KEY", None)
+KAFKA_API_SECRET = os.getenv("REXFLOW_KAFKA_API_SECRET", None)
+KAFKA_SASL_MECHANISM = os.getenv("REXFLOW_KAFKA_SASL_MECHANISM", None)
+KAFKA_SECURITY_PROTOCOL = os.getenv("REXFLOW_KAFKA_SECURITY_PROTOCOL", None)
+
+kafka_env_map = {
+    'bootstrap.servers': KAFKA_HOST,
+    'sasl.username': KAFKA_API_KEY,
+    'sasl.password': KAFKA_API_SECRET,
+    'sasl.mechanism': KAFKA_SASL_MECHANISM,
+    'security.protocol': KAFKA_SECURITY_PROTOCOL,
+}
+
+def get_kafka_config():
+    if KAFKA_HOST is None:
+        return None
+
+    return {
+        key: kafka_env_map[key] for key in kafka_env_map.keys() if kafka_env_map[key] is not None
+    }

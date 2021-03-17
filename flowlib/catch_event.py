@@ -15,7 +15,6 @@ from .k8s_utils import (
     create_deployment_affinity,
 )
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,
@@ -66,6 +65,7 @@ class BPMNCatchEvent(BPMNComponent):
 
         if transport_type == 'kafka':
             transport = create_kafka_transport(self, next_task)
+            self.kafka_topics.append(transport.kafka_topic)
             target_url = f'http://{transport.envoy_host}:{transport.port}{transport.path}'
             task_id = self.id
             total_attempts = transport.total_attempts
@@ -84,10 +84,6 @@ class BPMNCatchEvent(BPMNComponent):
         port = self.service_properties.port
 
         env_config = [
-            {
-                "name": "KAFKA_HOST",
-                "value": KAFKA_HOST,
-            },
             {
                 "name": "KAFKA_TOPIC",  # Topic which starts the wf, NOT reliable transport topic
                 "value": self._kafka_topic,
@@ -116,10 +112,6 @@ class BPMNCatchEvent(BPMNComponent):
                 "name": "FAIL_URL",
                 "value": INSTANCE_FAIL_ENDPOINT,
             },
-            {
-                "name": "ETCD_HOST",
-                "value": ETCD_HOST,
-            },
         ]
 
         k8s_objects.append(create_serviceaccount(self._namespace, service_name))
@@ -130,5 +122,7 @@ class BPMNCatchEvent(BPMNComponent):
             CATCH_IMAGE,
             CATCH_LISTEN_PORT,
             env_config,
+            kafka_access=True,
+            etcd_access=True,
         ))
         return k8s_objects

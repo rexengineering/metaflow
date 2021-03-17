@@ -44,9 +44,6 @@ class BPMNXGateway(BPMNComponent):
             "host": self.name,
         })
 
-        self.default_path = None
-        self.conditional_paths = []
-
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict, edge_map: OrderedDict) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
@@ -70,7 +67,8 @@ class BPMNXGateway(BPMNComponent):
            the cluster (i.e. the VS attaches to a Gateway).
         '''
         k8s_objects = []
-
+        default_path = None
+        conditional_paths = []
         self.outgoing_edges = outgoing_sequence_flow_table(self._proc)[self.id]
         for edge in self.outgoing_edges:
             transport_type = get_edge_transport(edge, self.workflow_properties.transport)
@@ -81,9 +79,10 @@ class BPMNXGateway(BPMNComponent):
                 expr = edge['bpmn:conditionExpression']['#text']
                 if transport_type == 'kafka':
                     transport = create_kafka_transport(self, bpmn_component)
+                    self.kafka_topics.append(transport.kafka_topic)
                     k8s_objects.extend(transport.k8s_specs)
                     k8s_url = f'http://{transport.envoy_host}:{transport.port}{transport.path}'
-                    self.conditional_paths.append({
+                    conditional_paths.append({
                         'type': self._global_props.xgw_expression_type,
                         'expression': expr,
                         'component_id': bpmn_component.id,  # equivalent to edge['@targetRef']
@@ -91,7 +90,7 @@ class BPMNXGateway(BPMNComponent):
                         'total_attempts': transport.total_attempts,
                     })
                 elif transport_type == 'rpc':
-                    self.conditional_paths.append({
+                    conditional_paths.append({
                         'type': self._global_props.xgw_expression_type,
                         'expression': expr,
                         'component_id': bpmn_component.id,  # equivalent to edge['@targetRef']
@@ -99,18 +98,19 @@ class BPMNXGateway(BPMNComponent):
                         'total_attempts': bpmn_component.call_properties.total_attempts,
                     })
             else:
-                assert self.default_path is None, "Can only have one default path for XGW."
+                assert default_path is None, "Can only have one default path for XGW."
                 default_component = component_map[edge['@targetRef']]
                 if transport_type == 'rpc':
-                    self.default_path = {
+                    default_path = {
                         "component_id": edge['@targetRef'],  # equivalent to default_component.id
                         "k8s_url": default_component.k8s_url,
                         "total_attempts": default_component.call_properties.total_attempts,
                     }
                 elif transport_type == 'kafka':
                     transport = create_kafka_transport(self, default_component)
+                    self.kafka_topics.append(transport.kafka_topic)
                     k8s_objects.extend(transport.k8s_specs)
-                    self.default_path = {
+                    default_path = {
                         "component_id": bpmn_component.id,
                         "k8s_url":
                             f"http://{transport.envoy_host}:{transport.port}{transport.path}",
@@ -118,11 +118,11 @@ class BPMNXGateway(BPMNComponent):
                     }
 
         # Note: we may or may not take this out for FEEL...
-        assert self.default_path is not None, "Must have a default path"
+        assert default_path is not None, "Must have a default path"
 
         # TODO: Work with Jon to see what a BPMN document would look like with more than
         # two outgoing edges from a BPMN diagram.
-        assert len(self.conditional_paths) == 1, "Not implemented."
+        assert len(conditional_paths) == 1, "Not implemented."
 
         # Add k8s specs for the actual XGW
         service_name = self.service_properties.host
@@ -138,11 +138,11 @@ class BPMNXGateway(BPMNComponent):
             # future use-case. Or, it might be fine as-is. Not sure.
             {
                 'name': 'REXFLOW_XGW_CONDITIONAL_PATHS',
-                'value': json.dumps(self.conditional_paths),
+                'value': json.dumps(conditional_paths),
             },
             {
                 'name': 'REXFLOW_XGW_DEFAULT_PATH',
-                'value': json.dumps(self.default_path),
+                'value': json.dumps(default_path),
             }
         ]
         if self._global_props.xgw_expression_type == 'feel':

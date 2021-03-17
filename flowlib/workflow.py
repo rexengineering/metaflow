@@ -22,8 +22,10 @@ from .constants import (
     flow_result,
 )
 
+from .config import get_kafka_config
 
-from .config import KAFKA_HOST
+
+KAFKA_CONFIG = get_kafka_config()
 
 
 class Workflow:
@@ -91,12 +93,14 @@ class Workflow:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def _create_kafka_topics(self):
-        if KAFKA_HOST is None:
+        if KAFKA_CONFIG is None:
             return
-        kafka_client = AdminClient({"bootstrap.servers": KAFKA_HOST})
+        kafka_client = AdminClient(KAFKA_CONFIG)
         topic_metadata = kafka_client.list_topics()
         new_topics = [
-            NewTopic(topic, num_partitions=3, replication_factor=1)
+            # Let the rexflow user's own kafka deployment decide upon
+            # sensible defaults for replication factors.
+            NewTopic(topic, num_partitions=3)
             for topic in self.process.kafka_topics
             if topic_metadata.topics.get(topic) is None
         ]

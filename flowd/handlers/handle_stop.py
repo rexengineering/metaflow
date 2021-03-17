@@ -21,7 +21,7 @@ def handler(request: flow_pb2.StopRequest):
         for id in request.ids:
             wf_obj = workflow.Workflow.from_id(id)
             if (not request.force) and has_running_instances(wf_obj):
-                result[id] = {'status': -1, 'message': 'WF has running instances.'}
+                result[id] = {'status': -1, 'message': 'WF has live instances.'}
                 continue
             try:
                 wf_obj.stop()

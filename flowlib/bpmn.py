@@ -84,8 +84,6 @@ class BPMNProcess:
         # The `id_hash` and `namespace_shared` have already been computed when we
         # created the WorkflowProperties object (see self.properties).
 
-        self.kafka_topics = []
-
         # Now, create all of the BPMN Components.
         # Start with Tasks:
         self.tasks = []
@@ -93,7 +91,6 @@ class BPMNProcess:
             bpmn_task = BPMNTask(task, process, self.properties)
             self.tasks.append(bpmn_task)
             self.component_map[task['@id']] = bpmn_task
-            self.kafka_topics.extend(bpmn_task.kafka_topics)
 
         # Exclusive Gateways (conditional)
         self.xgateways = []
@@ -112,7 +109,6 @@ class BPMNProcess:
         # Don't forget BPMN Start Event!
         self.start_event = BPMNStartEvent(self.entry_point, process, self.properties)
         self.component_map[self.entry_point['@id']] = self.start_event
-        self.kafka_topics.extend(self.start_event.kafka_topics)
 
         # Don't forget BPMN End Events!
         # TODO: Test to make sure it works with multiple End Events.
@@ -121,7 +117,6 @@ class BPMNProcess:
             end_event = BPMNEndEvent(eev, process, self.properties)
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
-            self.kafka_topics.extend(end_event.kafka_topics)
 
         # Throw Events.
         # For now, to avoid forcing the user of REXFlow to have to annotate each event
@@ -134,7 +129,6 @@ class BPMNProcess:
             bpmn_throw = BPMNThrowEvent(event, process, self.properties)
             self.throws.append(bpmn_throw)
             self.component_map[event['@id']] = bpmn_throw
-            self.kafka_topics.extend(bpmn_throw.kafka_topics)
 
         self.catches = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
@@ -142,9 +136,6 @@ class BPMNProcess:
             bpmn_catch = BPMNCatchEvent(event, process, self.properties)
             self.catches.append(bpmn_catch)
             self.component_map[event['@id']] = bpmn_catch
-            self.kafka_topics.extend(bpmn_catch.kafka_topics)
-
-        self.kafka_topics = list(set(self.kafka_topics))
 
         self.all_components = []
         self.all_components.extend(self.tasks)
@@ -168,6 +159,26 @@ class BPMNProcess:
             self._s3_bucket = s3.Bucket(K8S_SPECS_S3_BUCKET)
         else:
             logging.info("Not setting up s3 bucket for k8s specs: no bucket configured.")
+
+    @property
+    def kafka_topics(self):
+        # Note: some kafka topics can only be determined at compile-time (i.e. when
+        # to_kubernetes() is called) because they are dependent on the properties
+        # of the edge between two nodes in the DAG. Therefore, we must refresh
+        # the kafka_topics of the workflow.
+        kafka_topics = []
+        for component in self.all_components:
+            # to_kubernetes() doesn't create any k8s resources; rather, it just
+            # returns the specs AND updates the underlying BPMNComponent.kafka_topics
+            # list.
+            component.to_kubernetes(
+                self.properties.id_hash,
+                self.component_map,
+                self._digraph,
+                self._sequence_flow_table
+            )
+            kafka_topics.extend(component.kafka_topics)
+        return set(kafka_topics)
 
     @classmethod
     def from_workflow_id(cls, workflow_id):

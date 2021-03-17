@@ -85,10 +85,6 @@ class BPMNEndEvent(BPMNComponent):
         if self._kafka_topic is not None:
             assert KAFKA_HOST is not None, "Kafka installation required for this BPMN doc."
             deployment_env_config.append({
-                "name": 'KAFKA_HOST',
-                "value": KAFKA_HOST,
-            })
-            deployment_env_config.append({
                 "name": "KAFKA_TOPIC",
                 "value": self._kafka_topic,
             })
@@ -102,5 +98,6 @@ class BPMNEndEvent(BPMNComponent):
             port,
             deployment_env_config,
             etcd_access=True,
+            kafka_access=(self._kafka_topic is not None),
         ))
         return k8s_objects

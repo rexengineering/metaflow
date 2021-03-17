@@ -74,6 +74,7 @@ class BPMNStartEvent(BPMNComponent):
 
         if transport_type == 'kafka':
             transport = create_kafka_transport(self, next_task)
+            self.kafka_topics.append(transport.kafka_topic)
             target_url = f'http://{transport.envoy_host}:{transport.port}{transport.path}'
             task_id = self.id
             total_attempts = transport.total_attempts
@@ -139,6 +140,7 @@ class BPMNStartEvent(BPMNComponent):
             port,
             deployment_env_config,
             etcd_access=True,
+            kafka_access=True,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(

@@ -67,6 +67,7 @@ class BPMNThrowEvent(BPMNComponent):
 
             if transport_type == 'kafka':
                 transport = create_kafka_transport(self, next_task)
+                self.kafka_topics.append(transport.kafka_topic)
                 target_url = f'http://{transport.envoy_host}:{transport.port}{transport.path}'
                 task_id = self.id
                 total_attempts = transport.total_attempts
@@ -104,10 +105,6 @@ class BPMNThrowEvent(BPMNComponent):
                 "value": str(total_attempts),
             },
             {
-                "name": 'KAFKA_HOST',
-                "value": KAFKA_HOST,
-            },
-            {
                 "name": "FORWARD_TASK_ID",
                 "value": task_id,
             },
@@ -126,6 +123,7 @@ class BPMNThrowEvent(BPMNComponent):
             THROW_IMAGE,
             THROW_LISTEN_PORT,
             env_config,
+            kafka_access=True,
         ))
 
         return k8s_objects

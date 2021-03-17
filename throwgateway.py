@@ -18,7 +18,7 @@ from flowlib.constants import (
     TRACEID_HEADER,
     flow_result,
 )
-from flowlib.config import KAFKA_HOST, INSTANCE_FAIL_ENDPOINT
+from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT
 
 
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
@@ -35,8 +35,9 @@ KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 
 kafka = None
-if KAFKA_TOPIC:
-    kafka = Producer({'bootstrap.servers': KAFKA_HOST})
+KAFKA_CONFIG = get_kafka_config()
+if KAFKA_CONFIG is not None:
+    kafka = Producer(KAFKA_CONFIG)
 
 
 def send_to_stream(data, flow_id, wf_id, content_type):

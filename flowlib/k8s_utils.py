@@ -22,6 +22,11 @@ from .config import (
     FLOWD_HOST,
     I_AM_FLOWD,
     LIST_ETCD_HOSTS_ENDPOINT,
+    KAFKA_HOST,
+    KAFKA_API_KEY,
+    KAFKA_API_SECRET,
+    KAFKA_SASL_MECHANISM,
+    KAFKA_SECURITY_PROTOCOL,
 )
 
 
@@ -34,7 +39,8 @@ def to_base64(file_loc):
 
 
 def create_deployment(
-        namespace, dns_safe_name, container, container_port, env, etcd_access=False, replicas=1):
+        namespace, dns_safe_name, container, container_port, env, etcd_access=False,
+        kafka_access=False, replicas=1):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -101,6 +107,18 @@ def create_deployment(
                     "value": FLOWD_HOST,
                 },
             ])
+    if kafka_access:
+        env_data = [
+            ('REXFLOW_KAFKA_HOST', KAFKA_HOST),
+            ('REXFLOW_KAFKA_API_KEY', KAFKA_API_KEY),
+            ('REXFLOW_KAFKA_API_SECRET', KAFKA_API_SECRET),
+            ('REXFLOW_KAFKA_SASL_MECHANISM', KAFKA_SASL_MECHANISM),
+            ('REXFLOW_KAFKA_SECURITY_PROTOCOL', KAFKA_SECURITY_PROTOCOL),
+        ]
+        for env_var, value in env_data:
+            if value is None:
+                continue
+            env.append({"name": env_var, "value": value})
 
     deployment['spec']['template']['spec']['containers'][0]['env'] = env
     return deployment

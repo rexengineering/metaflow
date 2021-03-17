@@ -68,10 +68,6 @@ def create_reliable_wf_catcher(
             "value": service_name,
         },
         {
-            "name": "ETCD_HOST",
-            "value": ETCD_HOST,
-        },
-        {
             "name": "KAFKA_TOPIC",
             "value": kafka_topic,
         }
@@ -84,6 +80,8 @@ def create_reliable_wf_catcher(
         CATCH_IMAGE,
         CATCH_LISTEN_PORT,
         env_config,
+        kafka_access=True,
+        etcd_access=True,
     )
     deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
         service_name=dest_service_name,  # Want to be on same node as service we call
@@ -110,10 +108,6 @@ def create_reliable_wf_thrower(service_name, namespace, kafka_topic, source_serv
             "value": DEFAULT_TOTAL_ATTEMPTS,
         },
         {
-            "name": 'KAFKA_HOST',
-            "value": KAFKA_HOST,
-        },
-        {
             "name": "FORWARD_TASK_ID",
             "value": '',
         },
@@ -127,6 +121,7 @@ def create_reliable_wf_thrower(service_name, namespace, kafka_topic, source_serv
         THROW_IMAGE,
         THROW_LISTEN_PORT,
         env_config,
+        kafka_access=True,
     )
     deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
         service_name=source_service_name,  # schedule thrower on same node as source service
@@ -138,7 +133,7 @@ def create_reliable_wf_thrower(service_name, namespace, kafka_topic, source_serv
 
 TransportCallDetails = namedtuple(
     'TransportCallDetails',
-    ['k8s_specs', 'envoy_host', 'port', 'path', 'method', 'total_attempts'],
+    ['k8s_specs', 'envoy_host', 'port', 'path', 'method', 'total_attempts', 'kafka_topic'],
 )
 
 
@@ -206,6 +201,7 @@ def create_kafka_transport(
         '/',
         'POST',
         DEFAULT_TOTAL_ATTEMPTS,
+        kafka_topic_name,
     )
 
 

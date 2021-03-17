@@ -31,9 +31,9 @@ from flowlib.constants import (
     flow_result,
 )
 
-from flowlib.config import KAFKA_HOST, INSTANCE_FAIL_ENDPOINT
+from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT
 
-KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', '')
+KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', '')
 FORWARD_URL = os.getenv('FORWARD_URL', '')
 TOTAL_ATTEMPTS = int(os.getenv('TOTAL_ATTEMPTS', '2'))
@@ -49,12 +49,14 @@ KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 
 kafka = None
-if KAFKA_TOPIC:
-    kafka = Consumer({
-        'bootstrap.servers': KAFKA_HOST,
-        'group.id': os.environ['KAFKA_GROUP_ID'],
+KAFKA_CONFIG = get_kafka_config()
+if KAFKA_CONFIG is not None and KAFKA_TOPIC is not None:
+    config = {
+        'group.id': KAFKA_GROUP_ID,
         'auto.offset.reset': 'earliest'
-    })
+    }
+    config.update(KAFKA_CONFIG)
+    kafka = Consumer(config)
     kafka.subscribe([KAFKA_TOPIC])
 
 
