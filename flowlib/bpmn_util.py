@@ -318,6 +318,7 @@ class WorkflowProperties:
         self._transport = 'rpc'
         self._traffic_shadow_svc = None
         self._xgw_expression_type = 'feel'
+        self._deployment_timeout = 120
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -364,6 +365,10 @@ class WorkflowProperties:
     def xgw_expression_type(self):
         return self._xgw_expression_type
 
+    @property
+    def deployment_timeout(self):
+        return self._deployment_timeout
+
     def update(self, annotations):
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
@@ -398,6 +403,9 @@ class WorkflowProperties:
 
         if 'id_hash' in annotations:
             self._id_hash = annotations['id_hash']
+    
+        if 'deployment_timeout' in annotations:
+            self._deployment_timeout = annotations['deployment_timeout']
 
         if 'traffic_shadow_svc' in annotations:
             assert self.transport == 'rpc', "Shadowing traffic not allowed in Reliable WF"
@@ -543,6 +551,12 @@ class BPMNComponent:
         BPMNComponent sits.
         '''
         return self._namespace
+
+    @property
+    def deployment_timeout(self) -> int:
+        '''Returns time that healthd should wait when starting/stopping the deployment
+        '''
+        return self.workflow_properties._deployment_timeout
 
     @property
     def is_in_shared_ns(self) -> bool:

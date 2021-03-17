@@ -123,11 +123,7 @@ mk_flowd_deployment_spec = lambda etcd_host, kafka_enabled : {  # noqa
                             'name': 'KAFKA_HOST',
                             'value': DEV_KAFKA_HOST if kafka_enabled else None
                         },
-                        {'name': 'REXFLOW_XGW_IMAGE', 'value': DEFAULT_XGW_IMAGE},
-                        {'name': 'REXFLOW_CATCH_IMAGE', 'value': DEFAULT_CATCH_IMAGE},
-                        {'name': 'REXFLOW_THROW_IMAGE', 'value': DEFAULT_THROW_IMAGE},
-                        {'name': 'REXFLOW_VERSION', 'value': DEFAULT_REXFLOW_VERSION},
-                        {'name': 'REXFLOW_IS_PRODUCTION', 'value': 'False'},
+                        {"name": "I_AM_FLOWD", "value": "True"},
                     ]
                 }],
                 'serviceAccountName': 'flowd'}

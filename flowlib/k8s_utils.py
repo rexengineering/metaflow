@@ -20,7 +20,6 @@ from .config import (
     ETCD_CERT_KEY,
     ETCD_POD_LABEL_SELECTOR,
     FLOWD_HOST,
-    IS_PRODUCTION,
     I_AM_FLOWD,
     LIST_ETCD_HOSTS_ENDPOINT,
 )
@@ -274,7 +273,7 @@ def get_rexflow_component_annotations(bpmn_component: BPMNComponent):
 def get_etcd_endpoints():
     '''Returns up-to-date hosts for the k8s deployment.
     '''
-    if I_AM_FLOWD and IS_PRODUCTION:
+    if I_AM_FLOWD:
         if ETCD_POD_LABEL_SELECTOR is not None:
             # Read the etcd rexflow pods and back out their hosts from the pod info.
             pods = json.loads(check_output([
@@ -291,6 +290,8 @@ def get_etcd_endpoints():
                         })
             return endpoints
         else:
+            assert ETCD_HOST is not None, \
+                "Must either provide ETCD Host or ETCD Pod Selector."
             return [{
                 'host': ETCD_HOST,
                 'port': ETCD_PORT,

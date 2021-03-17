@@ -29,7 +29,6 @@ from .config import (
     THROW_LISTEN_PORT,
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
-    IS_PRODUCTION,
     INSTANCE_FAIL_ENDPOINT,
 )
 

@@ -21,7 +21,7 @@ from .config import (
     KAFKA_HOST,
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
-    IS_PRODUCTION,
+    CREATE_DEV_INGRESS,
 )
 
 
@@ -140,7 +140,7 @@ class BPMNStartEvent(BPMNComponent):
             deployment_env_config,
             etcd_access=True,
         ))
-        if not IS_PRODUCTION:
+        if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(
                 namespace,
                 self.service_name,

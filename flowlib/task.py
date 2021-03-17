@@ -13,7 +13,7 @@ from .k8s_utils import (
     create_serviceaccount,
     create_rexflow_ingress_vs,
 )
-from .config import IS_PRODUCTION
+from .config import CREATE_DEV_INGRESS
 from .reliable_wf_utils import create_kafka_transport
 
 Upstream = namedtuple(
@@ -39,6 +39,10 @@ class BPMNTask(BPMNComponent):
             assert 'namespace' in self._annotation['service'], \
                 "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']
+            if 'health' not in self._annotation:
+                # Can't make guarantee about where the service implementor put
+                # their health endpoint, so (for now) require it to be specified.
+                self._health_properties = None
 
     def _generate_envoyfilter(self, upstreams: List[Upstream]) -> list:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
@@ -213,7 +217,7 @@ class BPMNTask(BPMNComponent):
             port,
             env=[],
         ))
-        if not IS_PRODUCTION:
+        if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(
                 namespace,
                 f'{self.service_name}-{self._global_props.id_hash}',

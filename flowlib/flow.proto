@@ -67,5 +67,6 @@ message StartRequest {
 message StopRequest {
     RequestKind kind = 1;
     repeated string ids = 2;
+    bool force = 3;
     // FIXME: Figure out any additional flags and/or arguments.
 }

@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\nflow.proto\"<\n\x0b\x46lowdResult\x12\x0e\n\x06status\x18\x01 \x01(\x03\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\t\"1\n\x0c\x41pplyRequest\x12\x10\n\x08\x62pmn_xml\x18\x01 \x01(\t\x12\x0f\n\x07stopped\x18\x02 \x01(\x08\"8\n\rDeleteRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"P\n\tPSRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\x12\x1a\n\x12include_kubernetes\x18\x03 \x01(\x08\"\x1b\n\x0cProbeRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"@\n\nRunRequest\x12\x13\n\x0bworkflow_id\x18\x01 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x02 \x03(\t\x12\x0f\n\x07stopped\x18\x03 \x01(\x08\"7\n\x0cStartRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"6\n\x0bStopRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t*+\n\x0bRequestKind\x12\x0e\n\nDEPLOYMENT\x10\x00\x12\x0c\n\x08INSTANCE\x10\x01\x32\xc1\x02\n\nFlowDaemon\x12,\n\rApplyWorkflow\x12\r.ApplyRequest\x1a\x0c.FlowdResult\x12.\n\x0e\x44\x65leteWorkflow\x12\x0e.DeleteRequest\x1a\x0c.FlowdResult\x12#\n\x07PSQuery\x12\n.PSRequest\x1a\x0c.FlowdResult\x12,\n\rProbeWorkflow\x12\r.ProbeRequest\x1a\x0c.FlowdResult\x12(\n\x0bRunWorkflow\x12\x0b.RunRequest\x1a\x0c.FlowdResult\x12,\n\rStartWorkflow\x12\r.StartRequest\x1a\x0c.FlowdResult\x12*\n\x0cStopWorkflow\x12\x0c.StopRequest\x1a\x0c.FlowdResultb\x06proto3'
+  serialized_pb=b'\n\nflow.proto\"<\n\x0b\x46lowdResult\x12\x0e\n\x06status\x18\x01 \x01(\x03\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\t\"1\n\x0c\x41pplyRequest\x12\x10\n\x08\x62pmn_xml\x18\x01 \x01(\t\x12\x0f\n\x07stopped\x18\x02 \x01(\x08\"8\n\rDeleteRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"P\n\tPSRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\x12\x1a\n\x12include_kubernetes\x18\x03 \x01(\x08\"\x1b\n\x0cProbeRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"@\n\nRunRequest\x12\x13\n\x0bworkflow_id\x18\x01 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x02 \x03(\t\x12\x0f\n\x07stopped\x18\x03 \x01(\x08\"7\n\x0cStartRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"E\n\x0bStopRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\x12\r\n\x05\x66orce\x18\x03 \x01(\x08*+\n\x0bRequestKind\x12\x0e\n\nDEPLOYMENT\x10\x00\x12\x0c\n\x08INSTANCE\x10\x01\x32\xc1\x02\n\nFlowDaemon\x12,\n\rApplyWorkflow\x12\r.ApplyRequest\x1a\x0c.FlowdResult\x12.\n\x0e\x44\x65leteWorkflow\x12\x0e.DeleteRequest\x1a\x0c.FlowdResult\x12#\n\x07PSQuery\x12\n.PSRequest\x1a\x0c.FlowdResult\x12,\n\rProbeWorkflow\x12\r.ProbeRequest\x1a\x0c.FlowdResult\x12(\n\x0bRunWorkflow\x12\x0b.RunRequest\x1a\x0c.FlowdResult\x12,\n\rStartWorkflow\x12\r.StartRequest\x1a\x0c.FlowdResult\x12*\n\x0cStopWorkflow\x12\x0c.StopRequest\x1a\x0c.FlowdResultb\x06proto3'
 )
 
 _REQUESTKIND = _descriptor.EnumDescriptor(
@@ -43,8 +43,8 @@ _REQUESTKIND = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=475,
-  serialized_end=518,
+  serialized_start=490,
+  serialized_end=533,
 )
 _sym_db.RegisterEnumDescriptor(_REQUESTKIND)
 
@@ -363,6 +363,13 @@ _STOPREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='force', full_name='StopRequest.force', index=2,
+      number=3, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -376,7 +383,7 @@ _STOPREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=419,
-  serialized_end=473,
+  serialized_end=488,
 )
 
 _DELETEREQUEST.fields_by_name['kind'].enum_type = _REQUESTKIND
@@ -459,8 +466,8 @@ _FLOWDAEMON = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=521,
-  serialized_end=842,
+  serialized_start=536,
+  serialized_end=857,
   methods=[
   _descriptor.MethodDescriptor(
     name='ApplyWorkflow',

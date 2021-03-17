@@ -41,7 +41,7 @@ from .k8s_utils import (
     add_annotations,
     get_rexflow_component_annotations,
 )
-from .config import IS_PRODUCTION, K8S_SPECS_S3_BUCKET
+from .config import DO_MANUAL_INJECTION, K8S_SPECS_S3_BUCKET
 
 
 ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
@@ -147,7 +147,7 @@ class BPMNProcess:
         self.kafka_topics = list(set(self.kafka_topics))
 
         self.all_components = []
-        self.all_components.extend([t for t in self.tasks if not t.is_preexisting])
+        self.all_components.extend(self.tasks)
         self.all_components.extend(self.xgateways)
         self.all_components.extend(self.pgateways)
         self.all_components.extend(self.throws)
@@ -157,7 +157,7 @@ class BPMNProcess:
 
         # Check that there are no duplicate service names.
         all_names = set()
-        for component in self.all_components + [t for t in self.tasks if t.is_preexisting]:
+        for component in self.all_components:
             if component.name in all_names:
                 assert False, f"Name {component.name} used twice! Not allowed."
             all_names.add(component.name)
@@ -280,7 +280,7 @@ class BPMNProcess:
         # could easily tell Istio to automatically inject our own custom
         # proxy image, and thus remove the code below.
         temp_yaml = yaml.safe_dump_all(results, **kws)
-        if IS_PRODUCTION:
+        if not DO_MANUAL_INJECTION:
             self._save_specs_to_s3(temp_yaml, keys_obj.specs)
             stream.write(temp_yaml)
             return temp_yaml

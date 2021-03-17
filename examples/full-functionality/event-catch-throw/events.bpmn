@@ -63,7 +63,7 @@
     <bpmn:association id="Association_057this" sourceRef="Event_1cptoky" targetRef="TextAnnotation_06yt33r" />
     <bpmn:textAnnotation id="TextAnnotation_0dqtqab">
       <bpmn:text>rexflow:
-  kafka_topic: mytopic</bpmn:text>
+  kafka_topic: mytopi1c</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:textAnnotation id="TextAnnotation_02eute1">
       <bpmn:text>rexflow:

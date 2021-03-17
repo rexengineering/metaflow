@@ -12,7 +12,7 @@ import os
 # Flowd Endpoints
 DEFAULT_FLOWD_HOST = 'flowd.rexflow:9002'
 FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", DEFAULT_FLOWD_HOST)
-FLOWD_URL = f"http://{FLOWD_HOST}/"
+FLOWD_URL = f"http://{FLOWD_HOST}"
 
 INSTANCE_FAIL_ENDPOINT_PATH = "/instancefail"
 INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
@@ -58,17 +58,35 @@ KAFKA_HOST = os.getenv("KAFKA_HOST", None)
 
 
 # Meta-info about the deployment
-IS_PRODUCTION = (os.getenv("REXFLOW_IS_PRODUCTION") == "True")
+DEFAULT_CREATE_DEV_INGRESS = "True"
+CREATE_DEV_INGRESS = (
+    os.getenv("REXFLOW_CREATE_DEV_INGRESS", DEFAULT_CREATE_DEV_INGRESS) == "True"
+)
+
+DEFAULT_DO_MANUAL_INJECTION = "True"
+DO_MANUAL_INJECTION = (
+    os.getenv("REXFLOW_DO_MANUAL_INJECTION", DEFAULT_DO_MANUAL_INJECTION) == "True"
+)
 I_AM_FLOWD = True if os.getenv("I_AM_FLOWD") == "True" else False
 
 
 # ETCD Configuration
 ETCD_HOST = os.getenv("ETCD_HOST")  # optional, can get from pods instead
 ETCD_PORT = os.getenv("ETCD_PORT")  # optional, can get from pods instead
-ETCD_CA_CERT = os.getenv("REXFLOW_ETCD_CA_CERT")
-ETCD_CERT_CERT = os.getenv("REXFLOW_ETCD_CERT_CERT")
-ETCD_CERT_KEY = os.getenv("REXFLOW_ETCD_CERT_KEY")
+# Allows REXFlow to get dynamically-changing etcd hosts by kubectl describing
+# some pods according to a label.
 ETCD_POD_LABEL_SELECTOR = os.getenv("REXFLOW_ETCD_POD_LABEL_SELECTOR")
+
+# Can either provide certs/paths as environment variables or as files, in which
+# case the env var is the path to the file. If both are provided, then the
+# filepath variable takes precedence.
+ETCD_CA_CERT = os.getenv("REXFLOW_ETCD_CA_CERT")
+ETCD_CA_CERT_PATH = os.getenv("REXFLOW_ETCD_CA_CERT_PATH")
+ETCD_CERT_CERT = os.getenv("REXFLOW_ETCD_CERT_CERT")
+ETCD_CERT_CERT_PATH = os.getenv("REXFLOW_ETCD_CERT_CERT_PATH")
+ETCD_CERT_KEY = os.getenv("REXFLOW_ETCD_CERT_KEY")
+ETCD_CERT_KEY_PATH = os.getenv("REXFLOW_ETCD_CERT_KEY_PATH")
+
 
 
 # S3 Bucket, optionally used to store k8s specs.
