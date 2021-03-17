@@ -96,7 +96,7 @@ class BPMNStartEvent(BPMNComponent):
             },
             {
                 "name": "TOTAL_ATTEMPTS",
-                "value": total_attempts,
+                "value": str(total_attempts),
             },
             {
                 "name": "FORWARD_URL",
@@ -110,10 +110,6 @@ class BPMNStartEvent(BPMNComponent):
                 "name": "KAFKA_GROUP_ID",
                 "value": self.service_name,
             },
-            {
-                "name": "ETCD_HOST",
-                "value": ETCD_HOST,
-            }
         ]
         if self._global_props.traffic_shadow_svc:
             deployment_env_config.append({
@@ -142,6 +138,7 @@ class BPMNStartEvent(BPMNComponent):
             self.service_properties.container,
             port,
             deployment_env_config,
+            etcd_access=True,
         ))
         if not IS_PRODUCTION:
             k8s_objects.append(create_rexflow_ingress_vs(

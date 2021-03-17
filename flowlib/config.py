@@ -8,12 +8,25 @@ See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
 
-DEFAULT_FLOWD_URL = 'http://flowd.rexflow:9002'
-FLOWD_URL = os.getenv('REXFLOW_FLOWD_URL', DEFAULT_FLOWD_URL)
+
+# Flowd Endpoints
+DEFAULT_FLOWD_HOST = 'flowd.rexflow:9002'
+FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", DEFAULT_FLOWD_HOST)
+FLOWD_URL = f"http://{FLOWD_HOST}/"
 
 INSTANCE_FAIL_ENDPOINT_PATH = "/instancefail"
 INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
 
+LIST_ETCD_HOSTS_ENDPOINT_PATH = '/etcd_hosts'
+LIST_ETCD_HOSTS_ENDPOINT = f"{FLOWD_URL}{LIST_ETCD_HOSTS_ENDPOINT_PATH}"
+
+
+# REXFlow DMN Server Info
+DEFAULT_DMN_SERVER_HOST = "http://dmnserver.rexflow:8001"
+DMN_SERVER_HOST = os.getenv("REWXFLOW_DMN_SERVER_HOST", DEFAULT_DMN_SERVER_HOST)
+
+
+# REXFlow Docker Image Configuration
 DEFAULT_REXFLOW_VERSION = '1.0.0'
 REXFLOW_VERSION = os.getenv('REXFLOW_VERSION', DEFAULT_REXFLOW_VERSION)
 
@@ -39,16 +52,24 @@ if ':' not in XGW_IMAGE:
 DEFAULT_XGW_LISTEN_PORT = '5000'
 XGW_LISTEN_PORT = int(os.getenv("REXFLOW_XGW_LISTEN_PORT", DEFAULT_XGW_LISTEN_PORT))
 
-DEFAULT_DMN_SERVER_HOST = "http://dmnserver.rexflow:8001"
-DMN_SERVER_HOST = os.getenv("REWXFLOW_DMN_SERVER_HOST", DEFAULT_DMN_SERVER_HOST)
 
 # Kafka is not required.
 KAFKA_HOST = os.getenv("KAFKA_HOST", None)
 
+
+# Meta-info about the deployment
 IS_PRODUCTION = (os.getenv("REXFLOW_IS_PRODUCTION") == "True")
+I_AM_FLOWD = True if os.getenv("I_AM_FLOWD") == "True" else False
 
-ETCD_HOST = os.getenv("ETCD_HOST")
-if IS_PRODUCTION:
-    assert ETCD_HOST is not None
 
+# ETCD Configuration
+ETCD_HOST = os.getenv("ETCD_HOST")  # optional, can get from pods instead
+ETCD_PORT = os.getenv("ETCD_PORT")  # optional, can get from pods instead
+ETCD_CA_CERT = os.getenv("REXFLOW_ETCD_CA_CERT")
+ETCD_CERT_CERT = os.getenv("REXFLOW_ETCD_CERT_CERT")
+ETCD_CERT_KEY = os.getenv("REXFLOW_ETCD_CERT_KEY")
+ETCD_POD_LABEL_SELECTOR = os.getenv("REXFLOW_ETCD_POD_LABEL_SELECTOR")
+
+
+# S3 Bucket, optionally used to store k8s specs.
 K8S_SPECS_S3_BUCKET = os.getenv("REXFLOW_K8S_SPECS_S3_BUCKET", None)

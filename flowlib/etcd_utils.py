@@ -4,6 +4,15 @@ import re
 
 import etcd3
 
+from .config import (
+    ETCD_HOST,
+    ETCD_PORT,
+    ETCD_CA_CERT,
+    ETCD_CERT_CERT,
+    ETCD_CERT_KEY,
+    IS_PRODUCTION,
+)
+from .k8s_utils import get_etcd_endpoints
 
 _etcd = None
 
@@ -19,6 +28,34 @@ ENV_MAP = {
 
 
 def init_etcd(*args, **kws):
+    global _etcd
+    if _etcd is not None:
+        return _etcd
+
+    args = {}
+    with open('etcd_client.crt', 'w') as f:
+        f.write(ETCD_CERT_CERT)
+    args['cert_cert'] = 'etcd_client.crt'
+
+    with open('etcd_client.pem', 'w') as f:
+        f.write(ETCD_CERT_KEY)
+    args['cert_key'] = 'etcd_client.pem'
+
+    with open('ca.crt', 'w') as f:
+        f.write(ETCD_CA_CERT)
+    args['ca_cert'] = 'ca.crt'
+
+    hosts = get_etcd_endpoints()
+    args['host'] = hosts[0]['host']
+    args['port'] = hosts[0]['port']
+
+    result = etcd3.client(**args)
+    result.get('🇺🇸')
+    _etcd = result
+    return _etcd
+
+
+def init_etcd_legacy(*args, **kws):
     '''Initialize a module-level etcd client if not set already.
     Arguments:
         All arguments are passed on to etcd3.client().
@@ -75,7 +112,10 @@ def get_etcd(*args, is_not_none=False, **kws):
         assert _etcd is not None
         result = _etcd
     elif _etcd is None:
-        result = init_etcd(*args, **kws)
+        if IS_PRODUCTION:
+            result = init_etcd()
+        else:
+            result = init_etcd_legacy(*args, **kws)
     else:
         result = _etcd
     return result

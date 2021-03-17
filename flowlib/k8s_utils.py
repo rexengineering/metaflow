@@ -2,12 +2,40 @@
 Removes significant copy-pasta by defining simple utilities to
 create a k8s Service, ServiceAccount, and Deployment.
 '''
+from base64 import b64encode
+import json
+import os
+from subprocess import check_output
 from typing import Mapping
 
+import kubernetes
+import requests
+
 from .bpmn_util import BPMNComponent
+from .config import (
+    ETCD_HOST,
+    ETCD_PORT,
+    ETCD_CA_CERT,
+    ETCD_CERT_CERT,
+    ETCD_CERT_KEY,
+    ETCD_POD_LABEL_SELECTOR,
+    FLOWD_HOST,
+    IS_PRODUCTION,
+    I_AM_FLOWD,
+    LIST_ETCD_HOSTS_ENDPOINT,
+)
 
 
-def create_deployment(namespace, dns_safe_name, container, container_port, env, replicas=1):
+def to_base64(file_loc):
+    '''Accepts a file path, reads it, and encodes it into base64.
+    Should only be called on small files.
+    '''
+    with open(file_loc, 'r') as f:
+        return b64encode(f.read())
+
+
+def create_deployment(
+        namespace, dns_safe_name, container, container_port, env, etcd_access=False, replicas=1):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -33,7 +61,7 @@ def create_deployment(namespace, dns_safe_name, container, container_port, env, 
                     'containers': [
                         {
                             'image': container,
-                            'imagePullPolicy': 'IfNotPresent',
+                            'imagePullPolicy': 'Always',
                             'name': dns_safe_name,
                             'ports': [
                                 {
@@ -46,8 +74,36 @@ def create_deployment(namespace, dns_safe_name, container, container_port, env, 
             },
         },
     }
-    if env is not None:
-        deployment['spec']['template']['spec']['containers'][0]['env'] = env
+    env = env.copy()
+
+    if etcd_access:
+        if ETCD_HOST is not None:
+            env.append({
+                "name": "ETCD_HOST",
+                "value": ETCD_HOST,
+            })
+        else:
+            assert ETCD_POD_LABEL_SELECTOR is not None, "Must provide some way to get etcd"
+            env.extend([
+                {
+                    "name": "REXFLOW_ETCD_CA_CERT",
+                    "value": ETCD_CA_CERT,
+                },
+                {
+                    "name": "REXFLOW_ETCD_CERT_CERT",
+                    "value": ETCD_CERT_CERT,
+                },
+                {
+                    "name": "REXFLOW_ETCD_CERT_KEY",
+                    "value": ETCD_CERT_KEY,
+                },
+                {
+                    "name": "REXFLOW_FLOWD_HOST",
+                    "value": FLOWD_HOST,
+                },
+            ])
+
+    deployment['spec']['template']['spec']['containers'][0]['env'] = env
     return deployment
 
 
@@ -213,3 +269,32 @@ def get_rexflow_component_annotations(bpmn_component: BPMNComponent):
         "rexflow.rexhomes.com/bpmn-component-name": bpmn_component.name,
         "rexflow.rexhomes.com/wf-id": bpmn_component.workflow_properties.id,
     }
+
+
+def get_etcd_endpoints():
+    '''Returns up-to-date hosts for the k8s deployment.
+    '''
+    if I_AM_FLOWD and IS_PRODUCTION:
+        if ETCD_POD_LABEL_SELECTOR is not None:
+            # Read the etcd rexflow pods and back out their hosts from the pod info.
+            pods = json.loads(check_output([
+                "kubectl", "get", "po", "--all-namespaces", "-o", "json",
+                "-l", ETCD_POD_LABEL_SELECTOR,
+            ]).decode())
+            endpoints = []
+            for pod in pods['items']:
+                for port in pod['spec']['containers'][0]['ports']:
+                    if port['name'] == 'clientport':
+                        endpoints.append({
+                            'host': pod['status']['podIP'],
+                            'port': port['hostPort'],
+                        })
+            return endpoints
+        else:
+            return [{
+                'host': ETCD_HOST,
+                'port': ETCD_PORT,
+            }]
+    else:
+        # Ask Flowd for the data.
+        return requests.get(LIST_ETCD_HOSTS_ENDPOINT).json()['etcd_hosts']

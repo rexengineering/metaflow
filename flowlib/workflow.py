@@ -68,11 +68,15 @@ class Workflow:
                 etcd.replace(self.keys.state, States.STARTING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
             kubernetes_input = StringIO()
-            if orchestrator == 'kubernetes':
-                self.process.to_kubernetes(kubernetes_input, self.id_hash)
-            else:
-                self.process.to_istio(kubernetes_input, self.id_hash)
-                self._create_kafka_topics()
+            try:
+                if orchestrator == 'kubernetes':
+                    self.process.to_kubernetes(kubernetes_input, self.id_hash)
+                else:
+                    self.process.to_istio(kubernetes_input, self.id_hash)
+                    self._create_kafka_topics()
+            except Exception as exn:
+                etcd.put(self.keys.state, States.ERROR)
+                raise exn
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
                 ['kubectl', 'apply', '-f', '-'],
