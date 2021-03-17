@@ -53,7 +53,7 @@ DEFAULT_XGW_LISTEN_PORT = '5000'
 XGW_LISTEN_PORT = int(os.getenv("REXFLOW_XGW_LISTEN_PORT", DEFAULT_XGW_LISTEN_PORT))
 
 
-# Kafka
+# Kafka is not required.
 KAFKA_HOST = os.getenv("KAFKA_HOST", None)
 
 
