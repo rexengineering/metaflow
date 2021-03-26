@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\nflow.proto\"<\n\x0b\x46lowdResult\x12\x0e\n\x06status\x18\x01 \x01(\x03\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\t\"1\n\x0c\x41pplyRequest\x12\x10\n\x08\x62pmn_xml\x18\x01 \x01(\t\x12\x0f\n\x07stopped\x18\x02 \x01(\x08\"8\n\rDeleteRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"P\n\tPSRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\x12\x1a\n\x12include_kubernetes\x18\x03 \x01(\x08\"\x1b\n\x0cProbeRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"@\n\nRunRequest\x12\x13\n\x0bworkflow_id\x18\x01 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x02 \x03(\t\x12\x0f\n\x07stopped\x18\x03 \x01(\x08\"7\n\x0cStartRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"E\n\x0bStopRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\x12\r\n\x05\x66orce\x18\x03 \x01(\x08*+\n\x0bRequestKind\x12\x0e\n\nDEPLOYMENT\x10\x00\x12\x0c\n\x08INSTANCE\x10\x01\x32\xc1\x02\n\nFlowDaemon\x12,\n\rApplyWorkflow\x12\r.ApplyRequest\x1a\x0c.FlowdResult\x12.\n\x0e\x44\x65leteWorkflow\x12\x0e.DeleteRequest\x1a\x0c.FlowdResult\x12#\n\x07PSQuery\x12\n.PSRequest\x1a\x0c.FlowdResult\x12,\n\rProbeWorkflow\x12\r.ProbeRequest\x1a\x0c.FlowdResult\x12(\n\x0bRunWorkflow\x12\x0b.RunRequest\x1a\x0c.FlowdResult\x12,\n\rStartWorkflow\x12\r.StartRequest\x1a\x0c.FlowdResult\x12*\n\x0cStopWorkflow\x12\x0c.StopRequest\x1a\x0c.FlowdResultb\x06proto3'
+  serialized_pb=b'\n\nflow.proto\"<\n\x0b\x46lowdResult\x12\x0e\n\x06status\x18\x01 \x01(\x03\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\t\"1\n\x0c\x41pplyRequest\x12\x10\n\x08\x62pmn_xml\x18\x01 \x01(\t\x12\x0f\n\x07stopped\x18\x02 \x01(\x08\"8\n\rDeleteRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"P\n\tPSRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\x12\x1a\n\x12include_kubernetes\x18\x03 \x01(\x08\"\x1b\n\x0cProbeRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"@\n\nRunRequest\x12\x13\n\x0bworkflow_id\x18\x01 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x02 \x03(\t\x12\x0f\n\x07stopped\x18\x03 \x01(\x08\"7\n\x0cStartRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\"E\n\x0bStopRequest\x12\x1a\n\x04kind\x18\x01 \x01(\x0e\x32\x0c.RequestKind\x12\x0b\n\x03ids\x18\x02 \x03(\t\x12\r\n\x05\x66orce\x18\x03 \x01(\x08\"\x90\x01\n\rUpdateRequest\x12\r\n\x05wf_id\x18\x01 \x01(\t\x12$\n\x06\x61\x63tion\x18\x02 \x01(\x0e\x32\x14.UpdateRequestAction\x12\x0c\n\x04host\x18\x03 \x01(\t\x12\x13\n\x0bkafka_topic\x18\x04 \x01(\t\x12\x19\n\x11switch_from_wf_id\x18\x05 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x06 \x03(\t*+\n\x0bRequestKind\x12\x0e\n\nDEPLOYMENT\x10\x00\x12\x0c\n\x08INSTANCE\x10\x01*j\n\x13UpdateRequestAction\x12\x12\n\x0e\x65xpose_ingress\x10\x00\x12\x12\n\x0e\x64\x65lete_ingress\x10\x01\x12\x13\n\x0f\x61\x64\x64_kafka_topic\x10\x02\x12\x16\n\x12\x64\x65lete_kafka_topic\x10\x03\x32\xf1\x02\n\nFlowDaemon\x12,\n\rApplyWorkflow\x12\r.ApplyRequest\x1a\x0c.FlowdResult\x12.\n\x0e\x44\x65leteWorkflow\x12\x0e.DeleteRequest\x1a\x0c.FlowdResult\x12#\n\x07PSQuery\x12\n.PSRequest\x1a\x0c.FlowdResult\x12,\n\rProbeWorkflow\x12\r.ProbeRequest\x1a\x0c.FlowdResult\x12(\n\x0bRunWorkflow\x12\x0b.RunRequest\x1a\x0c.FlowdResult\x12,\n\rStartWorkflow\x12\r.StartRequest\x1a\x0c.FlowdResult\x12*\n\x0cStopWorkflow\x12\x0c.StopRequest\x1a\x0c.FlowdResult\x12.\n\x0eUpdateWorkflow\x12\x0e.UpdateRequest\x1a\x0c.FlowdResultb\x06proto3'
 )
 
 _REQUESTKIND = _descriptor.EnumDescriptor(
@@ -43,14 +43,54 @@ _REQUESTKIND = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=490,
-  serialized_end=533,
+  serialized_start=637,
+  serialized_end=680,
 )
 _sym_db.RegisterEnumDescriptor(_REQUESTKIND)
 
 RequestKind = enum_type_wrapper.EnumTypeWrapper(_REQUESTKIND)
+_UPDATEREQUESTACTION = _descriptor.EnumDescriptor(
+  name='UpdateRequestAction',
+  full_name='UpdateRequestAction',
+  filename=None,
+  file=DESCRIPTOR,
+  create_key=_descriptor._internal_create_key,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='expose_ingress', index=0, number=0,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='delete_ingress', index=1, number=1,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='add_kafka_topic', index=2, number=2,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='delete_kafka_topic', index=3, number=3,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+  ],
+  containing_type=None,
+  serialized_options=None,
+  serialized_start=682,
+  serialized_end=788,
+)
+_sym_db.RegisterEnumDescriptor(_UPDATEREQUESTACTION)
+
+UpdateRequestAction = enum_type_wrapper.EnumTypeWrapper(_UPDATEREQUESTACTION)
 DEPLOYMENT = 0
 INSTANCE = 1
+expose_ingress = 0
+delete_ingress = 1
+add_kafka_topic = 2
+delete_kafka_topic = 3
 
 
 
@@ -386,10 +426,78 @@ _STOPREQUEST = _descriptor.Descriptor(
   serialized_end=488,
 )
 
+
+_UPDATEREQUEST = _descriptor.Descriptor(
+  name='UpdateRequest',
+  full_name='UpdateRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='wf_id', full_name='UpdateRequest.wf_id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='action', full_name='UpdateRequest.action', index=1,
+      number=2, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='host', full_name='UpdateRequest.host', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='kafka_topic', full_name='UpdateRequest.kafka_topic', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='switch_from_wf_id', full_name='UpdateRequest.switch_from_wf_id', index=4,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='args', full_name='UpdateRequest.args', index=5,
+      number=6, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=491,
+  serialized_end=635,
+)
+
 _DELETEREQUEST.fields_by_name['kind'].enum_type = _REQUESTKIND
 _PSREQUEST.fields_by_name['kind'].enum_type = _REQUESTKIND
 _STARTREQUEST.fields_by_name['kind'].enum_type = _REQUESTKIND
 _STOPREQUEST.fields_by_name['kind'].enum_type = _REQUESTKIND
+_UPDATEREQUEST.fields_by_name['action'].enum_type = _UPDATEREQUESTACTION
 DESCRIPTOR.message_types_by_name['FlowdResult'] = _FLOWDRESULT
 DESCRIPTOR.message_types_by_name['ApplyRequest'] = _APPLYREQUEST
 DESCRIPTOR.message_types_by_name['DeleteRequest'] = _DELETEREQUEST
@@ -398,7 +506,9 @@ DESCRIPTOR.message_types_by_name['ProbeRequest'] = _PROBEREQUEST
 DESCRIPTOR.message_types_by_name['RunRequest'] = _RUNREQUEST
 DESCRIPTOR.message_types_by_name['StartRequest'] = _STARTREQUEST
 DESCRIPTOR.message_types_by_name['StopRequest'] = _STOPREQUEST
+DESCRIPTOR.message_types_by_name['UpdateRequest'] = _UPDATEREQUEST
 DESCRIPTOR.enum_types_by_name['RequestKind'] = _REQUESTKIND
+DESCRIPTOR.enum_types_by_name['UpdateRequestAction'] = _UPDATEREQUESTACTION
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 FlowdResult = _reflection.GeneratedProtocolMessageType('FlowdResult', (_message.Message,), {
@@ -457,6 +567,13 @@ StopRequest = _reflection.GeneratedProtocolMessageType('StopRequest', (_message.
   })
 _sym_db.RegisterMessage(StopRequest)
 
+UpdateRequest = _reflection.GeneratedProtocolMessageType('UpdateRequest', (_message.Message,), {
+  'DESCRIPTOR' : _UPDATEREQUEST,
+  '__module__' : 'flow_pb2'
+  # @@protoc_insertion_point(class_scope:UpdateRequest)
+  })
+_sym_db.RegisterMessage(UpdateRequest)
+
 
 
 _FLOWDAEMON = _descriptor.ServiceDescriptor(
@@ -466,8 +583,8 @@ _FLOWDAEMON = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=536,
-  serialized_end=857,
+  serialized_start=791,
+  serialized_end=1160,
   methods=[
   _descriptor.MethodDescriptor(
     name='ApplyWorkflow',
@@ -535,6 +652,16 @@ _FLOWDAEMON = _descriptor.ServiceDescriptor(
     index=6,
     containing_service=None,
     input_type=_STOPREQUEST,
+    output_type=_FLOWDRESULT,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='UpdateWorkflow',
+    full_name='FlowDaemon.UpdateWorkflow',
+    index=7,
+    containing_service=None,
+    input_type=_UPDATEREQUEST,
     output_type=_FLOWDRESULT,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,

@@ -29,7 +29,7 @@ def to_valid_k8s_name(name):
     name = name.lower()
 
     # Replace space-like chars with a '-'
-    name = re.sub('[ _\n]', '-', name)
+    name = re.sub('[. _\n]', '-', name)
 
     # Remove invalid characters
     name = re.sub('[^0-9a-z-]', '', name)

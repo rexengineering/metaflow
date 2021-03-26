@@ -23,7 +23,7 @@ LIST_ETCD_HOSTS_ENDPOINT = f"{FLOWD_URL}{LIST_ETCD_HOSTS_ENDPOINT_PATH}"
 
 # REXFlow DMN Server Info
 DEFAULT_DMN_SERVER_HOST = "http://dmnserver.rexflow:8001"
-DMN_SERVER_HOST = os.getenv("REWXFLOW_DMN_SERVER_HOST", DEFAULT_DMN_SERVER_HOST)
+DMN_SERVER_HOST = os.getenv("REXFLOW_DMN_SERVER_HOST", DEFAULT_DMN_SERVER_HOST)
 
 
 # REXFlow Docker Image Configuration
@@ -110,3 +110,5 @@ def get_kafka_config():
     return {
         key: kafka_env_map[key] for key in kafka_env_map.keys() if kafka_env_map[key] is not None
     }
+
+INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE")

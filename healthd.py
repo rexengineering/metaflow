@@ -222,8 +222,15 @@ class HealthManager:
         '''
         self.logger.info(f'stop_workflow {workflow.id}')
 
-        self.logger.info(f'Removing workflow {workflow.id}')
-        workflow.remove()
+        try:
+            self.logger.info(f'Removing workflow {workflow.id}')
+            workflow.remove()
+        except Exception as exn:
+            logging.exception(
+                f"Failed to bring down workflow {workflow.id}",
+                exc_info=exn,
+            )
+            self.etcd.replace(workflow.keys.state, BStates.STOPPING, BStates.ERROR)
         return self.wait_for_down(workflow)
 
     def start(self):

@@ -2,7 +2,7 @@ from io import StringIO
 
 from flowlib import flow_pb2
 from flowlib import etcd_utils
-from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, HOST_SUFFIX
 from flowlib.workflow import Workflow
 
 
@@ -11,7 +11,7 @@ class PSHandlers:
         self.etcd = etcd_utils.get_etcd(is_not_none=True)
 
     def handle_single_deployment(self, deployment_id, include_kubernetes):
-        keys = {'state'}
+        keys = {'state', HOST_SUFFIX.lstrip('/')}
         response = etcd_utils.get_dict_from_prefix(
             WorkflowKeys.key_of(deployment_id),
             keys=keys,

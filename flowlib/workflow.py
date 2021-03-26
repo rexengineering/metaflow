@@ -162,7 +162,7 @@ class WorkflowInstance:
     to send the first request. Furthermore, the Start Event uses the
     `WorkflowInstanceKeys` object to determine which keys to manipulate in Etcd.
     This class is instantiated by Flowd and used for:
-    1. Running a WF instance by calling the Start service
+    1. Running a WF instance via `flowctl run` as opposed to an http call to Start Event.
     2. Potentially other dashboarding uses in the future (not yet implemented).
     '''
     def __init__(self, parent: Union[str, Workflow], id: str = None):
