@@ -113,6 +113,26 @@ class Workflow:
                 except Exception as e:
                     logging.error(f"Failed to create topic {topic}: {e}")
 
+    def _delete_kafka_topics(self):
+        if KAFKA_CONFIG is None:
+            return
+        kafka_client = AdminClient(KAFKA_CONFIG)
+        topic_metadata = kafka_client.list_topics()
+        topics_to_delete = [
+            topic for topic in self.process.kafka_topics
+            if topic_metadata.topics.get(topic) is not None
+        ]
+        if len(topics_to_delete):
+            response = kafka_client.delete_topics(topics_to_delete)
+            for topic, f in response.items():
+                try:
+                    f.result()  # The result itself is None
+                    logging.info(f"Deleted Kafka Topic {topic}.")
+                except Exception as e:
+                    logging.error(f"Failed to delete topic {topic}: {e}")
+        else:
+            logging.info("no kafka topics to delete.")
+
     def stop(self):
         etcd = get_etcd(is_not_none=True)
         good_states = (BStates.RUNNING, BStates.ERROR)
@@ -134,6 +154,7 @@ class Workflow:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
                 etcd.replace(self.keys.state, States.STOPPING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
+            self._delete_kafka_topics()
             kubernetes_stream = StringIO()
             if orchestrator == 'kubernetes':
                 self.process.to_kubernetes(kubernetes_stream, self.id_hash)

@@ -162,7 +162,8 @@ def create_kafka_transport(
     catch_service_name = to_valid_k8s_name(f'catch-{from_component.name}-to-{to_component.name}')
 
     # Take my word for it, this will match the 
-    kafka_topic_name = f'reliable-transport_{from_component.name}_to_{to_component.name}'
+    kafka_topic_name = f'rexflow-transport_{from_component.workflow_properties.id}_'
+    kafka_topic_name += f'{from_component.name}_to_{to_component.name}'
 
     wf_id = from_component.workflow_properties.id
     assert wf_id == to_component.workflow_properties.id, \
