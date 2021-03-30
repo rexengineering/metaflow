@@ -12,7 +12,7 @@
       <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_0y9yafp</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="SequenceFlow_0y9yafp" sourceRef="Task_1dqvybv" targetRef="Task_1nyu98k" />
+    <bpmn:sequenceFlow id="SequenceFlow_0y9yafp" name="transport: rpc" sourceRef="Task_1dqvybv" targetRef="Task_1nyu98k" />
     <bpmn:serviceTask id="Task_1mrtiy4" name="Profit!">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="profit" />
@@ -20,7 +20,7 @@
       <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_16qxrei</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="EndEvent_1pxdd1k" name="Finish">
+    <bpmn:endEvent id="EndEvent_1pxdd1k" name="end-reliable">
       <bpmn:incoming>SequenceFlow_16qxrei</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="SequenceFlow_16qxrei" sourceRef="Task_1mrtiy4" targetRef="EndEvent_1pxdd1k" />
@@ -35,7 +35,7 @@
     <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
       <bpmn:text>rexflow:
     id: underpants
-    reliable_transport: kafka
+    transport: kafka
     namespace: default
     namespace_shared: true</bpmn:text>
     </bpmn:textAnnotation>
@@ -61,12 +61,6 @@
         port: 5000</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1yz0l60" sourceRef="Task_1mrtiy4" targetRef="TextAnnotation_18mql5m" />
-    <bpmn:textAnnotation id="TextAnnotation_1mjdove">
-      <bpmn:text>rexflow:
-  service:
-    host: reliable</bpmn:text>
-    </bpmn:textAnnotation>
-    <bpmn:association id="Association_03vo1zv" sourceRef="EndEvent_1pxdd1k" targetRef="TextAnnotation_1mjdove" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
@@ -81,6 +75,9 @@
       <bpmndi:BPMNEdge id="SequenceFlow_0y9yafp_di" bpmnElement="SequenceFlow_0y9yafp">
         <di:waypoint x="370" y="237" />
         <di:waypoint x="430" y="237" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="368" y="219" width="65" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="SequenceFlow_190n0mt_di" bpmnElement="SequenceFlow_190n0mt">
         <di:waypoint x="215" y="237" />
@@ -101,7 +98,7 @@
       <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
         <dc:Bounds x="752" y="219" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="755" y="262" width="30" height="14" />
+          <dc:Bounds x="741" y="262" width="58" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0n790cu_di" bpmnElement="Task_1nyu98k">
@@ -119,9 +116,6 @@
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
         <dc:Bounds x="640" y="87" width="128" height="68" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1mjdove_di" bpmnElement="TextAnnotation_1mjdove">
-        <dc:Bounds x="790" y="130" width="100" height="54" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0hwix5o_di" bpmnElement="Association_0hwix5o">
         <di:waypoint x="196" y="219" />
         <di:waypoint x="196" y="176" />
@@ -137,10 +131,6 @@
       <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
         <di:waypoint x="663" y="197" />
         <di:waypoint x="686" y="155" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_03vo1zv_di" bpmnElement="Association_03vo1zv">
-        <di:waypoint x="781" y="223" />
-        <di:waypoint x="811" y="184" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

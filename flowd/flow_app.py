@@ -1,12 +1,22 @@
+import asyncio
 import logging
-
-from quart import request
 import json
+
+from async_timeout import timeout
+from quart import request
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
 from flowlib.constants import BStates, WorkflowInstanceKeys
 from flowlib.workflow import Workflow
+
+from flowlib.config import (
+    INSTANCE_FAIL_ENDPOINT_PATH,
+    LIST_ETCD_HOSTS_ENDPOINT_PATH,
+)
+from flowlib.k8s_utils import get_etcd_endpoints
+
+TIMEOUT_SECONDS = 10
 
 
 class FlowApp(QuartApp):
@@ -14,7 +24,8 @@ class FlowApp(QuartApp):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
         self.app.route('/', methods=('POST',))(self.root_route)
-        self.app.route('/instancefail', methods=('POST',))(self.fail_route)
+        self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=('POST',))(self.fail_route)
+        self.app.route(LIST_ETCD_HOSTS_ENDPOINT_PATH, methods=('GET',))(self.get_etcd_hosts)
 
     async def root_route(self):
         # When there is a flow ID in the headers, store the result in etcd and
@@ -64,16 +75,24 @@ class FlowApp(QuartApp):
                     headers_key = WorkflowInstanceKeys.headers_key(flow_id)
 
                     if transition_state(self.etcd, state_key, good_states, b'STOPPING'):
-                        incoming_data = await request.data
                         try:
-                            self.etcd.put(payload_key, incoming_data)
                             self.etcd.put(headers_key, json.dumps(
                                 {h: request.headers[h] for h in request.headers.keys()}
                             ).encode())
+                            with timeout(TIMEOUT_SECONDS):
+                                incoming_data = await request.data
+                            self.etcd.put(payload_key, incoming_data)
                             transition_state(
                                 self.etcd, state_key, [BStates.STOPPING], BStates.STOPPED
                             )
+                        except asyncio.exceptions.TimeoutError as exn:
+                            self.etcd.put(state_key, BStates.ERROR)
+                            logging.exception(
+                                f"Timed out waiting for payload on flow {flow_id}",
+                                exc_info=exn,
+                            )
                         except Exception as exn:
+                            self.etcd.put(state_key, BStates.ERROR)
                             logging.exception(
                                 f"Was unable to save the data for flow_id {flow_id}.",
                                 exc_info=exn,
@@ -84,3 +103,6 @@ class FlowApp(QuartApp):
                             ' good state before state transition could occur!'
                         )
         return 'Another happy landing (:'
+
+    def get_etcd_hosts(self):
+        return {"etcd_hosts": get_etcd_endpoints()}

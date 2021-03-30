@@ -22,8 +22,10 @@ from .constants import (
     flow_result,
 )
 
+from .config import get_kafka_config
 
-from .config import KAFKA_HOST
+
+KAFKA_CONFIG = get_kafka_config()
 
 
 class Workflow:
@@ -40,6 +42,7 @@ class Workflow:
     @classmethod
     def from_id(cls, id):
         etcd = get_etcd(is_not_none=True)
+
         proc_key = WorkflowKeys.proc_key(id)
         proc_bytes = etcd.get(proc_key)[0]
         proc_odict = xmltodict.parse(proc_bytes)['bpmn:process']
@@ -67,11 +70,15 @@ class Workflow:
                 etcd.replace(self.keys.state, States.STARTING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
             kubernetes_input = StringIO()
-            if orchestrator == 'kubernetes':
-                self.process.to_kubernetes(kubernetes_input, self.id_hash)
-            else:
-                self.process.to_istio(kubernetes_input, self.id_hash)
-                self._create_kafka_topics()
+            try:
+                if orchestrator == 'kubernetes':
+                    self.process.to_kubernetes(kubernetes_input, self.id_hash)
+                else:
+                    self.process.to_istio(kubernetes_input, self.id_hash)
+                    self._create_kafka_topics()
+            except Exception as exn:
+                etcd.put(self.keys.state, States.ERROR)
+                raise exn
             ctl_input = kubernetes_input.getvalue()
             kubectl_result = subprocess.run(
                 ['kubectl', 'apply', '-f', '-'],
@@ -86,12 +93,14 @@ class Workflow:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def _create_kafka_topics(self):
-        if KAFKA_HOST is None:
+        if KAFKA_CONFIG is None:
             return
-        kafka_client = AdminClient({"bootstrap.servers": KAFKA_HOST})
+        kafka_client = AdminClient(KAFKA_CONFIG)
         topic_metadata = kafka_client.list_topics()
         new_topics = [
-            NewTopic(topic, num_partitions=3, replication_factor=1)
+            # Let the rexflow user's own kafka deployment decide upon
+            # sensible defaults for replication factors.
+            NewTopic(topic, num_partitions=3)
             for topic in self.process.kafka_topics
             if topic_metadata.topics.get(topic) is None
         ]
@@ -103,6 +112,26 @@ class Workflow:
                     logging.info(f"Created Kafka Topic {topic}.")
                 except Exception as e:
                     logging.error(f"Failed to create topic {topic}: {e}")
+
+    def _delete_kafka_topics(self):
+        if KAFKA_CONFIG is None:
+            return
+        kafka_client = AdminClient(KAFKA_CONFIG)
+        topic_metadata = kafka_client.list_topics()
+        topics_to_delete = [
+            topic for topic in self.process.kafka_topics
+            if topic_metadata.topics.get(topic) is not None
+        ]
+        if len(topics_to_delete):
+            response = kafka_client.delete_topics(topics_to_delete)
+            for topic, f in response.items():
+                try:
+                    f.result()  # The result itself is None
+                    logging.info(f"Deleted Kafka Topic {topic}.")
+                except Exception as e:
+                    logging.error(f"Failed to delete topic {topic}: {e}")
+        else:
+            logging.info("no kafka topics to delete.")
 
     def stop(self):
         etcd = get_etcd(is_not_none=True)
@@ -125,6 +154,7 @@ class Workflow:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
                 etcd.replace(self.keys.state, States.STOPPING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
+            self._delete_kafka_topics()
             kubernetes_stream = StringIO()
             if orchestrator == 'kubernetes':
                 self.process.to_kubernetes(kubernetes_stream, self.id_hash)
@@ -153,7 +183,7 @@ class WorkflowInstance:
     to send the first request. Furthermore, the Start Event uses the
     `WorkflowInstanceKeys` object to determine which keys to manipulate in Etcd.
     This class is instantiated by Flowd and used for:
-    1. Running a WF instance by calling the Start service
+    1. Running a WF instance via `flowctl run` as opposed to an http call to Start Event.
     2. Potentially other dashboarding uses in the future (not yet implemented).
     '''
     def __init__(self, parent: Union[str, Workflow], id: str = None):

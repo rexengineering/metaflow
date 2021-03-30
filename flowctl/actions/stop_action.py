@@ -23,6 +23,10 @@ def __refine_args__(parser: argparse.ArgumentParser):
     )
     # expand group with additional shorthands for new KIND types
     parser.add_argument('ids', nargs='+', help='workflow id\'s to stop')
+    parser.add_argument(
+        '--force', '-f', action='store_true',
+        help="Stop WF even if instances still running."
+    )
     return parser
 
 
@@ -36,7 +40,7 @@ def stop_action(namespace: argparse.Namespace, *args, **kws):
         kind = getattr(flow_pb2.RequestKind, namespace.kind, flow_pb2.RequestKind.INSTANCE)
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         response = flowd.StopWorkflow(flow_pb2.StopRequest(
-            kind=kind, ids=namespace.ids
+            kind=kind, ids=namespace.ids, force=namespace.force
         ))
     status = response.status
     if status < 0:

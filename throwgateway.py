@@ -18,7 +18,7 @@ from flowlib.constants import (
     TRACEID_HEADER,
     flow_result,
 )
-from flowlib.config import KAFKA_HOST
+from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT
 
 
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
@@ -27,7 +27,6 @@ FORWARD_TASK_ID = os.getenv('FORWARD_TASK_ID', '')
 
 TOTAL_ATTEMPTS_STR = os.getenv('TOTAL_ATTEMPTS', '')
 TOTAL_ATTEMPTS = int(TOTAL_ATTEMPTS_STR) if TOTAL_ATTEMPTS_STR else 2
-FAIL_URL = os.getenv('FAIL_URL', 'http://flowd.rexflow:9002/instancefail')
 FUNCTION = os.getenv('REXFLOW_THROW_END_FUNCTION', 'THROW')
 WF_ID = os.getenv('WF_ID', None)
 END_EVENT_NAME = os.getenv('END_EVENT_NAME', None)
@@ -36,8 +35,9 @@ KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 
 kafka = None
-if KAFKA_TOPIC:
-    kafka = Producer({'bootstrap.servers': KAFKA_HOST})
+KAFKA_CONFIG = get_kafka_config()
+if KAFKA_CONFIG is not None:
+    kafka = Producer(KAFKA_CONFIG)
 
 
 def send_to_stream(data, flow_id, wf_id, content_type):
@@ -97,7 +97,7 @@ def make_call_(data):
         o = urlparse(FORWARD_URL)
         headers['x-rexflow-original-host'] = o.netloc
         headers['x-rexflow-original-path'] = o.path
-        requests.post(FAIL_URL, data=data, headers=headers)
+        requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=headers)
         headers['x-rexflow-failure'] = True
         _shadow_to_kafka(data, headers)
 

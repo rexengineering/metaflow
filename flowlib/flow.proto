@@ -16,6 +16,7 @@ service FlowDaemon {
     rpc RunWorkflow (RunRequest) returns (FlowdResult); // flowctl run
     rpc StartWorkflow (StartRequest) returns (FlowdResult); // flowctl start
     rpc StopWorkflow (StopRequest) returns (FlowdResult); // flowctl stop
+    rpc UpdateWorkflow (UpdateRequest) returns (FlowdResult); // flowctl update
 }
 
 message FlowdResult {
@@ -43,6 +44,7 @@ message DeleteRequest {
 message PSRequest {
     RequestKind kind = 1;
     repeated string ids = 2;
+    bool include_kubernetes = 3;
     // FIXME: Figure out any additional flags and/or arguments.
 }
 
@@ -66,5 +68,22 @@ message StartRequest {
 message StopRequest {
     RequestKind kind = 1;
     repeated string ids = 2;
+    bool force = 3;
     // FIXME: Figure out any additional flags and/or arguments.
+}
+
+enum UpdateRequestAction {
+    expose_ingress = 0;
+    delete_ingress = 1;
+    add_kafka_topic = 2;
+    delete_kafka_topic = 3;
+}
+
+message UpdateRequest {
+    string wf_id = 1;
+    UpdateRequestAction action = 2;
+    string host = 3;
+    string kafka_topic = 4;
+    string switch_from_wf_id = 5;
+    repeated string args = 6;
 }

@@ -25,6 +25,7 @@ class HealthProbe:
         self.status = None
         self.logger = logging.getLogger()
         self.etcd = get_etcd()
+        self.wf_state_key = WorkflowKeys.state_key(workflow.id)
         health_path = self.task.health_properties.path
         if not health_path.startswith('/'):
             health_path = '/' + health_path
@@ -42,7 +43,23 @@ class HealthProbe:
             exception = exn
             response = exn.response
         result = 'UP' if exception is None and response.ok else 'DOWN'
-        self.etcd.put(self.key, result)
+
+        success, _ = self.etcd.transaction(
+            compare=[
+                # arcane syntax from the etcd3 library...doesn't do what you think
+                # https://github.com/kragniz/python-etcd3/blob/master/etcd3/transactions.py
+                self.etcd.transactions.value(self.wf_state_key) != b''
+            ],
+            success=[self.etcd.transactions.put(self.key, result)],
+            failure=[],
+        )
+        if not success:
+            logging.warning(
+                f"Probe for task {self.task.id} {self.workflow.id} was orphaned."
+            )
+            self.stop()
+            return
+
         self.status = result
         self.logger.info(f'Status check for {self.task.id} is {result}')
         if self.running:
@@ -58,10 +75,16 @@ class HealthProbe:
         self.timer.start()
 
     def stop(self):
-        assert self.timer is not None
-        self.timer.cancel()
-        self.timer = None
-        self.running = False
+        if self.timer is not None:
+            logging.info(
+                f"shutting down probe for BPMNComponent {self.task.id}"
+            )
+            self.timer.cancel()
+        else:
+            logging.warning(
+                f"at shutdown, no threading.timer for probe {self.task.id}"
+            )
+        self.etcd.delete(self.key)
 
 
 class HealthManager:
@@ -92,6 +115,7 @@ class HealthManager:
                         self.probes[workflow_id] = {
                             component.id: HealthProbe(workflow, component)
                             for component in workflow.process.all_components
+                            if component.health_properties is not None
                         }
                         for probe in self.probes[workflow_id].values():
                             probe.start()
@@ -103,36 +127,66 @@ class HealthManager:
                     self.logger.info(f'{workflow_id} DELETE event - {value}')
                     # No action necessary because we stop the HealthProbes in the
                     # stop_workflow() function. This is good practice because we don't want
-                    # a bunch of HealthProbes making calls to services that don't exist, and
-                    # is a request from Hong.
+                    # a bunch of HealthProbes making calls to services that don't exist.
 
     def wait_for_up(self, workflow: Workflow):
-        self.logger.info(f'wait_for_up() called for workflow {workflow.id}')
-        probes = self.probes[workflow.id]
-        watch_iter, _ = self.etcd.watch_prefix(workflow.keys.probe)
-        for event in watch_iter:
-            self.logger.info(f'wait_for_up(): Got {type(event)} to key {event.key}')
-            crnt_state = self.etcd.get(workflow.keys.state)[0]
-            if (crnt_state is None) or (crnt_state != BStates.STARTING):
-                self.logger.info(f'wait_for_up(): Workflow {workflow.id} is no '
-                                 'longer starting up, cancelling further '
-                                 'monitoring.')
-                break
-            if isinstance(event, PutEvent):
-                if all(probe.status == 'UP' for probe in probes.values()):
-                    result = self.etcd.replace(workflow.keys.state,
-                                               States.STARTING, States.RUNNING)
-                    if result:
-                        self.logger.info('wait_for_up(): State transition succeeded.')
-                    else:
-                        self.logger.error('wait_for_up(): State transition failed.')
-                    return result
-        return False
+        '''Waits for workflow to come up. If the workflow does not come up within the timeout
+        (defined in the `WorkflowProperties`) then the workflow is transitioned to ERROR state.
+        However, the Workflow can still be transitioned from ERROR to RUNNING if a probe
+        succeeds afterwards.
+        '''
+        def timeout_catch():
+            if not self.etcd.replace(workflow.keys.state, States.STARTING, States.ERROR):
+                logging.info(
+                    f"Appears that {workflow.id} came up before timeout."
+                )
+            else:
+                logging.error(
+                    f"Workflow {workflow.id} did not come up in time; transitioned to ERROR state."
+                )
+        try:
+            self.logger.info(f'wait_for_up() called for workflow {workflow.id}')
+            probes = self.probes[workflow.id]
+            watch_iter, _ = self.etcd.watch_prefix(workflow.keys.probe)
+
+            timeout_timer = threading.Timer(
+                workflow.properties.deployment_timeout, timeout_catch)
+            timeout_timer.start()
+
+            for event in watch_iter:
+                self.logger.info(f'wait_for_up(): Got {type(event)} to key {event.key}')
+                crnt_state = self.etcd.get(workflow.keys.state)[0]
+                if (crnt_state is None) or (crnt_state not in {BStates.STARTING, BStates.ERROR}):
+                    self.logger.info(f'wait_for_up(): Workflow {workflow.id} is no '
+                                    'longer starting up, cancelling further '
+                                    'monitoring.')
+                    break
+                if isinstance(event, PutEvent):
+                    if all(probe.status == 'UP' for probe in probes.values()):
+                        result = self.etcd.replace(workflow.keys.state,
+                                                   crnt_state, States.RUNNING)
+                        if result:
+                            self.logger.info('wait_for_up(): State transition succeeded.')
+                        else:
+                            self.logger.error('wait_for_up(): State transition failed.')
+                        return result
+        except Exception as exn:
+            logging.exception(f"failed on the waiting for up on {workflow.id}", exc_info=exn)
+            if not self.etcd.replace(workflow.keys.state, States.STARTING, States.ERROR):
+                logging.error(
+                    f"Couldn't transition wf {workflow.id} to ERROR state."
+                )
+            return False
 
     def wait_for_down(self, workflow: Workflow):
         self.logger.info(f'wait_for_down() called for workflow {workflow.id}')
         probes = self.probes[workflow.id]
-        watch_iter, _ = self.etcd.watch_prefix(workflow.keys.probe)
+        watch_iter, cancel = self.etcd.watch_prefix(workflow.keys.probe)
+
+        timeout_timer = threading.Timer(
+            workflow.properties.deployment_timeout, cancel)
+        timeout_timer.start()
+
         for event in watch_iter:
             self.logger.info(f'wait_for_down(): Got {type(event)} to key {event.key}')
             if isinstance(event, PutEvent):
@@ -148,6 +202,13 @@ class HealthManager:
                     else:
                         self.logger.error('wait_for_down(): State transition failed.')
                     return result
+
+        # If we got here, then the deployment timed out before coming down.
+        if not self.etcd.replace(workflow.keys.state, States.STOPPING, States.ERROR):
+            logging.error(
+                f"Couldn't transition wf {workflow.id} to ERROR state."
+            )
+
         return False
 
     def stop_workflow(self, workflow: Workflow):
@@ -160,62 +221,31 @@ class HealthManager:
         TODO: Do we need to enforce a timeout?
         '''
         self.logger.info(f'stop_workflow {workflow.id}')
-        # the prefix key for instances will the hive root plus the workflow.id and a terminating
-        # hyphen. This should pull all instance keys for a given workflow.
-        instance_prefix = f'{WorkflowInstanceKeys.key_of(workflow.id)}-'
 
-        instances = get_keys_from_prefix(instance_prefix)
-        # count the number of state values that are NOT
-        # either COMPLETED or ERROR.
-        alive = []
-        for inst_key in instances:
-            if inst_key.endswith('/state'):
-                state = self.etcd.get(inst_key)[0]
-                if state not in (BStates.COMPLETED, BStates.ERROR):
-                    self.logger.info(
-                        f'stop_workflow detected unfinished instance {inst_key} in state {state}'
-                    )
-                    alive.append(inst_key)
-
-        while len(alive) > 0:
-            self.logger.info(f'{len(alive)} instances still live!')
-            time.sleep(5)
-            for inst_key in alive:
-                state = self.etcd.get(inst_key)[0]
-                if state in (BStates.COMPLETED, BStates.ERROR):
-                    self.logger.info(f'Instance {inst_key} has now completed with state {state}')
-                    alive.remove(inst_key)
-
-        # if len(alive) > 0:
-        #     watch_iter, cancel = self.etcd.watch_prefix(instance_prefix)
-        #     for event in watch_iter:
-        #         # strip last node from key path
-        #         key = event.key.decode('utf-8')
-        #         if key.endswith('/state'):
-        #             val = event.value.decode('utf-8')
-        #             self.logger.info(f'stop_workflow: Got key {key} {val} {key in alive}')
-        #             if key in alive and val in (States.COMPLETED, States.ERROR):
-        #                 alive.remove(key)
-        #                 self.logger.info(f'{len(alive)} instances still live!')
-        #                 if len(alive) == 0:
-        #                     cancel()
-
-        self.logger.info(f'Removing workflow {workflow.id}')
-        workflow.remove()
+        try:
+            self.logger.info(f'Removing workflow {workflow.id}')
+            workflow.remove()
+        except Exception as exn:
+            logging.exception(
+                f"Failed to bring down workflow {workflow.id}",
+                exc_info=exn,
+            )
+            self.etcd.replace(workflow.keys.state, BStates.STOPPING, BStates.ERROR)
         return self.wait_for_down(workflow)
 
     def start(self):
         for workflow in self.workflows.values():
             probes = {
-                task.id: HealthProbe(workflow, task)
-                for task in workflow.process.tasks
+                component.id: HealthProbe(workflow, component)
+                for component in workflow.process.all_components
+                if component.health_properties is not None
             }
             for probe in probes.values():
                 probe.start()
             self.probes[workflow.id] = probes
             workflow_state = self.etcd.get(workflow.keys.state)[0].decode()
             self.logger.info(f'Started probes for {workflow.id}, in state {workflow_state}')
-            if workflow_state == States.STARTING:
+            if workflow_state in {States.STARTING, States.ERROR}:
                 self.executor.submit(self.wait_for_up, workflow)
             elif workflow_state == States.STOPPING:
                 self.executor.submit(self.stop_workflow, workflow)

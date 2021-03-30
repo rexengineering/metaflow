@@ -3,8 +3,10 @@ from flowlib.config import (
     DEFAULT_THROW_IMAGE,
     DEFAULT_CATCH_IMAGE,
     DEFAULT_REXFLOW_VERSION,
-
 )
+
+# Value for the kafka cluster of the dev deployment.
+DEV_KAFKA_HOST = 'my-cluster-kafka-bootstrap.kafka:9092'
 
 rexflow_namespace_spec = {
     'apiVersion': 'v1',
@@ -118,15 +120,10 @@ mk_flowd_deployment_spec = lambda etcd_host, kafka_enabled : {  # noqa
                     'env': [
                         {'name': 'ETCD_HOST', 'value': etcd_host},
                         {
-                            'name': 'KAFKA_HOST',
-                            'value': 'my-cluster-kafka-bootstrap.kafka:9092' if kafka_enabled \
-                                else None
+                            'name': 'REXFLOW_KAFKA_HOST',
+                            'value': DEV_KAFKA_HOST if kafka_enabled else None
                         },
-                        {'name': 'REXFLOW_XGW_IMAGE', 'value': DEFAULT_XGW_IMAGE},
-                        {'name': 'REXFLOW_CATCH_IMAGE', 'value': DEFAULT_CATCH_IMAGE},
-                        {'name': 'REXFLOW_THROW_IMAGE', 'value': DEFAULT_THROW_IMAGE},
-                        {'name': 'REXFLOW_VERSION', 'value': DEFAULT_REXFLOW_VERSION},
-                        {'name': 'REXFLOW_IS_PRODUCTION', 'value': 'False'},
+                        {"name": "I_AM_FLOWD", "value": "True"},
                     ]
                 }],
                 'serviceAccountName': 'flowd'}
@@ -208,7 +205,7 @@ healthd_service_spec = {
     },
 }
 
-mk_healthd_deployment_spec = lambda etcd_host: {  # noqa
+mk_healthd_deployment_spec = lambda etcd_host, kafka_enabled: {  # noqa
     'apiVersion': 'apps/v1',
     'kind': 'Deployment',
     'metadata': {'name': 'healthd'},
@@ -225,6 +222,11 @@ mk_healthd_deployment_spec = lambda etcd_host: {  # noqa
                         'name': 'healthd',
                         'ports': [{'containerPort': 5050}],
                         'env': [
+                            {
+                            'name': 'REXFLOW_KAFKA_HOST',
+                            'value': DEV_KAFKA_HOST if kafka_enabled \
+                                else None
+                            },
                             {'name': 'ETCD_HOST', 'value': etcd_host},
                             {'name': 'HEALTHD_ON_KUBERNETES', 'value': 'True'}
                         ],

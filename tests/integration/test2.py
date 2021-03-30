@@ -60,7 +60,7 @@ class Test2(IntegrationTest):
         with open(os.devnull, 'w') as devnull:
             run_response = check_output([
                 'curl', '-H', "content-type: application/json", '-d', '{"val": 1}',
-                "http://localhost:80/start-test2",
+                f"http://localhost:80/start-test2",
             ], stderr=devnull)
 
         instance_id = json.loads(run_response.decode())['id']

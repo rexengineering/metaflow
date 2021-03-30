@@ -71,12 +71,12 @@ class Test3(IntegrationTest):
         # Run the kafka util. Recall that this simulates a BPMN Role from a different BPMN SwimLane
         # than the backend microservices (i.e. REXFlow) lane. For example, at REX, this might
         # be a customer replying to an email, etc.
-        test3_pods = str(check_output("kubectl get po -ntest3".split())).split('\\n')
+        test3_pods = str(check_output(f"kubectl get po -n{self._wf_id}".split())).split('\\n')
         increment_pods = [p for p in test3_pods if 'increment-test' in p and 'Running' in p]
         increment_pod = increment_pods[0].split()[0]
 
         kafka_poller_response = check_output(
-            f"kubectl exec -ntest3 {increment_pod} -- python ./test3_kafka_util.py".split()
+            f"kubectl exec -n{self._wf_id} {increment_pod} -- python ./test3_kafka_util.py".split()
         )
         logging.info(kafka_poller_response.decode())
 

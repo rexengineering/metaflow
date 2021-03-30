@@ -33,8 +33,8 @@ def handler(request):
 
     etcd.put(workflow_obj.keys.proc, process.to_xml())
     if request.stopped:
-        if not etcd.put_if_not_exists(workflow_obj.state_key, States.STOPPED):
-            logging.error(f'{workflow_obj.state_key} already defined in etcd!')
+        if not etcd.put_if_not_exists(workflow_obj.keys.state, States.STOPPED):
+            logging.error(f'{workflow_obj.keys.state} already defined in etcd!')
     else:
         workflow_obj.start()
     return result
