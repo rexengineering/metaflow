@@ -9,7 +9,7 @@ import asyncio
 import threading
 import datetime
 from typing import Dict, NoReturn
-
+from isodate import ISO8601Error
 from quart import request, jsonify, Response
 from urllib.parse import urlparse
 
@@ -72,6 +72,7 @@ Where timer_type is timeDate, timeCycle, or timeDuration
 
 '''
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, '')
+TIMED_START_EVENT = TIMED_EVENT_DESCRIPTION and FUNCTION == FUNCTION_START
 
 kafka = None
 KAFKA_CONFIG = get_kafka_config()
@@ -263,11 +264,12 @@ class EventCatchApp(QuartApp):
             self.app.route('/', methods=['POST'])(self.catch_event)
             if FUNCTION == FUNCTION_START and API_WRAPPER_ENABLED:
                     self.app.route('/wrapper', methods=['POST'])(self.synchronous_wrapper)
-        if FUNCTION == FUNCTION_START and TIMED_EVENT_DESCRIPTION:
+        if TIMED_START_EVENT:
             # start running timed start events immediately, instead of
             # waiting for a flowctl run.
             logging.info("Starting timed instance")
             self.manager.create_timed_instance('[]','application/json')
+            self.app.route('/timer', methods=['GET','POST'])(self.timer_query)
 
     def health_check(self):
         return jsonify(flow_result(0, ""))
@@ -278,7 +280,7 @@ class EventCatchApp(QuartApp):
         data = await request.data
         if FUNCTION == FUNCTION_START:
             response = self.manager.create_instance(data, request.headers['content-type'])
-        else:
+        else: #if FUNCTION == FUNCTION_CATCH
             self.manager._make_call(
                 data,
                 request.headers['x-flow-id'],
@@ -287,6 +289,42 @@ class EventCatchApp(QuartApp):
                 request.headers.get(X_HEADER_TOKEN_POOL_ID)
             )
         return response
+
+    async def timer_query(self):
+        '''
+        Provide an API to query and modify timer description
+        GET returns the timer specification
+        POST sets the timer specification and takes a JSON packet:
+
+        { 'timer_type' : <timer_type>, 'timer_spec' : <timer_spec>}
+
+        The type and spec are identical to those specified in the
+        BPMN.
+        '''
+        data = await request.data
+        if request.method == 'GET':
+            # return information about the existing timers
+            aspects = self.manager.timed_manager.aspects
+            response = flow_result(0, 'Ok', timer_type=aspects.timer_type_s, timer_spec=aspects.spec, timer_done=self.manager.timed_manager.completed)
+        else: #if request.method == 'POST'
+            # update the existing timer
+            req = json.loads(data)
+            try:
+                # the following raises if the anything is invalid
+                results = TimedEventManager.validate_spec(req['timer_type'],req['timer_spec'].upper() )
+                # the following raises if the current timer is not finished
+                self.manager.timed_manager.reset(results)
+                logging.info(f'Timer reset to {req["timer_type"]}, {req["timer_spec"]}')
+                if TIMED_START_EVENT:
+                    # start running timed start events immediately, instead of
+                    # waiting for a flowctl run.
+                    logging.info('Starting timed instance')
+                    self.manager.create_timed_instance('[]','application/json')
+                response = flow_result(0, 'Ok')
+            except (ISO8601Error,Exception) as ex:
+                response = flow_result(-1, str(ex))
+
+        return jsonify(response)
 
     async def get_result(self, instance_id, watch_iter, cancel_watch):
         key_results = {

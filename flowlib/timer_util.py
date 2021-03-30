@@ -97,15 +97,25 @@ class TimedEventManager:
         self.aspects =  TimedEventManager.validate_spec(info[0], info[1].upper() )
         self.use_tokens = use_tokens
         self.token_pool_id = None
+        self.completed = True
 
     class ValidationResults:
         def __init__(self, timer_type : str, spec : str):
-            self.timer_type = timer_type
+            self.timer_type_s = timer_type
             self.spec = spec
             self.start_date = None
             self.end_date = None
             self.interval = 0
             self.recurrance = 0
+
+    def reset(self, aspects : ValidationResults) -> typing.NoReturn:
+        '''
+        Reset the timer manager to the provided timer type and specification.
+        This can only happen if the current configuration has already run its
+        course. 
+        '''
+        assert self.completed, 'Cannot reset - timer still active'
+        self.aspects = aspects
 
     @classmethod
     def validate_spec(cls, timer_type : str, spec : str) -> ValidationResults:
@@ -255,6 +265,7 @@ class TimedEventManager:
                 context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
                 logging.info(f'Created token pool {context.token_pool_id}')
 
+        self.completed = False
         duration = context.start_date - time_now + self.aspects.interval
         timer = WrappedTimer(duration, self.timer_done_action, self.timer_action, context.values, context)
         timer.start()
@@ -297,6 +308,8 @@ class TimedEventManager:
             timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context.values, context)
             timer.start()
             context.recurrance = context.recurrance - 1
+        else:
+            self.completed = True
 
 class TimerContext:
     def __init__(self, source : TimedEventManager, token_stack : str, vals : list):
@@ -308,6 +321,7 @@ class TimerContext:
         self.token_stack   = token_stack
         self.token_pool_id = None
         self.values        = vals
+        self.completed     = False
 
 def test_callback(token_stack : str, data : str, flow_id : str, wf_id : str, content_type : str):
     print(f'Fired! {token_stack} {data} {flow_id} {wf_id} {content_type}')
