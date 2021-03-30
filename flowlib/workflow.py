@@ -203,7 +203,7 @@ class WorkflowInstance:
         uid = uuid.uuid1().hex
         return f'{parent_id}-{uid}'
 
-    def start(self, *args):
+    def start(self, start_event_id=None, *args):
         '''Starts the WF and returns the resulting ID. NOTE: Now, WF Id's are
         created by the Start Event.
         '''
@@ -251,7 +251,22 @@ class WorkflowInstance:
                     f"(status code {response.status_code})"
                 )
             return response
-        target = process.entry_point['@id']
+
+        target = None
+        if len(process.entry_points) > 1:
+            start_event_ids = [ep['@id'] for ep in process.entry_points]
+            if start_event_id not in start_event_ids:
+                message = "Must choose between following start events: "
+                message += ', '.join(start_event_ids)
+                message += '. Use --start_event_id'
+                return {
+                    "status": -1,
+                    "message": message
+                }
+            target = start_event_id
+        else:
+            target = process.entry_points[0]['@id']
+
         future = executor_obj.submit(start_wf, target)
 
         etcd = get_etcd(is_not_none=True)

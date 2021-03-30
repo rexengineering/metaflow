@@ -9,6 +9,7 @@ etcd3
 kubernetes
 docker
 quart
+isodate
 # Optional development dependency
 grpcio-tools
 pudb

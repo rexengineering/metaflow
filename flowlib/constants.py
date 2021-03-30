@@ -1,12 +1,57 @@
 from hashlib import sha256
-
-from flowlib.bpmn_util import to_valid_k8s_name
+import re
 
 '''
 These are the valid states for a workflow and the workflow instances, specified here
 so that all parts necessarily use the same values and to avoid embedding literal
 constants everywhere.
 '''
+
+BPMN_INTERMEDIATE_CATCH_EVENT = 'bpmn:intermediateCatchEvent'
+BPMN_START_EVENT = 'bpmn:startEvent'
+BPMN_TIMER_EVENT_DEFINITION = 'bpmn:timerEventDefinition'
+
+TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
+
+X_HEADER_FLOW_ID = 'X-Flow-Id'
+X_HEADER_WORKFLOW_ID = 'X-Rexflow-Wf-Id'
+X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
+
+K8S_MAX_NAMELENGTH = 63
+
+
+def to_valid_k8s_name(name):
+    '''
+    Takes in a name and massages it until it complies to the k8s name regex, which is:
+        [a-z0-9]([-a-z0-9]*[a-z0-9])?
+    Raises an AssertionError if we fail to make the name comply.
+    '''
+    name = name.lower()
+
+    # Replace space-like chars with a '-'
+    name = re.sub('[. _\n]', '-', name)
+
+    # Remove invalid characters
+    name = re.sub('[^0-9a-z-]', '', name)
+
+    # Remove repeated dashes
+    name = re.sub('-[-]+', '-', name)
+
+    # Trim leading and trailing dashes
+    name = name.rstrip('-').lstrip('-')
+
+    # K8s names limited to 63 or fewer characters. We could truncate to 63, but doing so could
+    # lead to conflicts if the caller of this function was relying on some UID at the end of
+    # the name. Therefore, we add another hash.
+    if len(name) > K8S_MAX_NAMELENGTH:
+        token = f'-{sha256(name.encode()).hexdigest()[:8]}'
+        name = name[:(K8S_MAX_NAMELENGTH - len(token))] + token
+
+    assert len(name) > 0, "Must provide at least one valid character [a-b0-9A-B]."
+    assert re.fullmatch('[a-z0-9]([-a-z0-9]*[a-z0-9])?', name), "NewGradProgrammerError"
+    assert len(name) <= 63, "NewGradProgrammerError"
+    return name
+
 
 
 class States:
@@ -79,17 +124,19 @@ class WorkflowInstanceKeys:
     ROOT = f'{REXFLOW_ROOT}/instances'
 
     def __init__(self, id):
-        self.root = self.key_of(id)
-        self.proc = self.proc_key(id)
-        self.result = self.result_key(id)
-        self.state = self.state_key(id)
-        self.headers = self.headers_key(id)
-        self.payload = self.payload_key(id)
-        self.error_key = self.was_error_key(id)
-        self.parent = self.parent_key(id)
-        self.end_event = self.end_event_key(id)
-        self.traceid = self.traceid_key(id)
-        self.content_type = self.content_type_key(id)
+        self.root          = self.key_of(id)
+        self.proc          = self.proc_key(id)
+        self.result        = self.result_key(id)
+        self.state         = self.state_key(id)
+        self.headers       = self.headers_key(id)
+        self.payload       = self.payload_key(id)
+        self.error_key     = self.was_error_key(id)
+        self.parent        = self.parent_key(id)
+        self.end_event     = self.end_event_key(id)
+        self.traceid       = self.traceid_key(id)
+        self.content_type  = self.content_type_key(id)
+        self.timed_events  = self.timed_events_key(id)
+        self.timed_results = self.timed_results_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -134,7 +181,14 @@ class WorkflowInstanceKeys:
     @classmethod
     def content_type_key(cls, id):
         return f'{cls.key_of(id)}/content_type'
+        
+    @classmethod
+    def timed_events_key(cls, id):
+        return f'{cls.key_of(id)}/timed_events'
 
+    @classmethod
+    def timed_results_key(cls, id):
+        return f'{cls.key_of(id)}/timed_results'
 
 def split_key(instance_id: str):
     '''

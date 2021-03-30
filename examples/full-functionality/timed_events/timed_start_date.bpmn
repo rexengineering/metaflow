@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1phhu0v" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="timedstartdate" isExecutable="true">
+    <bpmn:endEvent id="EndEvent">
+      <bpmn:incoming>Flow_1gngta9</bpmn:incoming>
+      <bpmn:incoming>Flow_0ozaxl7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1gngta9" sourceRef="StartEvent" targetRef="EndEvent" />
+    <bpmn:startEvent id="StartEvent" name="date start">
+      <bpmn:outgoing>Flow_1gngta9</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1wvovav">
+        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">2011-03-26T13:25:00Z</bpmn:timeDate>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+    <bpmn:startEvent id="RunOnce" name="run once">
+      <bpmn:outgoing>Flow_0ozaxl7</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0ozaxl7" sourceRef="RunOnce" targetRef="EndEvent" />
+    <bpmn:textAnnotation id="TextAnnotation_0pi6u8h">
+      <bpmn:text>rexflow_global_properties:
+    recoverable: true
+    id: timedstart
+    xgw_expression_type: feel</bpmn:text>
+    </bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="timedstartdate">
+      <bpmndi:BPMNEdge id="Flow_0ozaxl7_di" bpmnElement="Flow_0ozaxl7">
+        <di:waypoint x="215" y="210" />
+        <di:waypoint x="329" y="210" />
+        <di:waypoint x="329" y="100" />
+        <di:waypoint x="442" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1gngta9_di" bpmnElement="Flow_1gngta9">
+        <di:waypoint x="215" y="100" />
+        <di:waypoint x="442" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Event_1vxfn33_di" bpmnElement="EndEvent">
+        <dc:Bounds x="442" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1ezj0z3_di" bpmnElement="StartEvent">
+        <dc:Bounds x="179" y="82" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="174" y="125" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_00d2uo7_di" bpmnElement="RunOnce">
+        <dc:Bounds x="179" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="176" y="235" width="43" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0pi6u8h_di" bpmnElement="TextAnnotation_0pi6u8h">
+        <dc:Bounds x="130" y="370" width="290" height="68" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

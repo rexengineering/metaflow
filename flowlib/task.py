@@ -15,6 +15,7 @@ from .k8s_utils import (
 )
 from .config import CREATE_DEV_INGRESS
 from .reliable_wf_utils import create_kafka_transport
+from .constants import X_HEADER_TOKEN_POOL_ID
 
 Upstream = namedtuple(
     'Upstream',
@@ -86,6 +87,7 @@ class BPMNTask(BPMNComponent):
             'task_id': self.id,
             'traffic_shadow_cluster': traffic_shadow_cluster,
             'traffic_shadow_path': traffic_shadow_path,
+            'headers_to_forward': [X_HEADER_TOKEN_POOL_ID.lower()],
         }
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',
