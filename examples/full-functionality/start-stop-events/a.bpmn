@@ -20,7 +20,7 @@
       <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_16qxrei</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="EndEvent_1pxdd1k" name="Finish">
+    <bpmn:endEvent id="EndEvent_1pxdd1k" name="finish-a">
       <bpmn:incoming>SequenceFlow_16qxrei</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="SequenceFlow_16qxrei" sourceRef="Task_1mrtiy4" targetRef="EndEvent_1pxdd1k" />
@@ -62,9 +62,7 @@
     <bpmn:association id="Association_1yz0l60" sourceRef="Task_1mrtiy4" targetRef="TextAnnotation_18mql5m" />
     <bpmn:textAnnotation id="TextAnnotation_1msrvto">
       <bpmn:text>rexflow:
-  queue: thing-b
-  service:
-    host: underpants</bpmn:text>
+  kafka_topic: thing-b</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1ogr3rs" sourceRef="EndEvent_1pxdd1k" targetRef="TextAnnotation_1msrvto" />
   </bpmn:process>
@@ -101,7 +99,7 @@
       <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
         <dc:Bounds x="752" y="219" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="755" y="262" width="30" height="14" />
+          <dc:Bounds x="752" y="262" width="36" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0n790cu_di" bpmnElement="Task_1nyu98k">
@@ -120,7 +118,7 @@
         <dc:Bounds x="640" y="87" width="128" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1msrvto_di" bpmnElement="TextAnnotation_1msrvto">
-        <dc:Bounds x="790" y="130" width="100" height="82" />
+        <dc:Bounds x="790" y="130" width="100" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0hwix5o_di" bpmnElement="Association_0hwix5o">
         <di:waypoint x="196" y="219" />
@@ -140,7 +138,7 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1ogr3rs_di" bpmnElement="Association_1ogr3rs">
         <di:waypoint x="781" y="223" />
-        <di:waypoint x="790" y="211" />
+        <di:waypoint x="800" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

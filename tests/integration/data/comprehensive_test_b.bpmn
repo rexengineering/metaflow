@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_0d4zc4f" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Zeebe Modeler" exporterVersion="0.10.0">
   <bpmn:process id="Underpants" isExecutable="true">
-    <bpmn:startEvent id="StartEvent_1" name="Start">
+    <bpmn:startEvent id="StartEvent_1" name="start-comprehensive-test-b">
       <bpmn:outgoing>Flow_08rc4ys</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:endEvent id="EndEvent_1pxdd1k" name="Finish">
+    <bpmn:endEvent id="EndEvent_1pxdd1k" name="end-comprehensive-test-b">
       <bpmn:incoming>Flow_0glojqw</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:serviceTask id="Task_1nyu98k" name="ORZ">
@@ -21,7 +21,7 @@
     namespace: default
     namespace_shared: true
     id: comprehensive-test-b
-    queue:  comprehensive-test-negative-balance</bpmn:text>
+    kafka_topic:  comprehensive-test-negative-balance</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_0hwix5o" sourceRef="StartEvent_1" targetRef="TextAnnotation_0awc0mf" />
     <bpmn:textAnnotation id="TextAnnotation_04roe2e">
@@ -31,12 +31,6 @@
         port: 5000</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1i25pe6" sourceRef="Task_1nyu98k" targetRef="TextAnnotation_04roe2e" />
-    <bpmn:textAnnotation id="TextAnnotation_067en44">
-      <bpmn:text>rexflow:
-  service:
-    host: comprehensive-b</bpmn:text>
-    </bpmn:textAnnotation>
-    <bpmn:association id="Association_02uokp3" sourceRef="EndEvent_1pxdd1k" targetRef="TextAnnotation_067en44" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
@@ -51,38 +45,31 @@
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="222" y="279" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="228" y="322" width="24" height="14" />
+          <dc:Bounds x="201" y="322" width="79" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
         <dc:Bounds x="502" y="279" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="505" y="322" width="30" height="14" />
+          <dc:Bounds x="481" y="322" width="79" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0n790cu_di" bpmnElement="Task_1nyu98k">
         <dc:Bounds x="340" y="257" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
-        <dc:Bounds x="160" y="120" width="160" height="110" />
+        <dc:Bounds x="160" y="120" width="160" height="124" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_04roe2e_di" bpmnElement="TextAnnotation_04roe2e">
         <dc:Bounds x="340" y="70" width="170" height="68" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_067en44_di" bpmnElement="TextAnnotation_067en44">
-        <dc:Bounds x="500" y="160" width="150" height="82" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0hwix5o_di" bpmnElement="Association_0hwix5o">
         <di:waypoint x="238" y="279" />
-        <di:waypoint x="236" y="230" />
+        <di:waypoint x="237" y="244" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1i25pe6_di" bpmnElement="Association_1i25pe6">
         <di:waypoint x="393" y="257" />
         <di:waypoint x="401" y="138" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_02uokp3_di" bpmnElement="Association_02uokp3">
-        <di:waypoint x="523" y="280" />
-        <di:waypoint x="531" y="242" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

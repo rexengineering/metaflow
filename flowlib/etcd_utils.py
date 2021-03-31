@@ -3,19 +3,33 @@ import os
 import re
 
 import etcd3
+from etcd3.exceptions import ConnectionFailedError
 
+from .config import (
+    ETCD_CA_CERT,
+    ETCD_CERT_CERT,
+    ETCD_CERT_KEY,
+    ETCD_CA_CERT_PATH,
+    ETCD_CERT_CERT_PATH,
+    ETCD_CERT_KEY_PATH,
+)
+from .k8s_utils import get_etcd_endpoints
 
 _etcd = None
 
 url_match = re.compile('(?:http.*://)?(?P<host>[^:/ ]+).?(?P<port>[0-9]*).*')
 
-ENV_MAP = {
-    'ETCD_HOST': 'host',
-    'ETCD_PORT': 'port',
-    'ETCD_CERT_FILE': 'cert_cert',
-    'ETCD_KEY_FILE': 'cert_key',
-    'ETCD_TRUSTED_CA_FILE': 'ca_cert',
-}
+
+def _process_etcd_opt(data, filename, outfilename=None):
+    if filename is not None and data is None:
+        return filename
+    elif data is not None:
+        assert outfilename is not None
+        with open(outfilename, 'w') as f:
+            f.write(data)
+        return outfilename
+    else:
+        return None
 
 
 def init_etcd(*args, **kws):
@@ -25,29 +39,38 @@ def init_etcd(*args, **kws):
     Returns:
         The new or existing module-level etcd client.
     '''
+
     global _etcd
     if _etcd is None:
-        etcd_keys = [
-            key for key in os.environ.keys()
-            if key.startswith('ETCD_')
-        ]
-        etcd_opts = dict()
-        if etcd_keys:
-            for etcd_key in etcd_keys:
-                if etcd_key in ENV_MAP:
-                    etcd_opts[ENV_MAP[etcd_key]] = os.environ[etcd_key]
-                elif etcd_key == 'ETCD_ADVERTISE_CLIENT_URLS':
-                    match = url_match.search(os.environ[etcd_key])
-                    host = match.group('host')
-                    etcd_opts['host'] = host
-                    port_str = match.group('port')
-                    if port_str:
-                        etcd_opts['port'] = int(port_str)
-        etcd_opts.update(kws)
-        result = etcd3.client(*args, **etcd_opts)
-        # If this throws an error, we know there is
-        # something wrong with the client configuration.
-        result.get('😏')
+        config_map = {
+            'cert_cert': _process_etcd_opt(ETCD_CERT_CERT, ETCD_CERT_CERT_PATH, 'client.crt'),
+            'cert_key': _process_etcd_opt(ETCD_CERT_KEY, ETCD_CERT_KEY_PATH, 'client.pem'),
+            'ca_cert': _process_etcd_opt(ETCD_CA_CERT, ETCD_CA_CERT_PATH, 'ca.crt'),
+        }
+        etcd_opts = {
+            k: config_map[k] for k in config_map.keys() if config_map[k] is not None
+        }
+        # TODO: add option for ADVERTISE_CILENT_URLS in config.py. On hold because
+        # not necessary for initial REX-internal release.
+        # Try each endpoint and see if it works...
+        for endpoint in get_etcd_endpoints():
+            # endopint is a dict with keys "host" and "port"
+            if endpoint['host'] is not None:
+                etcd_opts['host'] = endpoint['host']
+            if endpoint['port'] is not None:
+                etcd_opts['port'] = endpoint['port']
+            try:
+                etcd_opts.update(kws)
+                result = etcd3.client(*args, **etcd_opts)
+                result.get('😏')  # crash if bad configuration
+                break
+            except Exception as exn:
+                result = None
+                logging.exception(
+                    f"Unsuccessful connecting to etcd on endpoint {endpoint}.",
+                    exc_info=exn,
+                )
+        assert result is not None, "Unable to connect to etcd."
         _etcd = result
     elif args or kws:
         # Notes: without this check, additional arguments to init_etcd()

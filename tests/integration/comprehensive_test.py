@@ -37,17 +37,17 @@ YAML_FILE = 'data/comprehensive_test_increment.yaml'
 
 class ComprehensiveTest(IntegrationTest):
     def __init__(self):
-        self._name = "test7_start_stop_events"
+        self._name = "comprehensive_test"
         self._status = TestStatus('not_set_up')
-        self._wf_id_a = "comprehensive-test"
-        self._wf_id_b = "comprehensive-test-b"
+        self._wf_id_a = None
+        self._wf_id_b = None
 
     def setup(self) -> SetupResult:
         os.system(f"./inject_and_deploy.sh {YAML_FILE}")
         result = None
-        self.wf_id_a = flowctl(f"apply {BPMN_FILE_A} -o")
-        self.wf_id_b = flowctl(f"apply {BPMN_FILE_B} -o")
-        wf_ids = [self.wf_id_a, self.wf_id_b]
+        self._wf_id_a = flowctl(f"apply {BPMN_FILE_A} -o")['wf_id']
+        self._wf_id_b = flowctl(f"apply {BPMN_FILE_B} -o")['wf_id']
+        wf_ids = [self._wf_id_a, self._wf_id_b]
 
         # Step 2: wait for deployment to come up
         if not wait_for_status(self._wf_id_a, 'RUNNING') or \
@@ -88,7 +88,7 @@ class ComprehensiveTest(IntegrationTest):
         with open(os.devnull, 'w') as devnull:
             run_response = check_output([
                 'curl', '-H', "content-type: application/json", '-d', data_arg,
-                "http://localhost:80/start-comprehensive-test-83e065fd",
+                f"http://localhost:80/start-{self._wf_id_a}",
             ], stderr=devnull)
         return json.loads(run_response.decode())['id'], value, magic_cookie
 

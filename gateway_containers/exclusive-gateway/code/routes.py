@@ -78,7 +78,7 @@ def conditional():
             headers[h] = request.headers[h]
 
     success = False
-    for _ in range(total_attempts):
+    for _ in range(int(total_attempts)):
         try:
             response = requests.post(target_url, json=req_json, headers=headers)
             response.raise_for_status()

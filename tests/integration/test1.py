@@ -35,7 +35,7 @@ class Test1(IntegrationTest):
     def __init__(self):
         self._name = "test1_simple_underpants"
         self._status = TestStatus('not_set_up')
-        self._wf_id = "test1"
+        self._wf_id = None
 
     def setup(self) -> SetupResult:
         # Step 1: apply wf

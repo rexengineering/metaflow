@@ -82,7 +82,9 @@ class Deployer:
         self.create_namespaced_service(
             'rexflow', specs.healthd_service_spec)
         self.create_namespaced_deployment(
-            'rexflow', specs.mk_healthd_deployment_spec('rexflow-etcd.rexflow'))
+            'rexflow', specs.mk_healthd_deployment_spec('rexflow-etcd.rexflow',
+            namespace.kafka
+        ))
         self.create_namespaced_role_binding(
             'default', specs.healthd_edit_default_spec)
         # Gateway and virtual services

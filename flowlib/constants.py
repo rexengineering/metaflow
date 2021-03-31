@@ -1,3 +1,7 @@
+from hashlib import sha256
+
+from flowlib.bpmn_util import to_valid_k8s_name
+
 '''
 These are the valid states for a workflow and the workflow instances, specified here
 so that all parts necessarily use the same values and to avoid embedding literal
@@ -26,6 +30,7 @@ BStates = ByteStatesClass()
 
 REXFLOW_ROOT = '/rexflow'
 TRACEID_HEADER = 'X-B3-Traceid'
+HOST_SUFFIX = '/host'
 
 
 class WorkflowKeys:
@@ -36,6 +41,10 @@ class WorkflowKeys:
         self.proc = self.proc_key(id)
         self.probe = self.probe_key(id)
         self.state = self.state_key(id)
+        self.host = self.host_key(id)
+
+        # Actually an S3 key since we don't store the k8s specs in etcd.
+        self.specs = self.specs_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -56,6 +65,14 @@ class WorkflowKeys:
     @classmethod
     def state_key(cls, id):
         return f'{cls.key_of(id)}/state'
+
+    @classmethod
+    def specs_key(cls, id):
+        return f'{cls.key_of(id)}/k8s_specs'
+
+    @classmethod
+    def host_key(cls, id):
+        return f'{cls.key_of(id)}{HOST_SUFFIX}'
 
 
 class WorkflowInstanceKeys:
@@ -135,3 +152,12 @@ def flow_result(status: int, message: str, **kwargs):
     result = {'status': status, 'message': message}
     result.update(kwargs)
     return result
+
+
+def get_ingress_object_name(hostname):
+    long_name = f'rexflow-{hostname}-{sha256(hostname.encode()).hexdigest()[:8]}'
+    return to_valid_k8s_name(long_name)
+
+
+def get_ingress_labels(wf_obj):
+    return {"key": "rexflow.rexhomes.com/wf-id", "value": wf_obj.id}

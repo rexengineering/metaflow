@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 
 
-MIN_WORKERS = 2
+MIN_WORKERS = 4
 
 
 def _init_get_executor():
@@ -10,7 +10,7 @@ def _init_get_executor():
 
     def _get_executor():
         nonlocal executor
-        max_workers = min(multiprocessing.cpu_count(), MIN_WORKERS)
+        max_workers = max(multiprocessing.cpu_count(), MIN_WORKERS)
         if executor is None:
             executor = ThreadPoolExecutor(max_workers=max_workers)
         return executor

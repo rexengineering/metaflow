@@ -2,9 +2,45 @@
 Removes significant copy-pasta by defining simple utilities to
 create a k8s Service, ServiceAccount, and Deployment.
 '''
+from base64 import b64encode
+import json
+import os
+from subprocess import check_output
+from typing import Mapping
+
+import kubernetes
+import requests
+
+from .bpmn_util import BPMNComponent
+from .config import (
+    ETCD_HOST,
+    ETCD_PORT,
+    ETCD_CA_CERT,
+    ETCD_CERT_CERT,
+    ETCD_CERT_KEY,
+    ETCD_POD_LABEL_SELECTOR,
+    FLOWD_HOST,
+    I_AM_FLOWD,
+    LIST_ETCD_HOSTS_ENDPOINT,
+    KAFKA_HOST,
+    KAFKA_API_KEY,
+    KAFKA_API_SECRET,
+    KAFKA_SASL_MECHANISM,
+    KAFKA_SECURITY_PROTOCOL,
+)
 
 
-def create_deployment(namespace, dns_safe_name, container, container_port, env, replicas=1):
+def to_base64(file_loc):
+    '''Accepts a file path, reads it, and encodes it into base64.
+    Should only be called on small files.
+    '''
+    with open(file_loc, 'r') as f:
+        return b64encode(f.read())
+
+
+def create_deployment(
+        namespace, dns_safe_name, container, container_port, env, etcd_access=False,
+        kafka_access=False, replicas=1):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -30,7 +66,7 @@ def create_deployment(namespace, dns_safe_name, container, container_port, env, 
                     'containers': [
                         {
                             'image': container,
-                            'imagePullPolicy': 'IfNotPresent',
+                            'imagePullPolicy': 'Always',
                             'name': dns_safe_name,
                             'ports': [
                                 {
@@ -43,8 +79,48 @@ def create_deployment(namespace, dns_safe_name, container, container_port, env, 
             },
         },
     }
-    if env is not None:
-        deployment['spec']['template']['spec']['containers'][0]['env'] = env
+    env = env.copy()
+
+    if etcd_access:
+        if ETCD_HOST is not None:
+            env.append({
+                "name": "ETCD_HOST",
+                "value": ETCD_HOST,
+            })
+        else:
+            assert ETCD_POD_LABEL_SELECTOR is not None, "Must provide some way to get etcd"
+            env.extend([
+                {
+                    "name": "REXFLOW_ETCD_CA_CERT",
+                    "value": ETCD_CA_CERT,
+                },
+                {
+                    "name": "REXFLOW_ETCD_CERT_CERT",
+                    "value": ETCD_CERT_CERT,
+                },
+                {
+                    "name": "REXFLOW_ETCD_CERT_KEY",
+                    "value": ETCD_CERT_KEY,
+                },
+                {
+                    "name": "REXFLOW_FLOWD_HOST",
+                    "value": FLOWD_HOST,
+                },
+            ])
+    if kafka_access:
+        env_data = [
+            ('REXFLOW_KAFKA_HOST', KAFKA_HOST),
+            ('REXFLOW_KAFKA_API_KEY', KAFKA_API_KEY),
+            ('REXFLOW_KAFKA_API_SECRET', KAFKA_API_SECRET),
+            ('REXFLOW_KAFKA_SASL_MECHANISM', KAFKA_SASL_MECHANISM),
+            ('REXFLOW_KAFKA_SECURITY_PROTOCOL', KAFKA_SECURITY_PROTOCOL),
+        ]
+        for env_var, value in env_data:
+            if value is None:
+                continue
+            env.append({"name": env_var, "value": value})
+
+    deployment['spec']['template']['spec']['containers'][0]['env'] = env
     return deployment
 
 
@@ -165,3 +241,79 @@ def create_deployment_affinity(service_name, anti_service_name):
         }
     }
     return affinity
+
+
+def add_labels(k8s_spec, labels: Mapping[str, str]):
+    assert 'metadata' in k8s_spec, f"Bad k8s spec: should have metadata field\n{k8s_spec}"
+    if 'labels' not in k8s_spec['metadata']:
+        k8s_spec['metadata']['labels'] = {}
+
+    if k8s_spec.get('kind', None) == 'Deployment':
+        # must label the pod spec as well
+        if 'metadata' not in k8s_spec['spec']['template']:
+            k8s_spec['spec']['template']['metadata'] = {}
+        add_labels(k8s_spec['spec']['template'], labels)
+
+    for label_key in labels.keys():
+        k8s_spec['metadata']['labels'][label_key] = labels[label_key]
+
+
+def add_annotations(k8s_spec, annotations: Mapping[str, str]):
+    assert 'metadata' in k8s_spec, f"Bad k8s spec: should have metadata field\n{k8s_spec}"
+    if 'annotations' not in k8s_spec['metadata']:
+        k8s_spec['metadata']['annotations'] = {}
+
+    if k8s_spec.get('kind', None) == 'Deployment':
+        # must annotate the pod spec as well
+        if 'metadata' not in k8s_spec['spec']['template']:
+            k8s_spec['spec']['template']['metadata'] = {}
+        add_annotations(k8s_spec['spec']['template'], annotations)
+
+    for annot_key in annotations.keys():
+        k8s_spec['metadata']['annotations'][annot_key] = annotations[annot_key]
+
+
+def get_rexflow_labels(wf_id):
+    return {
+        "cicd.rexhomes.com/deployed-by": "rexflow",
+        "rexflow.rexhomes.com/wf-id": wf_id,
+    }
+
+
+def get_rexflow_component_annotations(bpmn_component: BPMNComponent):
+    return {
+        "rexflow.rexhomes.com/bpmn-component-id": bpmn_component.id,
+        "rexflow.rexhomes.com/bpmn-component-name": bpmn_component.name,
+        "rexflow.rexhomes.com/wf-id": bpmn_component.workflow_properties.id,
+    }
+
+
+def get_etcd_endpoints():
+    '''Returns up-to-date hosts for the k8s deployment.
+    '''
+    if I_AM_FLOWD:
+        if ETCD_POD_LABEL_SELECTOR is not None:
+            # Read the etcd rexflow pods and back out their hosts from the pod info.
+            pods = json.loads(check_output([
+                "kubectl", "get", "po", "--all-namespaces", "-o", "json",
+                "-l", ETCD_POD_LABEL_SELECTOR,
+            ]).decode())
+            endpoints = []
+            for pod in pods['items']:
+                for port in pod['spec']['containers'][0]['ports']:
+                    if port['name'] == 'clientport':
+                        endpoints.append({
+                            'host': pod['status']['podIP'],
+                            'port': port['hostPort'],
+                        })
+            return endpoints
+        else:
+            assert ETCD_HOST is not None, \
+                "Must either provide ETCD Host or ETCD Pod Selector."
+            return [{
+                'host': ETCD_HOST,
+                'port': ETCD_PORT,
+            }]
+    else:
+        # Ask Flowd for the data.
+        return requests.get(LIST_ETCD_HOSTS_ENDPOINT).json()['etcd_hosts']

@@ -42,7 +42,7 @@ class Test4(IntegrationTest):
     def __init__(self):
         self._name = "test4_retry"
         self._status = TestStatus('not_set_up')
-        self._wf_id = "test4"
+        self._wf_id = None
 
     def setup(self) -> SetupResult:
         # Step 1: apply wf
