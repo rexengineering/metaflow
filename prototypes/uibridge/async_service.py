@@ -7,25 +7,30 @@ import requests
 
 from quart import request
 
+from flowlib.config import *
 from flowlib.constants import flow_result
 from flowlib.etcd_utils import get_etcd
+from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
 
 
 class AsyncService(QuartApp):
-    def __init__(self, executor, **kws):
+    def __init__(self, executor=None, **kws):
         super().__init__(__name__, **kws)
+        if executor is None:
+            executor = get_executor()
         self.etcd = get_etcd()
         self.app.route('/', methods=['POST'])(self.root_route)
         self.executor = executor
 
     def root_route(self):
+        global request
         ok = self.validate_request(request)
         if not ok:
             # TODO: Add details to result.
             return flow_result(-1, 'Bad request')
         else:
-            self.executor.submit(self.handle_request(request))
+            self.executor.submit(self.handle_request, request)
         return flow_result(0, 'Ok')
 
     def handle_request(self, local_request):

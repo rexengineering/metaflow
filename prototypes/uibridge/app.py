@@ -6,12 +6,12 @@ from .async_service import AsyncService
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
-        super.__init__(**kws)
+        super().__init__(**kws)
         self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/init', methods=['POST'])(self.init_route)
 
     def init_route(self):
-        # TODO: When the WF Instance is created, we want the <instance_path>/userTasks/<user_task_id> to be set to PENDING (or something like that)
+        # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
 
     def ui_route(self):

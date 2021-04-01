@@ -17,7 +17,7 @@ class QuartApp:
     def _shutdown(self):
         pass
 
-    def _termination_handler(self, *_: Any, exn: Exception = None) -> None:
+    def _termination_handler(self, *_: Any, exn: BaseException = None) -> None:
         if exn:
             logging.exception(exn)
             logging.info(f'Shutting down {self.app.name} daemon...')
