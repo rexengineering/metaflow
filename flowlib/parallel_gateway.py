@@ -17,8 +17,9 @@ import sys
 import yaml
 import xmltodict
 
-from .k8s_utils import create_deployment, create_service, create_serviceaccount
+from flowlib import config
 
+from .k8s_utils import create_deployment, create_service, create_serviceaccount
 
 from .envoy_config import get_envoy_config, Upstream
 from .etcd_utils import get_etcd
@@ -32,19 +33,17 @@ from .bpmn_util import (
 )
 
 
-logging.basicConfig(level=logging.DEBUG)
-
-
-FLOWD_URL = "http://flowd.rexflow:9002"
-
-PGATEWAY_SVC_PREFIX = "pgateway"
-PGATEWAY_LISTEN_PORT = "5000"
+logging.basicConfig(level=logging.INFO)
 
 
 class BPMNParallelGateway(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
     def __init__(self, gateway: OrderedDict, process: OrderedDict=None, global_props=None):
+
+        if process is None:
+            process = OrderedDict()
+
         super().__init__(gateway, process, global_props)
         self.forward_componentids = []
         self.forward_componentid = None
@@ -52,17 +51,17 @@ class BPMNParallelGateway(BPMNComponent):
         self._gateway = gateway
 
         if not self._proc:
-            raise "You must properly annotate your parallel gateway!"
+            raise ValueError("You must properly annotate your parallel gateway!")
 
         self.gateway_type = self._annotation['gateway_type']
 
         # We've got the annotation. From here, let's find out the name of the resulting
         # gateway service.
-        self.name = f"{PGATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
+        self.name = f"{config.PGATEWAY_SVC_PREFIX}-{self._annotation['gateway_name']}"
         assert ('service' not in self._annotation), "service-name must be auto-inferred for parallel gateways"
 
         self._service_properties.update({
-            'port': PGATEWAY_LISTEN_PORT,
+            'port': config.PGATEWAY_LISTEN_PORT,
             'host': self.name,
         })
 
@@ -175,7 +174,7 @@ class BPMNParallelGateway(BPMNComponent):
         for outgoing_component_target in self.forward_componentids:
             forward_urls.append(component_map[outgoing_component_target].k8s_url)
 
-        forward_url = FLOWD_URL
+        forward_url = config.FLOWD_URL
 
         if self.forward_componentid:
             forward_url = component_map[self.forward_componentid].k8s_url
