@@ -1,14 +1,31 @@
-from quart import request
+import os.path
+
+from quart import jsonify, request
+from ariadne import load_schema_from_path, make_executable_schema
+from ariadne.constants import PLAYGROUND_HTML
+from ariadne.graphql import graphql_sync
 
 from flowlib.constants import flow_result
+from . import bindables, resolvers
 from .async_service import AsyncService
 
+BASEDIR = os.path.dirname(__file__)
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/init', methods=['POST'])(self.init_route)
+        self.graphql_schema = make_executable_schema(
+            load_schema_from_path(os.path.join(BASEDIR, 'schema.graphql')),
+            bindables.session_id,
+            bindables.workflow_id,
+            bindables.workflow_type,
+            bindables.task_id,
+            bindables.state
+        )
+        self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
+        self.app.route('/graphql', methods=['POST'])(self.graphql_server)
 
     def init_route(self):
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
@@ -29,6 +46,21 @@ class REXFlowUIBridge(AsyncService):
         elif (state, command) == ('validated', 'complete'):
             return self.completed(request)
         return self.handle_error(request)
+
+    def graphql_playground(self):
+        return PLAYGROUND_HTML, 200
+
+    async def graphql_server(self):
+        global request
+        data = await request.get_json()
+        success, result = graphql_sync(
+            self.graphql_schema,
+            data,
+            context_value=request,
+            debug=self.app.debug
+        )
+        status_code = 200 if success else 400
+        return jsonify(result), status_code
 
     def get_state_from_etcd(self, request):
         raise NotImplementedError('Lazy developer error!')

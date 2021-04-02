@@ -1,4 +1,4 @@
-from code import app
+from . import app
 from flask import request, make_response, jsonify
 import json
 import logging

@@ -4,6 +4,7 @@ import json
 
 from async_timeout import timeout
 from quart import request
+from quart.json import jsonify
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
@@ -110,3 +111,5 @@ class FlowApp(QuartApp):
         return {"etcd_hosts": get_etcd_endpoints()}
 
     def ui_bridges(self):
+        # TODO
+        return jsonify([]), 200
