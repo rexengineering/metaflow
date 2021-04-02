@@ -23,7 +23,6 @@ from .bpmn_util import (
 )
 
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,
