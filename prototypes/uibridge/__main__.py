@@ -1,8 +1,8 @@
-import asyncio
 import logging
 
 import argparse
 
+from flowlib.config import UI_BRIDGE_PORT
 from flowlib.flowd_utils import get_log_format
 
 from .app import REXFlowUIBridge
@@ -14,5 +14,5 @@ if __name__ == '__main__':
     namespace = parser.parse_args()
     logging.basicConfig(format=get_log_format('uibridge'),
                         level=getattr(logging, namespace.level, logging.INFO))
-    app = REXFlowUIBridge(bind='[:]:5000')
+    app = REXFlowUIBridge(bind=f'0.0.0.0:{UI_BRIDGE_PORT}')
     app.run()

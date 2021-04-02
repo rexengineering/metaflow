@@ -10,15 +10,20 @@ import os
 
 
 # Flowd Endpoints
-DEFAULT_FLOWD_HOST = 'flowd.rexflow:9002'
-FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", DEFAULT_FLOWD_HOST)
-FLOWD_URL = f"http://{FLOWD_HOST}"
+DEFAULT_FLOWD_HOST = 'localhost'
+DEFAULT_FLOWD_PORT = 9002
+FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", os.getenv('FLOWD_HOST', DEFAULT_FLOWD_HOST))
+FLOWD_PORT = os.getenv('REXFLOW_FLOWD_PORT', os.getenv('FLOWD_PORT', DEFAULT_FLOWD_PORT))
+FLOWD_URL = f"http://{FLOWD_HOST}:{FLOWD_PORT}"
 
 INSTANCE_FAIL_ENDPOINT_PATH = "/instancefail"
 INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
 
 LIST_ETCD_HOSTS_ENDPOINT_PATH = '/etcd_hosts'
 LIST_ETCD_HOSTS_ENDPOINT = f"{FLOWD_URL}{LIST_ETCD_HOSTS_ENDPOINT_PATH}"
+
+UI_BRIDGES_ENDPOINT_PATH = '/uibridge'
+UI_BRIDGES_ENDPOINT = f'{FLOWD_URL}{UI_BRIDGES_ENDPOINT_PATH}'
 
 
 # Gateway Configuration
@@ -72,8 +77,10 @@ I_AM_FLOWD = True if os.getenv("I_AM_FLOWD") == "True" else False
 
 
 # ETCD Configuration
-ETCD_HOST = os.getenv("ETCD_HOST")  # optional, can get from pods instead
-ETCD_PORT = os.getenv("ETCD_PORT")  # optional, can get from pods instead
+DEFAULT_ETCD_HOST='localhost'
+DEFAULT_ETCD_PORT=2379
+ETCD_HOST = os.getenv("ETCD_HOST", DEFAULT_ETCD_HOST)  # optional, can get from pods instead
+ETCD_PORT = os.getenv("ETCD_PORT", DEFAULT_ETCD_PORT)  # optional, can get from pods instead
 # Allows REXFlow to get dynamically-changing etcd hosts by kubectl describing
 # some pods according to a label.
 ETCD_POD_LABEL_SELECTOR = os.getenv("REXFLOW_ETCD_POD_LABEL_SELECTOR")
@@ -117,3 +124,7 @@ def get_kafka_config():
     }
 
 INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE")
+
+# This configuration is pertinent when running the UI bridge locally.
+DEFAULT_UI_BRIDGE_PORT=5051
+UI_BRIDGE_PORT = os.getenv('REXFLOW_UI_BRIDGE_PORT', DEFAULT_UI_BRIDGE_PORT)

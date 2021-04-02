@@ -6,7 +6,7 @@ from .async_service import AsyncService
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
-        super().__init__(**kws)
+        super().__init__(__name__, **kws)
         self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/init', methods=['POST'])(self.init_route)
 

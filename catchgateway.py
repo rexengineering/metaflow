@@ -27,7 +27,7 @@ from flowlib.constants import (
     WorkflowInstanceKeys,
     States,
     BStates,
-    TRACEID_HEADER,
+    Headers,
     flow_result,
 )
 
@@ -112,10 +112,10 @@ class EventCatchPoller:
 
     def save_traceid(self, headers, flow_id):
         trace_id = None
-        if TRACEID_HEADER in headers:
-            trace_id = headers[TRACEID_HEADER]
-        elif TRACEID_HEADER.lower() in headers:
-            trace_id = headers[TRACEID_HEADER.lower()]
+        if Headers.TRACEID_HEADER in headers:
+            trace_id = headers[Headers.TRACEID_HEADER]
+        elif Headers.TRACEID_HEADER.lower() in headers:
+            trace_id = headers[Headers.TRACEID_HEADER.lower()]
 
         if trace_id:
             etcd = get_etcd()

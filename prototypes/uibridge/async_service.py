@@ -8,15 +8,15 @@ import requests
 from quart import request
 
 from flowlib.config import *
-from flowlib.constants import flow_result
+from flowlib.constants import Headers, flow_result
 from flowlib.etcd_utils import get_etcd
 from flowlib.executor import get_executor
 from flowlib.quart_app import QuartApp
 
 
 class AsyncService(QuartApp):
-    def __init__(self, executor=None, **kws):
-        super().__init__(__name__, **kws)
+    def __init__(self, name=__name__, executor=None, **kws):
+        super().__init__(name, **kws)
         if executor is None:
             executor = get_executor()
         self.etcd = get_etcd()
@@ -43,8 +43,8 @@ class AsyncService(QuartApp):
         raise NotImplementedError('Overload me!')
 
     def get_instance_etcd_key(self, local_request) -> str:
-        wf_instance = local_request.headers['x-flow-id']
-        task_id = self.config.task_id
+        wf_instance = local_request.headers[Headers.FLOWID_HEADER]
+        task_id = getattr(self.config, 'task_id', local_request.headers[Headers.WFID_HEADER])
         # TODO: Move this format string to constants.  Add support for
         # populating this key at workflow run time.
         return f'/rexflow/instances/{wf_instance}/user_tasks/{task_id}/'

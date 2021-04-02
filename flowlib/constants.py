@@ -29,8 +29,15 @@ class ByteStatesClass:
 BStates = ByteStatesClass()
 
 REXFLOW_ROOT = '/rexflow'
-TRACEID_HEADER = 'X-B3-Traceid'
 HOST_SUFFIX = '/host'
+
+
+class Headers:
+    '''Because namespace pollution affects us all...
+    '''
+    FLOWID_HEADER = 'X-Flow-Id'
+    TRACEID_HEADER = 'X-B3-Traceid'
+    WFID_HEADER = 'X-Rexflow-Wf-Id'
 
 
 class WorkflowKeys:
