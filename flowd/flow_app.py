@@ -14,7 +14,7 @@ from flowlib.workflow import Workflow
 from flowlib.config import (
     INSTANCE_FAIL_ENDPOINT_PATH,
     LIST_ETCD_HOSTS_ENDPOINT_PATH,
-    UI_BRIDGES_ENDPOINT_PATH
+    WF_MAP_ENDPOINT_PATH
 )
 from flowlib.k8s_utils import get_etcd_endpoints
 
@@ -28,7 +28,7 @@ class FlowApp(QuartApp):
         self.app.route('/', methods=('POST',))(self.root_route)
         self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=('POST',))(self.fail_route)
         self.app.route(LIST_ETCD_HOSTS_ENDPOINT_PATH, methods=('GET',))(self.get_etcd_hosts)
-        self.app.route(UI_BRIDGES_ENDPOINT_PATH, methods=['GET', 'POST'])(self.ui_bridges)
+        self.app.route(WF_MAP_ENDPOINT_PATH, methods=['GET', 'POST'])(self.wf_map)
 
     async def root_route(self):
         # When there is a flow ID in the headers, store the result in etcd and
@@ -110,6 +110,6 @@ class FlowApp(QuartApp):
     def get_etcd_hosts(self):
         return {"etcd_hosts": get_etcd_endpoints()}
 
-    def ui_bridges(self):
-        # TODO
-        return jsonify([]), 200
+    def wf_map(self):
+        # TODO: Return a map from BPMN Workflow ID's to REXFlow deployment ID's.
+        return jsonify({}), 200

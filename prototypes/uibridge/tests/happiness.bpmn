@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_18l9p40" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_0p1yoqw" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_033d8xa</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_033d8xa" sourceRef="StartEvent_1" targetRef="Activity_144fvu9" />
+    <bpmn:userTask id="Activity_144fvu9" name="Get underpants">
+      <bpmn:incoming>Flow_033d8xa</bpmn:incoming>
+      <bpmn:outgoing>Flow_1cua4jb</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_1cua4jb" sourceRef="Activity_144fvu9" targetRef="Activity_0jtv9s8" />
+    <bpmn:sequenceFlow id="Flow_05m9fwl" sourceRef="Activity_0jtv9s8" targetRef="Event_0akwfpf" />
+    <bpmn:endEvent id="Event_0akwfpf">
+      <bpmn:incoming>Flow_05m9fwl</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_0jtv9s8" name="Find happiness">
+      <bpmn:incoming>Flow_1cua4jb</bpmn:incoming>
+      <bpmn:outgoing>Flow_05m9fwl</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0p1yoqw">
+      <bpmndi:BPMNEdge id="Flow_033d8xa_di" bpmnElement="Flow_033d8xa">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1cua4jb_di" bpmnElement="Flow_1cua4jb">
+        <di:waypoint x="370" y="117" />
+        <di:waypoint x="430" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_05m9fwl_di" bpmnElement="Flow_05m9fwl">
+        <di:waypoint x="530" y="117" />
+        <di:waypoint x="592" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0lochb8_di" bpmnElement="Activity_144fvu9">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1chpr99_di" bpmnElement="Activity_0jtv9s8">
+        <dc:Bounds x="430" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0akwfpf_di" bpmnElement="Event_0akwfpf">
+        <dc:Bounds x="592" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
