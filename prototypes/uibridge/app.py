@@ -17,7 +17,7 @@ class REXFlowUIBridge(AsyncService):
         self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/init', methods=['POST'])(self.init_route)
         self.graphql_schema = make_executable_schema(
-            load_schema_from_path(os.path.join(BASEDIR, 'schema.graphql')),
+            load_schema_from_path(os.path.join(BASEDIR, 'schema')),
             bindables.session_id,
             bindables.workflow_id,
             bindables.workflow_type,

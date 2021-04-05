@@ -1,0 +1,108 @@
+type Mutation {
+    session: SessionMutations
+    workflow: WorkflowMutations
+}
+
+type SessionMutations {
+    """Start a new session"""
+    start: StartSessionPayload
+    """Modify state information"""
+    state: StateMutations
+    """Close the session"""
+    close: CloseSessionPayload
+}
+
+type StateMutations {
+    """Replace state with new version"""
+    update(input: UpdateStateInput!): UpdateStatePayload
+}
+
+type WorkflowMutations {
+    """Start a new workflow"""
+    start(input: StartWorkflowInput!): StartWorkflowPayload
+    """Interact with workflow tasks"""
+    tasks: TasksMutations
+}
+
+type TasksMutations {
+    """Save and validate collected task's data"""
+    save(input: SaveTasksInput!): SaveTasksPayload
+    """Finish the task"""
+    complete(input: CompleteTasksInput!): CompleteTasksPayload
+}
+
+# Mutations inputs
+
+input UpdateStateInput {
+    """New state"""
+    state: State!
+}
+
+input StartWorkflowInput {
+    """Type of new workflow"""
+    type: WorkflowType!
+}
+
+input SaveTasksInput {
+    """List of task to be modified"""
+    tasks: [TaskInput!]!
+}
+
+input TaskInput {
+    id: TaskId!
+    """Data to be saved"""
+    data: [TaskDataInput!]!
+}
+
+input TaskDataInput {
+    request: String!
+    data: String!
+}
+
+input CompleteTasksInput {
+    """Ids of task to be completed"""
+    ids: [TaskId!]!
+}
+
+# Response payloads
+
+type StartSessionPayload {
+    status: OperationStatus!
+    session: Session!
+    errors: [SessionProblems!]!
+    query: Query
+}
+
+type UpdateStatePayload {
+    status: OperationStatus!
+    state: String!
+    errors: [UpdateStateProblems!]!
+    query: Query
+}
+
+type CloseSessionPayload {
+    status: OperationStatus!
+    errors: [SessionProblems!]!
+    query: Query
+}
+
+type StartWorkflowPayload {
+    status: OperationStatus!
+    workflow: Workflow!
+    errors: [WorkflowProblems!]!
+    query: Query
+}
+
+type SaveTasksPayload {
+    status: OperationStatus!
+    task: Task!
+    errors: [TaskProblems!]!
+    query: Query
+}
+
+type CompleteTasksPayload {
+    status: OperationStatus!
+    task: Task!
+    errors: [TaskProblems!]!
+    query: Query
+}

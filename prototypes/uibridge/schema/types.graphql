@@ -1,0 +1,86 @@
+
+# Scalar types
+
+scalar SessionId
+
+scalar WorkflowId
+
+scalar WorkflowType
+
+scalar TaskId
+
+scalar State
+
+# Enum types
+
+enum WorkflowStatus {
+    WAITING
+    IN_PROGRESS
+    FINISHED
+}
+
+enum TaskStatus {
+    IN_PROGRESS
+    FINISHED
+}
+
+enum OperationStatus {
+    SUCCESS
+    FAILURE
+}
+
+"""Client side constraints for user input"""
+enum Validator {
+    REQUIRED
+    NUMERIC
+    PHONE_NUMBER
+    EMAIL
+}
+
+"""Data request types that will be mapped to UI components"""
+enum DataType {
+    TEXT
+}
+
+# Data structures
+
+type Session {
+    id: SessionId!
+    state: State!
+}
+
+type Workflow {
+    id: WorkflowId!
+    type: WorkflowType
+    status: WorkflowStatus!
+    tasks(filter: TaskFilter): [Task!]!
+}
+
+"""A task will request a list of data elements"""
+type Task {
+    id: TaskId!
+    data: [TaskData!]!
+    status: TaskStatus!
+    errors: [TaskProblems!]!
+}
+
+"""Individual data element that will map to a component on the UI"""
+type TaskData {
+    request: String!
+    type: DataType!
+    data: String
+    encrypted: Boolean!
+    validators: [Validator!]!
+}
+
+# Data filters
+
+input WorkflowFilter {
+    ids: [WorkflowId!]!
+    status: WorkflowStatus
+}
+
+input TaskFilter {
+    ids: [TaskId!]!
+    status: TaskStatus
+}

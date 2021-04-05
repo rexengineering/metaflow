@@ -1,0 +1,12 @@
+type Query {
+    """Current session information"""
+    session: Session!
+    """Workflows information"""
+    workflows: WorkflowQuery!
+}
+
+type WorkflowQuery {
+    active(filter: WorkflowFilter): [Workflow!]!
+    """Workflows available to start"""
+    available: [WorkflowType!]!
+}
