@@ -1,7 +1,8 @@
 import asyncio
+import importlib
 import logging
 import signal
-from typing import Any
+from typing import Any, Mapping
 
 from quart import Quart
 from hypercorn.config import Config
@@ -9,8 +10,10 @@ from hypercorn.asyncio import serve
 
 
 class QuartApp:
-    def __init__(self, name, **kws):
+    def __init__(self, name, config: Mapping[str, Any] = None, **kws):
         self.app = Quart(name)
+        if config is not None:
+            kws.update(config)
         self.config = Config.from_mapping(kws)
         self.shutdown_event = asyncio.Event()
 
