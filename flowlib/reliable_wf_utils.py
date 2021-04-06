@@ -24,7 +24,6 @@ from .bpmn_util import (
 from .constants import to_valid_k8s_name
 
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,

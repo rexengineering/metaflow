@@ -17,8 +17,9 @@ FLOWD_URL = f"http://{FLOWD_HOST}"
 INSTANCE_FAIL_ENDPOINT_PATH = "/instancefail"
 INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
 
-LIST_ETCD_HOSTS_ENDPOINT_PATH = '/etcd_hosts'
-LIST_ETCD_HOSTS_ENDPOINT = f"{FLOWD_URL}{LIST_ETCD_HOSTS_ENDPOINT_PATH}"
+# Gateway Configuration
+PGATEWAY_SVC_PREFIX = "pgateway"
+PGATEWAY_LISTEN_PORT = "5000"
 
 
 # REXFlow DMN Server Info
@@ -63,15 +64,15 @@ DEFAULT_DO_MANUAL_INJECTION = "True"
 DO_MANUAL_INJECTION = (
     os.getenv("REXFLOW_DO_MANUAL_INJECTION", DEFAULT_DO_MANUAL_INJECTION) == "True"
 )
-I_AM_FLOWD = True if os.getenv("I_AM_FLOWD") == "True" else False
 
 
 # ETCD Configuration
-ETCD_HOST = os.getenv("ETCD_HOST")  # optional, can get from pods instead
-ETCD_PORT = os.getenv("ETCD_PORT")  # optional, can get from pods instead
-# Allows REXFlow to get dynamically-changing etcd hosts by kubectl describing
-# some pods according to a label.
-ETCD_POD_LABEL_SELECTOR = os.getenv("REXFLOW_ETCD_POD_LABEL_SELECTOR")
+_default_etcd_host = "localhost"
+_etcd_host = os.getenv("ETCD_HOST", _default_etcd_host)
+_default_etcd_port = '2379'
+_etcd_port = os.getenv("ETCD_PORT", _default_etcd_port)  # optional, can get from pods instead
+
+ETCD_HOSTS = os.getenv("ETCD_HOSTS", f'{_etcd_host}:{_etcd_port}')
 
 # Can either provide certs/paths as environment variables or as files, in which
 # case the env var is the path to the file. If both are provided, then the

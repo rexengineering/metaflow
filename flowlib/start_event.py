@@ -18,7 +18,6 @@ from .k8s_utils import (
 from .reliable_wf_utils import create_kafka_transport
 
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,

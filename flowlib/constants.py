@@ -48,8 +48,9 @@ def to_valid_k8s_name(name):
         name = name[:(K8S_MAX_NAMELENGTH - len(token))] + token
 
     assert len(name) > 0, "Must provide at least one valid character [a-b0-9A-B]."
-    assert re.fullmatch('[a-z0-9]([-a-z0-9]*[a-z0-9])?', name), "NewGradProgrammerError"
-    assert len(name) <= 63, "NewGradProgrammerError"
+    assert re.fullmatch('[a-z0-9]([-a-z0-9]*[a-z0-9])?', name), \
+        f"NewGradProgrammerError: Was unable to make name {name} k8s-compatible."
+    assert len(name) <= 63, "NewGradProgrammerError: k8s names must be <63 char long."
     return name
 
 

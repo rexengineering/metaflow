@@ -12,21 +12,23 @@ import kubernetes
 import requests
 
 from .config import (
-    ETCD_HOST,
-    ETCD_PORT,
     ETCD_CA_CERT,
     ETCD_CERT_CERT,
     ETCD_CERT_KEY,
-    ETCD_POD_LABEL_SELECTOR,
     FLOWD_HOST,
-    I_AM_FLOWD,
-    LIST_ETCD_HOSTS_ENDPOINT,
     KAFKA_HOST,
     KAFKA_API_KEY,
     KAFKA_API_SECRET,
     KAFKA_SASL_MECHANISM,
     KAFKA_SECURITY_PROTOCOL,
+    ETCD_HOSTS,
 )
+
+ETCD_ENV_MAP = {
+    'REXFLOW_ETCD_CA_CERT': ETCD_CA_CERT,
+    'REXFLOW_ETCD_CERT_CERT': ETCD_CERT_CERT,
+    'REXFLOW_ETCD_CERT_KEY': ETCD_CERT_KEY,
+}
 
 
 def to_base64(file_loc):
@@ -81,31 +83,18 @@ def create_deployment(
     env = env.copy()
 
     if etcd_access:
-        if ETCD_HOST is not None:
-            env.append({
-                "name": "ETCD_HOST",
-                "value": ETCD_HOST,
-            })
-        else:
-            assert ETCD_POD_LABEL_SELECTOR is not None, "Must provide some way to get etcd"
-            env.extend([
-                {
-                    "name": "REXFLOW_ETCD_CA_CERT",
-                    "value": ETCD_CA_CERT,
-                },
-                {
-                    "name": "REXFLOW_ETCD_CERT_CERT",
-                    "value": ETCD_CERT_CERT,
-                },
-                {
-                    "name": "REXFLOW_ETCD_CERT_KEY",
-                    "value": ETCD_CERT_KEY,
-                },
-                {
-                    "name": "REXFLOW_FLOWD_HOST",
-                    "value": FLOWD_HOST,
-                },
-            ])
+        env.append({
+            "name": "ETCD_HOSTS",
+            "value": ETCD_HOSTS,
+        })
+        env.extend([
+            {
+                "name": env_name,
+                "value": ETCD_ENV_MAP[env_name],
+            }
+            for env_name in ETCD_ENV_MAP.keys()
+            if ETCD_ENV_MAP[env_name] is not None
+        ])
     if kafka_access:
         env_data = [
             ('REXFLOW_KAFKA_HOST', KAFKA_HOST),
@@ -285,34 +274,3 @@ def get_rexflow_component_annotations(bpmn_component):
         "rexflow.rexhomes.com/bpmn-component-name": bpmn_component.name,
         "rexflow.rexhomes.com/wf-id": bpmn_component.workflow_properties.id,
     }
-
-
-def get_etcd_endpoints():
-    '''Returns up-to-date hosts for the k8s deployment.
-    '''
-    if I_AM_FLOWD:
-        if ETCD_POD_LABEL_SELECTOR is not None:
-            # Read the etcd rexflow pods and back out their hosts from the pod info.
-            pods = json.loads(check_output([
-                "kubectl", "get", "po", "--all-namespaces", "-o", "json",
-                "-l", ETCD_POD_LABEL_SELECTOR,
-            ]).decode())
-            endpoints = []
-            for pod in pods['items']:
-                for port in pod['spec']['containers'][0]['ports']:
-                    if port['name'] == 'clientport':
-                        endpoints.append({
-                            'host': pod['status']['podIP'],
-                            'port': port['hostPort'],
-                        })
-            return endpoints
-        else:
-            assert ETCD_HOST is not None, \
-                "Must either provide ETCD Host or ETCD Pod Selector."
-            return [{
-                'host': ETCD_HOST,
-                'port': ETCD_PORT,
-            }]
-    else:
-        # Ask Flowd for the data.
-        return requests.get(LIST_ETCD_HOSTS_ENDPOINT).json()['etcd_hosts']

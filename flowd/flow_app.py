@@ -9,10 +9,7 @@ from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
 
-from flowlib.config import (
-    INSTANCE_FAIL_ENDPOINT_PATH,
-    LIST_ETCD_HOSTS_ENDPOINT_PATH,
-)
+from flowlib.config import INSTANCE_FAIL_ENDPOINT_PATH
 from flowlib.constants import (
     BStates,
     WorkflowInstanceKeys,
@@ -21,7 +18,6 @@ from flowlib.constants import (
     X_HEADER_TOKEN_POOL_ID,
 )
 from flowlib import token_api
-from flowlib.k8s_utils import get_etcd_endpoints
 
 TIMEOUT_SECONDS = 10
 
@@ -32,7 +28,6 @@ class FlowApp(QuartApp):
         self.etcd = get_etcd()
         self.app.route('/', methods=('POST',))(self.root_route)
         self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=('POST',))(self.fail_route)
-        self.app.route(LIST_ETCD_HOSTS_ENDPOINT_PATH, methods=('GET',))(self.get_etcd_hosts)
 
     async def root_route(self):
         # When there is a flow ID in the headers, store the result in etcd and
@@ -47,7 +42,6 @@ class FlowApp(QuartApp):
                     if payload[0]:
                         self.etcd.delete(keys.headers)
                         self.etcd.delete(keys.payload)
-                        self.etcd.put(keys.was_error, BStates.TRUE)
                     self.etcd.put(keys.result, await request.data)
                 else:
                     logging.error(
@@ -71,7 +65,7 @@ class FlowApp(QuartApp):
             if self.etcd.get(state_key)[0] in good_states:
                 if not workflow.process.properties.is_recoverable:
                     logging.info("Transition to ERROR")
-                    if timer_pool_id is None or token_api.fail(timer_pool_id):
+                    if timer_pool_id is None or token_api.token_fail(timer_pool_id):
                         if not transition_state(self.etcd, state_key, good_states, BStates.ERROR):
                             logging.error(
                                 f'Race on {state_key}; state changed out of known'
@@ -96,7 +90,7 @@ class FlowApp(QuartApp):
                         except asyncio.exceptions.TimeoutError as exn:
                             self.etcd.put(state_key, BStates.ERROR)
                             if timer_pool_id:
-                                token_api.fail(timer_pool_id)
+                                token_api.token_fail(timer_pool_id)
                             logging.exception(
                                 f"Timed out waiting for payload on flow {flow_id}",
                                 exc_info=exn,
@@ -104,7 +98,7 @@ class FlowApp(QuartApp):
                         except Exception as exn:
                             self.etcd.put(state_key, BStates.ERROR)
                             if timer_pool_id:
-                                token_api.fail(timer_pool_id)
+                                token_api.token_fail(timer_pool_id)
                             logging.exception(
                                 f"Was unable to save the data for flow_id {flow_id}.",
                                 exc_info=exn,
@@ -115,6 +109,3 @@ class FlowApp(QuartApp):
                             ' good state before state transition could occur!'
                         )
         return 'Another happy landing (:'
-
-    def get_etcd_hosts(self):
-        return {"etcd_hosts": get_etcd_endpoints()}
