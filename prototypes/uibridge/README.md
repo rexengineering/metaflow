@@ -10,4 +10,13 @@ Standing something up on your local machine:
 * (Bonus) For fun, you can interact with the GraphQL playground by navigating to
   http://localhost:5051/
 
+Enabling Hot Reloading
+----------------------
+
+Try using the `development` configuration module as follows:
+
+```
+% python -m prototypes.uibridge -c flowlib.configs.development
+```
+
 Enjoy!
