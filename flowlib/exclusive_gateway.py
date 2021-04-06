@@ -23,7 +23,6 @@ from .config import (
     THROW_LISTEN_PORT,
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
-    ETCD_HOST,
     DMN_SERVER_HOST
 )
 
