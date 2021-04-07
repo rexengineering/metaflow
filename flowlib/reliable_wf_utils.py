@@ -19,8 +19,9 @@ from .k8s_utils import (
 from .bpmn_util import (
     BPMNComponent,
     HealthProperties,
-    to_valid_k8s_name,
 )
+
+from .constants import to_valid_k8s_name
 
 from .config import (
     KAFKA_HOST,

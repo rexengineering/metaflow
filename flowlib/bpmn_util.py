@@ -5,9 +5,9 @@ from typing import Any, Mapping, List
 import yaml
 from hashlib import sha1, sha256
 import re
-
-
-K8S_MAX_NAMELENGTH = 63
+import json
+from flowlib.constants import BPMN_TIMER_EVENT_DEFINITION, TIMER_DESCRIPTION, to_valid_k8s_name
+from flowlib.timer_util import TimedEventManager
 
 
 def get_edge_transport(edge, default_transport):
@@ -19,39 +19,6 @@ def get_edge_transport(edge, default_transport):
     elif edge.get('@name') == 'transport: rpc':
         transport = 'rpc'
     return transport
-
-def to_valid_k8s_name(name):
-    '''
-    Takes in a name and massages it until it complies to the k8s name regex, which is:
-        [a-z0-9]([-a-z0-9]*[a-z0-9])?
-    Raises an AssertionError if we fail to make the name comply.
-    '''
-    name = name.lower()
-
-    # Replace space-like chars with a '-'
-    name = re.sub('[. _\n]', '-', name)
-
-    # Remove invalid characters
-    name = re.sub('[^0-9a-z-]', '', name)
-
-    # Remove repeated dashes
-    name = re.sub('-[-]+', '-', name)
-
-    # Trim leading and trailing dashes
-    name = name.rstrip('-').lstrip('-')
-
-    # K8s names limited to 63 or fewer characters. We could truncate to 63, but doing so could
-    # lead to conflicts if the caller of this function was relying on some UID at the end of
-    # the name. Therefore, we add another hash.
-    if len(name) > K8S_MAX_NAMELENGTH:
-        token = f'-{sha256(name.encode()).hexdigest()[:8]}'
-        name = name[:(K8S_MAX_NAMELENGTH - len(token))] + token
-
-    assert len(name) > 0, "Must provide at least one valid character [a-b0-9A-B]."
-    assert re.fullmatch('[a-z0-9]([-a-z0-9]*[a-z0-9])?', name), \
-        f"NewGradProgrammerError: Was unable to make name {name} k8s-compatible."
-    assert len(name) <= 63, "NewGradProgrammerError: k8s names must be <63 char long."
-    return name
 
 
 def calculate_id_hash(wf_id: str) -> str:
@@ -323,6 +290,8 @@ class WorkflowProperties:
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
+            elif 'rexflow_global_properties' in annotations:
+                self.update(annotations['rexflow_global_properties'])
 
     @property
     def id(self):
@@ -404,7 +373,7 @@ class WorkflowProperties:
 
         if 'id_hash' in annotations:
             self._id_hash = annotations['id_hash']
-    
+
         if 'deployment_timeout' in annotations:
             self._deployment_timeout = annotations['deployment_timeout']
 
@@ -486,9 +455,24 @@ class BPMNComponent:
         self._global_props = workflow_properties
         self._proc = process
         self._kafka_topics = []
+        self._timer_description = []
+        self._timer_aspects = None
 
         if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
+
+        if BPMN_TIMER_EVENT_DEFINITION in spec:
+            for key in ['timeDate', 'timeDuration', 'timeCycle']:
+                tag = f'bpmn:{key}'
+                if tag in spec[BPMN_TIMER_EVENT_DEFINITION]:
+                    # run a validation against the spec so we can fail the apply rather than on run
+                    # this will raise if there's anything seriously wrong. The finer points - like
+                    # ranges and such - are verified by the individual component types.
+                    self._timer_description = [key, spec[BPMN_TIMER_EVENT_DEFINITION][tag]['#text']]
+                    self._timer_aspects = TimedEventManager.validate_spec(key, self._timer_description[1])
+                    break
+            assert self._timer_description, "timerEventDefinition has invalid timer type"
+
 
         service_update = {
             'hash_used': (self._global_props.namespace_shared and not self._is_preexisting),
@@ -509,6 +493,11 @@ class BPMNComponent:
                 self._health_properties.update(self._annotation['health'])
             if 'service' in self._annotation:
                 self._service_properties.update(self._annotation['service'])
+
+    def init_env_config(self):
+        if self._timer_description:
+            return [{'name': TIMER_DESCRIPTION, 'value': json.dumps(self._timer_description)}]
+        return []
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
                       digraph: OrderedDict, sequence_flow_table: Mapping[str, Any]) -> list:

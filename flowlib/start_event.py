@@ -6,7 +6,8 @@ from collections import OrderedDict
 from typing import Mapping
 import os
 
-from .bpmn_util import BPMNComponent, to_valid_k8s_name, get_edge_transport
+from .bpmn_util import BPMNComponent, get_edge_transport
+from .constants import to_valid_k8s_name
 
 from .k8s_utils import (
     create_deployment,
@@ -39,8 +40,8 @@ class BPMNStartEvent(BPMNComponent):
         # provide a somewhat readable alternative: `start-{wf_id}`, where wf_id is the
         # Workflow ID.
         # How do we know if the user neglected to provide a name? self.name == self.id
-        if self._name == to_valid_k8s_name(self.id):
-            self._name = to_valid_k8s_name(f"{START_EVENT_PREFIX}-{self._global_props.id}")
+        if '@name' not in event: #self._name == to_valid_k8s_name(self.id):
+            self._name = to_valid_k8s_name(f'{START_EVENT_PREFIX}-{self.id}-{self._global_props.id}')
 
         self._kafka_topic = None
 
@@ -54,6 +55,10 @@ class BPMNStartEvent(BPMNComponent):
         if self._annotation is not None and 'kafka_topic' in self._annotation:
             self._kafka_topic = self._annotation['kafka_topic']
             self._kafka_topics.append(self._kafka_topic)
+
+        # if this is a timed start event, verify that the timer aspects are valid
+        if self._timer_aspects:
+            assert self._timer_aspects.recurrance >=0, f'Invalid recurrance for start event \'{self._timer_aspects.recurrance}\''
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict, edge_map: OrderedDict) -> list:
@@ -85,7 +90,8 @@ class BPMNStartEvent(BPMNComponent):
         else:
             assert False, f"Transport '{transport_type}' is not implemented."
 
-        deployment_env_config = [
+        deployment_env_config = self.init_env_config() + \
+        [
             {
                 "name": "REXFLOW_CATCH_START_FUNCTION",
                 "value": "START",

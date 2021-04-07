@@ -11,7 +11,6 @@ from typing import Mapping
 import kubernetes
 import requests
 
-from .bpmn_util import BPMNComponent
 from .config import (
     ETCD_CA_CERT,
     ETCD_CERT_CERT,
@@ -269,7 +268,7 @@ def get_rexflow_labels(wf_id):
     }
 
 
-def get_rexflow_component_annotations(bpmn_component: BPMNComponent):
+def get_rexflow_component_annotations(bpmn_component):
     return {
         "rexflow.rexhomes.com/bpmn-component-id": bpmn_component.id,
         "rexflow.rexhomes.com/bpmn-component-name": bpmn_component.name,

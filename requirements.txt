@@ -10,6 +10,7 @@ kubernetes
 docker
 quart
 ariadne
+isodate
 # Optional development dependency
 grpcio-tools
 pudb

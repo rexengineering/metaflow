@@ -91,7 +91,8 @@ class BPMNThrowEvent(BPMNComponent):
         # 1. Tell the container which queue to publish to.
         # 2. Tell the container which (if any) service to forward its input to.
 
-        env_config = [
+        env_config = self.init_env_config() + \
+        [
             {
                 "name": "KAFKA_TOPIC",  # Topic to publish to, NOT Reliable Transport topic
                 "value": self._kafka_topic,
