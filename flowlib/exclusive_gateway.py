@@ -23,7 +23,6 @@ from .config import (
     THROW_LISTEN_PORT,
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
-    ETCD_HOST,
     DMN_SERVER_HOST
 )
 
@@ -128,7 +127,8 @@ class BPMNXGateway(BPMNComponent):
         service_name = self.service_properties.host
         port = self.service_properties.port
 
-        env_config = [
+        env_config = self.init_env_config() + \
+        [
             {
                 'name': 'REXFLOW_XGW_FAIL_URL',
                 'value': 'http://flowd.rexflow:9002/instancefail'

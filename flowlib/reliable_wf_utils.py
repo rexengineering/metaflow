@@ -19,11 +19,11 @@ from .k8s_utils import (
 from .bpmn_util import (
     BPMNComponent,
     HealthProperties,
-    to_valid_k8s_name,
 )
 
+from .constants import to_valid_k8s_name
+
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,

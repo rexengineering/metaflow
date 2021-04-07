@@ -24,7 +24,7 @@ from .start_event import BPMNStartEvent
 from .end_event import BPMNEndEvent
 from .throw_event import BPMNThrowEvent
 from .catch_event import BPMNCatchEvent
-from .constants import WorkflowKeys
+from .constants import WorkflowKeys, to_valid_k8s_name
 
 from .bpmn_util import (
     iter_xmldict_for_key,
@@ -32,7 +32,6 @@ from .bpmn_util import (
     get_annotations,
     BPMNComponent,
     WorkflowProperties,
-    to_valid_k8s_name,
     outgoing_sequence_flow_table,
 )
 from .k8s_utils import (
@@ -52,12 +51,20 @@ class BPMNProcess:
     def __init__(self, process: OrderedDict):
         self._process = process
         self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
-        entry_point = process['bpmn:startEvent']
-        assert isinstance(entry_point, OrderedDict), "Must have exactly one StartEvent."
-        self.entry_point = entry_point
-        annotations = list(get_annotations(process, self.entry_point['@id']))
-        assert len(annotations) <= 1, "Must have only one annotation for start event."
-        self.annotation = annotations[0] if len(annotations) else None
+        self.entry_points = [entry_point for entry_point in iter_xmldict_for_key(self._process, 'bpmn:startEvent')]
+        assert len(self.entry_points) > 0, "Must have at least one StartEvent."
+
+        # TODO: figure out how to do annotations on multiple start events
+        # annotations = list(get_annotations(process, self.entry_points[0]['@id']))
+        all_annotations = iter_xmldict_for_key(self._process, 'bpmn:textAnnotation')
+        global_annotations = [
+            yaml.safe_load(annot['bpmn:text'].replace('\xa0', ''))
+            for annot in all_annotations
+            if annot['bpmn:text'].startswith('rexflow_global_properties')
+        ]
+        assert len(global_annotations) <= 1, "Must have at most one global rexflow annotation."
+
+        self.annotation = global_annotations[0] if len(global_annotations) else None
         self.properties = WorkflowProperties(self.annotation)
 
         if not self.properties.id:
@@ -107,8 +114,13 @@ class BPMNProcess:
             self.component_map[gw['@id']] = bpmn_gw
 
         # Don't forget BPMN Start Event!
-        self.start_event = BPMNStartEvent(self.entry_point, process, self.properties)
-        self.component_map[self.entry_point['@id']] = self.start_event
+        self.start_events = []
+        for entry_point in self.entry_points:
+            bpmn_start_event = BPMNStartEvent(entry_point, process, self.properties)
+            self.start_events.append(bpmn_start_event)
+            # equivalent to:
+            # self.component_map[bpmn_start_even.id] = bpmn_start_event
+            self.component_map[entry_point['@id']] = bpmn_start_event
 
         # Don't forget BPMN End Events!
         # TODO: Test to make sure it works with multiple End Events.
@@ -132,7 +144,6 @@ class BPMNProcess:
 
         self.catches = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
-            assert 'bpmn:incoming' not in event, "Can't have incoming edge to Catch Event."
             bpmn_catch = BPMNCatchEvent(event, process, self.properties)
             self.catches.append(bpmn_catch)
             self.component_map[event['@id']] = bpmn_catch
@@ -144,7 +155,7 @@ class BPMNProcess:
         self.all_components.extend(self.throws)
         self.all_components.extend(self.catches)
         self.all_components.extend(self.end_events)
-        self.all_components.append(self.start_event)
+        self.all_components.extend(self.start_events)
 
         # Check that there are no duplicate service names.
         all_names = set()

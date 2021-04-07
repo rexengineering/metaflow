@@ -18,7 +18,6 @@ from .k8s_utils import (
 from .reliable_wf_utils import create_reliable_wf_catcher
 
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,
@@ -60,7 +59,8 @@ class BPMNEndEvent(BPMNComponent):
         forward_set = list(digraph.get(self.id, set()))
         assert len(forward_set) == 0, "Can't have outgoing edge from End Event."
 
-        deployment_env_config = [
+        deployment_env_config = self.init_env_config() + \
+        [
             {
                 "name": "REXFLOW_THROW_END_FUNCTION",
                 "value": "END",

@@ -102,34 +102,37 @@ flowd_service_specs = {
     },
 }
 
-mk_flowd_deployment_spec = lambda etcd_host, kafka_enabled : {  # noqa
-    'apiVersion': 'apps/v1',
-    'kind': 'Deployment',
-    'metadata': {'name': 'flowd'},
-    'spec': {
-        'replicas': 1,
-        'selector': {'matchLabels': {'app': 'flowd'}},
-        'template': {
-            'metadata': {'labels': {'app': 'flowd'}},
-            'spec': {
-                'containers': [{
-                    'image': 'flowd',
-                    'imagePullPolicy': 'IfNotPresent',
-                    'name': 'flowd',
-                    'ports': [{'containerPort': 9001}, {'containerPort': 9002}],
-                    'env': [
-                        {'name': 'ETCD_HOST', 'value': etcd_host},
-                        {
-                            'name': 'REXFLOW_KAFKA_HOST',
-                            'value': DEV_KAFKA_HOST if kafka_enabled else None
-                        },
-                        {"name": "I_AM_FLOWD", "value": "True"},
-                    ]
-                }],
-                'serviceAccountName': 'flowd'}
+def mk_flowd_deployment_spec(etcd_host, kafka_enabled):
+    config = {
+        'apiVersion': 'apps/v1',
+        'kind': 'Deployment',
+        'metadata': {'name': 'flowd'},
+        'spec': {
+            'replicas': 1,
+            'selector': {'matchLabels': {'app': 'flowd'}},
+            'template': {
+                'metadata': {'labels': {'app': 'flowd'}},
+                'spec': {
+                    'containers': [{
+                        'image': 'flowd',
+                        'imagePullPolicy': 'IfNotPresent',
+                        'name': 'flowd',
+                        'ports': [{'containerPort': 9001}, {'containerPort': 9002}],
+                        'env': [
+                            {'name': 'ETCD_HOST', 'value': etcd_host},
+                            {"name": "I_AM_FLOWD", "value": "True"},
+                        ]
+                    }],
+                    'serviceAccountName': 'flowd'}
+            }
         }
     }
-}
+    if kafka_enabled:
+        config['spec']['template']['spec']['containers'][0]['env'].append({
+            'name': 'REXFLOW_KAFKA_HOST',
+            'value': DEV_KAFKA_HOST if kafka_enabled else None
+        })
+    return config
 
 flowd_edit_default_spec = {
     'apiVersion': 'rbac.authorization.k8s.io/v1',
@@ -205,37 +208,39 @@ healthd_service_spec = {
     },
 }
 
-mk_healthd_deployment_spec = lambda etcd_host, kafka_enabled: {  # noqa
-    'apiVersion': 'apps/v1',
-    'kind': 'Deployment',
-    'metadata': {'name': 'healthd'},
-    'spec': {
-        'replicas': 1,
-        'selector': {'matchLabels': {'app': 'healthd'}},
-        'template': {
-            'metadata': {'labels': {'app': 'healthd'}},
-            'spec': {
-                'containers': [
-                    {
-                        'image': 'healthd',
-                        'imagePullPolicy': 'IfNotPresent',
-                        'name': 'healthd',
-                        'ports': [{'containerPort': 5050}],
-                        'env': [
-                            {
-                            'name': 'REXFLOW_KAFKA_HOST',
-                            'value': DEV_KAFKA_HOST if kafka_enabled \
-                                else None
-                            },
-                            {'name': 'ETCD_HOST', 'value': etcd_host},
-                            {'name': 'HEALTHD_ON_KUBERNETES', 'value': 'True'}
-                        ],
-                    },
-                ],
-                'serviceAccountName': 'healthd'}
+def mk_healthd_deployment_spec(etcd_host, kafka_enabled):
+    config = {
+        'apiVersion': 'apps/v1',
+        'kind': 'Deployment',
+        'metadata': {'name': 'healthd'},
+        'spec': {
+            'replicas': 1,
+            'selector': {'matchLabels': {'app': 'healthd'}},
+            'template': {
+                'metadata': {'labels': {'app': 'healthd'}},
+                'spec': {
+                    'containers': [
+                        {
+                            'image': 'healthd',
+                            'imagePullPolicy': 'IfNotPresent',
+                            'name': 'healthd',
+                            'ports': [{'containerPort': 5050}],
+                            'env': [
+                                {'name': 'ETCD_HOST', 'value': etcd_host},
+                                {'name': 'HEALTHD_ON_KUBERNETES', 'value': 'True'}
+                            ],
+                        },
+                    ],
+                    'serviceAccountName': 'healthd'}
+            },
         },
-    },
-}
+    }
+    if kafka_enabled:
+        config['spec']['template']['spec']['containers'][0]['env'].append({
+            'name': 'REXFLOW_KAFKA_HOST',
+            'value': DEV_KAFKA_HOST if kafka_enabled else None
+        })
+    return config
 
 healthd_virtual_service_spec = {
     'apiVersion': 'networking.istio.io/v1alpha3',
