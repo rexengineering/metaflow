@@ -30,13 +30,14 @@ class BPMNTask(BPMNComponent):
         super().__init__(task, process, global_props)
         self._task = task
 
-        assert 'service' in self._annotation, \
-            "Must annotate Service Task with service information."
+        if self._annotation is not None:
+            assert 'service' in self._annotation, \
+                "Must annotate Service Task with service information."
 
-        assert 'host' in self._annotation['service'], \
-            "Must annotate Service Task with service host."
+            assert 'host' in self._annotation['service'], \
+                "Must annotate Service Task with service host."
 
-        if self._is_preexisting:
+        if self._is_preexisting and self._annotation is not None:
             assert 'namespace' in self._annotation['service'], \
                 "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']

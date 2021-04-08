@@ -16,6 +16,7 @@ from flowlib.config import (
 )
 from flowlib.constants import (
     BStates,
+    flow_result,
     WorkflowInstanceKeys,
     X_HEADER_FLOW_ID,
     X_HEADER_WORKFLOW_ID,
@@ -56,7 +57,6 @@ class FlowApp(QuartApp):
         return 'Hello there!\n'
 
     async def fail_route(self):
-        print("Hello, there, General Kenobe!", flush=True)
         # When there is a flow ID in the headers, store the result in etcd and
         # change the state to ERROR.
         if X_HEADER_WORKFLOW_ID in request.headers and X_HEADER_FLOW_ID in request.headers:
@@ -117,4 +117,4 @@ class FlowApp(QuartApp):
 
     def wf_map(self):
         # TODO: Return a map from BPMN Workflow ID's to REXFlow deployment ID's.
-        return jsonify({}), 200
+        return flow_result(0, 'Ok', wf_map={})
