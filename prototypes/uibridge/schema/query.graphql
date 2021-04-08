@@ -8,5 +8,5 @@ type Query {
 type WorkflowQuery {
     active(filter: WorkflowFilter): [Workflow!]!
     """Workflows available to start"""
-    available: [WorkflowType!]!
+    available: [WorkflowDeployment!]!
 }

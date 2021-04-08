@@ -11,18 +11,23 @@ from .async_service import AsyncService
 
 BASEDIR = os.path.dirname(__file__)
 
+from ariadne import ObjectType
+
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/init', methods=['POST'])(self.init_route)
+        self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
         self.graphql_schema = make_executable_schema(
-            load_schema_from_path(os.path.join(BASEDIR, 'schema')),
+            self.schema,
             bindables.session_id,
             bindables.workflow_id,
             bindables.workflow_type,
             bindables.task_id,
-            bindables.state
+            bindables.state,
+            resolvers.query,
+            resolvers.workflow_query,
         )
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)
@@ -56,7 +61,7 @@ class REXFlowUIBridge(AsyncService):
         success, result = graphql_sync(
             self.graphql_schema,
             data,
-            context_value=request,
+            context_value=[request],
             debug=self.app.debug
         )
         status_code = 200 if success else 400

@@ -3,11 +3,13 @@
 
 scalar SessionId
 
-scalar WorkflowId
+scalar WorkflowInstance
 
-scalar WorkflowType
+scalar WorkflowDeployment
 
 scalar TaskId
+
+scalar DataId
 
 scalar State
 
@@ -30,11 +32,9 @@ enum OperationStatus {
 }
 
 """Client side constraints for user input"""
-enum Validator {
+enum ValidationType {
     REQUIRED
-    NUMERIC
-    PHONE_NUMBER
-    EMAIL
+    REGEX
 }
 
 """Data request types that will be mapped to UI components"""
@@ -50,8 +50,10 @@ type Session {
 }
 
 type Workflow {
-    id: WorkflowId!
-    type: WorkflowType
+    """Id for a workflow instance"""
+    iid: WorkflowInstance!
+    """Id for a workflow deployment"""
+    did: WorkflowDeployment
     status: WorkflowStatus!
     tasks(filter: TaskFilter): [Task!]!
 }
@@ -61,26 +63,38 @@ type Task {
     id: TaskId!
     data: [TaskData!]!
     status: TaskStatus!
-    errors: [TaskProblems!]!
 }
 
 """Individual data element that will map to a component on the UI"""
 type TaskData {
-    request: String!
+    id: DataId!
     type: DataType!
+    order: Int!
+    label: String
     data: String
     encrypted: Boolean!
     validators: [Validator!]!
 }
 
+type Validator {
+    type: ValidationType!
+    """For regex validation the regex should go here"""
+    constraint: String
+}
+
 # Data filters
 
+"""Filter for the active workflows"""
 input WorkflowFilter {
-    ids: [WorkflowId!]!
+    ids: [WorkflowInstance!]!
     status: WorkflowStatus
 }
 
 input TaskFilter {
     ids: [TaskId!]!
     status: TaskStatus
+}
+
+type EggUser {
+    username: String!
 }
