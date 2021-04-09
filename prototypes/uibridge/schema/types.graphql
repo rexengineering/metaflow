@@ -16,14 +16,18 @@ scalar State
 # Enum types
 
 enum WorkflowStatus {
-    WAITING
-    IN_PROGRESS
-    FINISHED
+    COMPLETED
+    ERROR
+    RUNNING
+    START
+    STARTING
+    STOPPED
+    STOPPING
 }
 
 enum TaskStatus {
-    IN_PROGRESS
-    FINISHED
+    UP
+    DOWN
 }
 
 enum OperationStatus {
@@ -93,8 +97,4 @@ input WorkflowFilter {
 input TaskFilter {
     ids: [TaskId!]!
     status: TaskStatus
-}
-
-type EggUser {
-    username: String!
 }

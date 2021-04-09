@@ -90,116 +90,125 @@ class Headers:
 class WorkflowKeys:
     ROOT = f'{REXFLOW_ROOT}/workflows'
 
-    def __init__(self, id):
-        self.root = self.key_of(id)
-        self.proc = self.proc_key(id)
-        self.probe = self.probe_key(id)
-        self.state = self.state_key(id)
-        self.host = self.host_key(id)
+    def __init__(self, did):
+        self.root = self.key_of(did)
+        self.proc = self.proc_key(did)
+        self.probe = self.probe_key(did)
+        self.state = self.state_key(did)
+        self.host = self.host_key(did)
 
         # Actually an S3 key since we don't store the k8s specs in etcd.
-        self.specs = self.specs_key(id)
+        self.specs = self.specs_key(did)
 
     @classmethod
-    def key_of(cls, id):
-        return f'{WorkflowKeys.ROOT}/{id}'
+    def key_of(cls, did):
+        return f'{WorkflowKeys.ROOT}/{did}'
 
     @classmethod
-    def proc_key(cls, id):
-        return f'{cls.key_of(id)}/proc'
+    def proc_key(cls, did):
+        return f'{cls.key_of(did)}/proc'
 
     @classmethod
-    def probe_key(cls, id):
-        return f'{cls.key_of(id)}/probes'
+    def probe_key(cls, did):
+        return f'{cls.key_of(did)}/probes'
 
     @classmethod
-    def task_key(cls, wf_id, task_id):
-        return f'{cls.probe_key(wf_id)}/{task_id}'
+    def task_key(cls, did, tid):
+        return f'{cls.probe_key(did)}/{tid}'
 
     @classmethod
-    def state_key(cls, id):
-        return f'{cls.key_of(id)}/state'
+    def state_key(cls, did):
+        return f'{cls.key_of(did)}/state'
 
     @classmethod
-    def specs_key(cls, id):
-        return f'{cls.key_of(id)}/k8s_specs'
+    def specs_key(cls, did):
+        return f'{cls.key_of(did)}/k8s_specs'
 
     @classmethod
-    def host_key(cls, id):
-        return f'{cls.key_of(id)}{HOST_SUFFIX}'
+    def host_key(cls, did):
+        return f'{cls.key_of(did)}{HOST_SUFFIX}'
+
+    @classmethod
+    def field_key(cls,did,tid):
+        return f'{cls.key_of(did)}/fields/{tid}'
 
 
 class WorkflowInstanceKeys:
     ROOT = f'{REXFLOW_ROOT}/instances'
 
-    def __init__(self, id):
-        self.root          = self.key_of(id)
-        self.proc          = self.proc_key(id)
-        self.result        = self.result_key(id)
-        self.state         = self.state_key(id)
-        self.headers       = self.headers_key(id)
-        self.payload       = self.payload_key(id)
-        self.error_key     = self.was_error_key(id)
-        self.parent        = self.parent_key(id)
-        self.end_event     = self.end_event_key(id)
-        self.traceid       = self.traceid_key(id)
-        self.content_type  = self.content_type_key(id)
-        self.timed_events  = self.timed_events_key(id)
-        self.timed_results = self.timed_results_key(id)
+    def __init__(self, iid):
+        self.root          = self.key_of(iid)
+        self.proc          = self.proc_key(iid)
+        self.result        = self.result_key(iid)
+        self.state         = self.state_key(iid)
+        self.headers       = self.headers_key(iid)
+        self.payload       = self.payload_key(iid)
+        self.error_key     = self.was_error_key(iid)
+        self.parent        = self.parent_key(iid)
+        self.end_event     = self.end_event_key(iid)
+        self.traceid       = self.traceid_key(iid)
+        self.content_type  = self.content_type_key(iid)
+        self.timed_events  = self.timed_events_key(iid)
+        self.timed_results = self.timed_results_key(iid)
+        self.forms         = self.form_key(iid)
 
     @classmethod
-    def key_of(cls, id):
-        return f'{WorkflowInstanceKeys.ROOT}/{id}'
+    def key_of(cls, iid):
+        return f'{WorkflowInstanceKeys.ROOT}/{iid}'
 
     @classmethod
-    def proc_key(cls, id):
-        return f'{cls.key_of(id)}/proc'
+    def proc_key(cls, iid):
+        return f'{cls.key_of(iid)}/proc'
 
     @classmethod
-    def state_key(cls, id):
-        return f'{cls.key_of(id)}/state'
+    def state_key(cls, iid):
+        return f'{cls.key_of(iid)}/state'
 
     @classmethod
-    def result_key(cls, id):
-        return f'{cls.key_of(id)}/result'
+    def result_key(cls, iid):
+        return f'{cls.key_of(iid)}/result'
 
     @classmethod
-    def payload_key(cls, id):
-        return f'{cls.key_of(id)}/payload'
+    def payload_key(cls, iid):
+        return f'{cls.key_of(iid)}/payload'
 
     @classmethod
-    def headers_key(cls, id):
-        return f'{cls.key_of(id)}/headers'
+    def headers_key(cls, iid):
+        return f'{cls.key_of(iid)}/headers'
 
     @classmethod
-    def was_error_key(cls, id):
-        return f'{cls.key_of(id)}/wasError'
+    def was_error_key(cls, iid):
+        return f'{cls.key_of(iid)}/wasError'
 
     @classmethod
-    def parent_key(cls, id):
-        return f'{cls.key_of(id)}/parent'
+    def parent_key(cls, iid):
+        return f'{cls.key_of(iid)}/parent'
 
     @classmethod
-    def end_event_key(cls, id):
-        return f'{cls.key_of(id)}/end_event'
+    def end_event_key(cls, iid):
+        return f'{cls.key_of(iid)}/end_event'
 
     @classmethod
-    def traceid_key(cls, id):
-        return f'{cls.key_of(id)}/traceid'
+    def traceid_key(cls, iid):
+        return f'{cls.key_of(iid)}/traceid'
 
     @classmethod
-    def content_type_key(cls, id):
-        return f'{cls.key_of(id)}/content_type'
+    def content_type_key(cls, iid):
+        return f'{cls.key_of(iid)}/content_type'
 
     @classmethod
-    def timed_events_key(cls, id):
-        return f'{cls.key_of(id)}/timed_events'
+    def timed_events_key(cls, iid):
+        return f'{cls.key_of(iid)}/timed_events'
 
     @classmethod
-    def timed_results_key(cls, id):
-        return f'{cls.key_of(id)}/timed_results'
+    def timed_results_key(cls, iid):
+        return f'{cls.key_of(iid)}/timed_results'
 
-def split_key(instance_id: str):
+    @classmethod
+    def form_key(cls, iid):
+        return f'{cls.key_of(iid)}/forms'
+
+def split_key(iid: str):
     '''
     Accept a key in the form of <workflow_id>-<guid>
     and return a tuple of (workflow_id,guid)
@@ -207,7 +216,7 @@ def split_key(instance_id: str):
     It's assumed that the instance_id has no occurance of '-'
     othwerise this breaks.
     '''
-    parts = instance_id.split('-')
+    parts = iid.split('-')
     return ('-'.join(parts[0:-1]), '-'.join(parts[-1]))
 
 

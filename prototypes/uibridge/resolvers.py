@@ -1,5 +1,9 @@
 # TODO: Stub out resolvers for queries and mutations defined in the schema.
+import json
+import typing
 from ariadne import ObjectType
+from flowlib import etcd_utils
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
 
 query = ObjectType("Query")
 workflow_query = ObjectType("WorkflowQuery")
@@ -15,55 +19,48 @@ def resolve_workflows(_, info, filter=None):
 @workflow_query.field('active')
 def resolve_workflow_query_active(_, info, filter=None):
     # pull tasks from etcd based on filter (if specified)
-    print( f'resolve_workflow_query_active {filter}', flush=True)
-    return [{'iid':'wf_iid','did':'wf_did','status':'IN_PROGRESS','tasks':[{'id':'task_id','data':[], 'status':'IN_PROGRESS'}]}]
+    etcd = etcd_utils.get_etcd()
+    dids = etcd_utils.get_next_level(WorkflowKeys.ROOT)
+    ret = []
+    for did in dids:
+        ret.append(rexflow_did_to_graphql(did))
+    return ret
 
+def rexflow_did_to_graphql(did:str) -> dict:
+    '''
+    given a REXFlow DID, pull the relevant data from etcd and build a
+    dict containing a graphql Workflow object
+    '''
+    etcd = etcd_utils.get_etcd()
+    keys = WorkflowKeys(did)
+    ret = {}
+    ret['iid'] = ''
+    ret['did'] = did
+    ret['status'] = (etcd.get(keys.state)[0]).decode('utf-8')
+    ret['tasks'] = rexflow_did_tasks_to_graphql(did)
+    return ret
 
-# session = ObjectType("Session")
-# workflow_query = ObjectType("WorkflowQuery")
-# workflow = ObjectType("Workflow")
+def rexflow_did_tasks_to_graphql(did:str) -> list:
+    etcd = etcd_utils.get_etcd()
+    tasks = etcd_utils.get_next_level(WorkflowKeys.probe_key(did))
+    print(tasks,flush=True)
+    ret = []
+    for tid in tasks:
+        '''
+        Here we would query etcd to pull the field definitions
+        but for now we fudge it.
+        '''
+        tdata = {}
+        tdata['id'] = tid
 
+        fields = etcd.get(WorkflowKeys.field_key(did,tid))[0]
+        print(WorkflowKeys.field_key(did,tid))
+        print(fields)
+        if fields:
+            tdata['data'] = json.loads(fields.decode('utf-8'))
+        else:
+            tdata['data'] = []
+        tdata['status'] = etcd.get(WorkflowKeys.task_key(did,tid))[0].decode('utf-8')
+        ret.append(tdata)
+    return ret
 
-# @query.field("session")
-# def resolve_session(obj,info):
-#     print(f'resolve_session {info.context}')
-#     return session
-
-# @session.field("id")
-# def resolve_session_id(obj,info):
-#     print(f'resolve_session_id {info.context}')
-#     return "Session ID"
-
-# @session.field("state")
-# def resolve_session_state(obj,info):
-#     print(f'resolve_session_state {info.context}')
-#     return "good"
-
-# @query.field("workflows")
-# def resolve_workflows(obj,info):
-#     print(f'resolve_workflows {type(obj)}')
-#     return workflow_query
-
-# @workflow_query.field("active")
-# def resolve_workflow_query_active(obj,info,filter=None):
-#     print(f'resolve_workflow_query_active {type(obj)}')
-#     return [workflow]
-
-# @workflow_query.field("available")
-# def resolve_workflow_query_available(obj,info):
-#     print(f'resolve_workflow_query_available {type(obj)}')
-#     return ['hello','world']
-
-# @workflow.field("iid")
-# def resolve_workflow_iid(obj,info):
-#     print(f'resolve_workflow_iid {type(obj)}')
-#     return 'wf_iid'
-
-# @workflow.field("did")
-# def resolve_workflow_did(obj,info):
-#     print(f'resolve_workflow_did {type(obj)}')
-#     return 'wf_did'
-
-# def get_workflow(iid,did):
-#     workflow = ObjectType("Workflow")
-#     return workflow
