@@ -42,7 +42,7 @@ def to_base64(file_loc):
 
 def create_deployment(
         namespace, dns_safe_name, container, container_port, env, etcd_access=False,
-        kafka_access=False, replicas=1):
+        kafka_access=False, replicas=1, priority_class=None):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -81,6 +81,8 @@ def create_deployment(
             },
         },
     }
+    if priority_class is not None:
+        deployment['spec']['template']['spec']['priorityClassName'] = priority_class
     env = env.copy()
 
     if etcd_access:

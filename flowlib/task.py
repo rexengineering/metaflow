@@ -310,6 +310,7 @@ class BPMNTask(BPMNComponent):
             self.service_properties.container,
             port,
             env=[],
+            priority_class=self.workflow_properties.priority_class,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(
