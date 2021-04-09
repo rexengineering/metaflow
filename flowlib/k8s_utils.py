@@ -22,6 +22,7 @@ from .config import (
     KAFKA_SASL_MECHANISM,
     KAFKA_SECURITY_PROTOCOL,
     ETCD_HOSTS,
+    REXFLOW_ROOT_PREFIX,
 )
 
 ETCD_ENV_MAP = {
@@ -86,6 +87,10 @@ def create_deployment(
         env.append({
             "name": "ETCD_HOSTS",
             "value": ETCD_HOSTS,
+        })
+        env.append({
+            "name": "REXFLOW_ROOT_PREFIX",
+            "value": REXFLOW_ROOT_PREFIX,
         })
         env.extend([
             {

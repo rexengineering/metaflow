@@ -30,6 +30,7 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     INSTANCE_FAIL_ENDPOINT,
+    REXFLOW_ROOT_PREFIX,
 )
 
 DEFAULT_TOTAL_ATTEMPTS = '2'
@@ -158,11 +159,16 @@ def create_kafka_transport(
        f'reliable-transport_{from_component.name}_to_{to_component.name}_{worklow_id}'
     where workflow_id is the ID of the parent workflow.
     '''
-    throw_service_name = to_valid_k8s_name(f'throw-{from_component.name}-to-{to_component.name}')
-    catch_service_name = to_valid_k8s_name(f'catch-{from_component.name}-to-{to_component.name}')
+    id_hash = from_component.workflow_properties.id_hash
+    throw_service_name = to_valid_k8s_name(
+        f'throw-{from_component.name}-to-{to_component.name}-{id_hash}'
+    )
+    catch_service_name = to_valid_k8s_name(
+        f'catch-{from_component.name}-to-{to_component.name}-{id_hash}'
+    )
 
-    # Take my word for it, this will match the 
-    kafka_topic_name = f'rexflow-transport_{from_component.workflow_properties.id}_'
+    kafka_topic_name = to_valid_k8s_name(REXFLOW_ROOT_PREFIX)
+    kafka_topic_name += f'-transport_{from_component.workflow_properties.id}_'
     kafka_topic_name += f'{from_component.name}_to_{to_component.name}'
 
     wf_id = from_component.workflow_properties.id

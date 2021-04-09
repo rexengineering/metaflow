@@ -8,6 +8,8 @@ See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
 
+DEFAULT_REXFLOW_ROOT_PREFIX = "/rexflow"
+REXFLOW_ROOT_PREFIX = os.getenv('REXFLOW_ROOT_PREFIX', DEFAULT_REXFLOW_ROOT_PREFIX)
 
 # Flowd Endpoints
 DEFAULT_FLOWD_HOST = 'flowd.rexflow:9002'
