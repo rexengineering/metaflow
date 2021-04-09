@@ -30,7 +30,6 @@ from .user_task import BPMNUserTask
 from .bpmn_util import (
     iter_xmldict_for_key,
     raw_proc_to_digraph,
-    get_annotations,
     BPMNComponent,
     WorkflowProperties,
     outgoing_sequence_flow_table,
