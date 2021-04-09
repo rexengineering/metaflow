@@ -336,3 +336,7 @@ class BPMNProcess:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
 
         return result
+
+    @property
+    def xmldict(self) -> OrderedDict:
+        return self._process

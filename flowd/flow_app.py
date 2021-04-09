@@ -1,14 +1,14 @@
 import asyncio
+from collections import defaultdict
 import logging
 import json
 
 from async_timeout import timeout
 from quart import request
-from quart.json import jsonify
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
-from flowlib.workflow import Workflow
+from flowlib.workflow import Workflow, get_workflows
 
 from flowlib.config import (
     INSTANCE_FAIL_ENDPOINT_PATH,
@@ -116,5 +116,16 @@ class FlowApp(QuartApp):
         return 'Another happy landing (:'
 
     def wf_map(self):
-        # TODO: Return a map from BPMN Workflow ID's to REXFlow deployment ID's.
-        return flow_result(0, 'Ok', wf_map={})
+        '''Get a map from workflow ID's to workflow deployment ID's.
+
+        Note that this mapping does not assume the workflow ID is "baked" into
+        the workflow deployment ID, which it presently is.
+        '''
+        etcd = get_etcd(is_not_none=True)
+        wf_map = defaultdict(list)
+        for workflow in get_workflows():
+            if etcd.get(workflow.keys.state)[0] == BStates.RUNNING:
+                wf_id = workflow.process.xmldict['@id']
+                wf_did = workflow.id
+                wf_map[wf_id].append(wf_did)
+        return flow_result(0, 'Ok', wf_map=wf_map)
