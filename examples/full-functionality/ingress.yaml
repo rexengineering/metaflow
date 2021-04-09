@@ -1,0 +1,14 @@
+---
+action: 'expose_ingress'
+host: foo.rexhomes.com
+component_name: 'start'
+wf_id: conditional-e55771e6
+args:
+  ingress_type: rex-ingress-dev
+---
+action: 'expose_ingress'
+host: bar.rexhomes.com
+component_name: 'start-underpants'
+wf_id: underpants-0b5b2004
+args:
+  ingress_type: rex-ingress-dev

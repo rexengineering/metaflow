@@ -1,0 +1,2 @@
+FROM secret-sauce AS base
+CMD [ "sleep", "10000"]

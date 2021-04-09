@@ -287,6 +287,7 @@ class WorkflowProperties:
         self._traffic_shadow_svc = None
         self._xgw_expression_type = 'feel'
         self._deployment_timeout = 120
+        self._use_closure_transport = False
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -339,7 +340,15 @@ class WorkflowProperties:
     def deployment_timeout(self):
         return self._deployment_timeout
 
+    @property
+    def use_closure_transport(self):
+        return self._use_closure_transport
+
     def update(self, annotations):
+        if 'use_closure_transport' in annotations:
+            self._use_closure_transport = annotations['use_closure_transport']
+            assert type(self._use_closure_transport) == bool
+
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
             self._orchestrator = annotations['orchestrator']

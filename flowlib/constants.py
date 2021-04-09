@@ -16,6 +16,7 @@ TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
 X_HEADER_FLOW_ID = 'X-Flow-Id'
 X_HEADER_WORKFLOW_ID = 'X-Rexflow-Wf-Id'
 X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
+X_HEADER_TASK_ID = 'X-Rexflow-Task-Id'
 
 K8S_MAX_NAMELENGTH = 63
 
@@ -54,7 +55,6 @@ def to_valid_k8s_name(name):
     return name
 
 
-
 class States:
     COMPLETED = 'COMPLETED'
     ERROR = 'ERROR'
@@ -76,7 +76,6 @@ BStates = ByteStatesClass()
 
 REXFLOW_ROOT = '/rexflow'
 TRACEID_HEADER = 'X-B3-Traceid'
-HOST_SUFFIX = '/host'
 
 
 class WorkflowKeys:
@@ -87,7 +86,6 @@ class WorkflowKeys:
         self.proc = self.proc_key(id)
         self.probe = self.probe_key(id)
         self.state = self.state_key(id)
-        self.host = self.host_key(id)
 
         # Actually an S3 key since we don't store the k8s specs in etcd.
         self.specs = self.specs_key(id)
@@ -116,28 +114,28 @@ class WorkflowKeys:
     def specs_key(cls, id):
         return f'{cls.key_of(id)}/k8s_specs'
 
-    @classmethod
-    def host_key(cls, id):
-        return f'{cls.key_of(id)}{HOST_SUFFIX}'
-
 
 class WorkflowInstanceKeys:
     ROOT = f'{REXFLOW_ROOT}/instances'
 
     def __init__(self, id):
-        self.root          = self.key_of(id)
-        self.proc          = self.proc_key(id)
-        self.result        = self.result_key(id)
-        self.state         = self.state_key(id)
-        self.headers       = self.headers_key(id)
-        self.payload       = self.payload_key(id)
-        self.error_key     = self.was_error_key(id)
-        self.parent        = self.parent_key(id)
-        self.end_event     = self.end_event_key(id)
-        self.traceid       = self.traceid_key(id)
-        self.content_type  = self.content_type_key(id)
-        self.timed_events  = self.timed_events_key(id)
-        self.timed_results = self.timed_results_key(id)
+        self.root           = self.key_of(id)
+        self.proc           = self.proc_key(id)
+        self.result         = self.result_key(id)
+        self.state          = self.state_key(id)
+        self.error_code     = self.error_code_key(id)
+        self.error_message  = self.error_message_key(id)
+        self.failed_task    = self.failed_task_key(id)
+        self.input_headers  = self.input_headers_key(id)
+        self.input_data     = self.input_data_key(id)
+        self.output_data    = self.output_data_key(id)
+        self.output_headers = self.output_headers_key(id)
+        self.parent         = self.parent_key(id)
+        self.end_event      = self.end_event_key(id)
+        self.traceid        = self.traceid_key(id)
+        self.content_type   = self.content_type_key(id)
+        self.timed_events   = self.timed_events_key(id)
+        self.timed_results  = self.timed_results_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -156,12 +154,32 @@ class WorkflowInstanceKeys:
         return f'{cls.key_of(id)}/result'
 
     @classmethod
-    def payload_key(cls, id):
-        return f'{cls.key_of(id)}/payload'
+    def error_code_key(cls, id):
+        return f'{cls.key_of(id)}/error_code'
 
     @classmethod
-    def headers_key(cls, id):
-        return f'{cls.key_of(id)}/headers'
+    def failed_task_key(cls, id):
+        return f'{cls.key_of(id)}/failed_task'
+
+    @classmethod
+    def error_message_key(cls, id):
+        return f'{cls.key_of(id)}/error_message'
+
+    @classmethod
+    def input_headers_key(cls, id):
+        return f'{cls.key_of(id)}/input_headers'
+
+    @classmethod
+    def input_data_key(cls, id):
+        return f'{cls.key_of(id)}/input_data'
+
+    @classmethod
+    def output_headers_key(cls, id):
+        return f'{cls.key_of(id)}/output_headers'
+
+    @classmethod
+    def output_data_key(cls, id):
+        return f'{cls.key_of(id)}/output_data'
 
     @classmethod
     def was_error_key(cls, id):
@@ -214,5 +232,21 @@ def get_ingress_object_name(hostname):
     return to_valid_k8s_name(long_name)
 
 
-def get_ingress_labels(wf_obj):
-    return {"key": "rexflow.rexhomes.com/wf-id", "value": wf_obj.id}
+class IngressHostKeys:
+    ROOT = f'{REXFLOW_ROOT}/hosts'
+
+    def __init__(self, host):
+        self.workflow_id = self.workflow_id_key(host)
+        self.component_name = self.component_name_key(host)
+
+    @classmethod
+    def key_of(cls, host):
+        return f'{IngressHostKeys.ROOT}/{host}'
+
+    @classmethod
+    def workflow_id_key(cls, host):
+        return f'{cls.key_of(host)}/workflow_id'
+
+    @classmethod
+    def component_name_key(cls, host):
+        return f'{cls.key_of(host)}/component_name'

@@ -73,18 +73,6 @@ message StopRequest {
     // FIXME: Figure out any additional flags and/or arguments.
 }
 
-enum UpdateRequestAction {
-    expose_ingress = 0;
-    delete_ingress = 1;
-    add_kafka_topic = 2;
-    delete_kafka_topic = 3;
-}
-
 message UpdateRequest {
-    string wf_id = 1;
-    UpdateRequestAction action = 2;
-    string host = 3;
-    string kafka_topic = 4;
-    string switch_from_wf_id = 5;
-    repeated string args = 6;
+    string update_spec = 1;
 }
