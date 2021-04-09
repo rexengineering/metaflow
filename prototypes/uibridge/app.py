@@ -6,7 +6,7 @@ from ariadne.constants import PLAYGROUND_HTML
 from ariadne.graphql import graphql_sync
 
 from flowlib.constants import flow_result
-from . import bindables, resolvers
+from . import bindables, resolvers, mutations
 from .async_service import AsyncService
 
 BASEDIR = os.path.dirname(__file__)
@@ -28,6 +28,8 @@ class REXFlowUIBridge(AsyncService):
             bindables.state,
             resolvers.query,
             resolvers.workflow_query,
+            mutations.mutation,
+            mutations.session_mutation,
         )
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)

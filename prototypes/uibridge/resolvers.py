@@ -46,16 +46,10 @@ def rexflow_did_tasks_to_graphql(did:str) -> list:
     print(tasks,flush=True)
     ret = []
     for tid in tasks:
-        '''
-        Here we would query etcd to pull the field definitions
-        but for now we fudge it.
-        '''
         tdata = {}
         tdata['id'] = tid
 
         fields = etcd.get(WorkflowKeys.field_key(did,tid))[0]
-        print(WorkflowKeys.field_key(did,tid))
-        print(fields)
         if fields:
             tdata['data'] = json.loads(fields.decode('utf-8'))
         else:
