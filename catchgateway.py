@@ -127,7 +127,6 @@ class EventCatchPoller:
             if not etcd.replace(keys.state, States.STARTING, BStates.RUNNING):
                 logging.error('Failed to transition {keys.state} from STARTING -> RUNNING.')
         else:
-            print("Transition STARTING to ERROR", flush=True)
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error('Failed to transition {keys.state} from STARTING -> ERROR.')
 
