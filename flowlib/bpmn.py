@@ -3,6 +3,7 @@
 
 from collections import OrderedDict
 from io import IOBase, StringIO, BytesIO
+import functools
 import hashlib
 import json
 import logging
@@ -254,18 +255,22 @@ class BPMNProcess:
             logging.info(f"Unable to download s3 object for {key}.")
             return None
 
-
+    @functools.lru_cache
     def to_istio(self, stream: IOBase = None, id_hash: str = None, **kws):
         if stream is None:
             stream = sys.stdout
+        result = self.to_istio_helper(id_hash, **kws)
+        if result is not None:
+            stream.write(result)
+        return result
 
+    def to_istio_helper(self, id_hash, **kws):
         # First, check if the input has been cached in s3. If so, then we retrieve and
         # do NOT recompute. This is critical so that we can update versions of flowd
         # without worrying about version conflicts.
         keys_obj = WorkflowKeys(self.properties.id)
         cached_result = self._get_specs_from_s3(keys_obj.specs)
         if cached_result:
-            stream.write(cached_result)
             return cached_result
 
         results = []
@@ -304,7 +309,6 @@ class BPMNProcess:
         temp_yaml = yaml.safe_dump_all(results, **kws)
         if not DO_MANUAL_INJECTION:
             self._save_specs_to_s3(temp_yaml, keys_obj.specs)
-            stream.write(temp_yaml)
             return temp_yaml
 
         istioctl_result = subprocess.run(
@@ -320,8 +324,7 @@ class BPMNProcess:
                 ': IfNotPresent',
             ).replace(f'docker.io/istio/proxyv2:{ISTIO_VERSION}', REX_ISTIO_PROXY_IMAGE)
             self._save_specs_to_s3(result, keys_obj.specs)
-            stream.write(result)
+            return result
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
-
-        return result
+            return None
