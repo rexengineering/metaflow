@@ -30,6 +30,9 @@ class REXFlowUIBridge(AsyncService):
             resolvers.workflow_query,
             mutations.mutation,
             mutations.session_mutation,
+            mutations.session_state_mutations,
+            mutations.workflow_mutations,
+            mutations.task_mutations,
         )
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)
