@@ -25,11 +25,11 @@ from .end_event import BPMNEndEvent
 from .throw_event import BPMNThrowEvent
 from .catch_event import BPMNCatchEvent
 from .constants import WorkflowKeys, to_valid_k8s_name
+from .user_task import BPMNUserTask
 
 from .bpmn_util import (
     iter_xmldict_for_key,
     raw_proc_to_digraph,
-    get_annotations,
     BPMNComponent,
     WorkflowProperties,
     outgoing_sequence_flow_table,
@@ -98,6 +98,12 @@ class BPMNProcess:
             bpmn_task = BPMNTask(task, process, self.properties)
             self.tasks.append(bpmn_task)
             self.component_map[task['@id']] = bpmn_task
+
+        self.user_tasks = []
+        for user_task in iter_xmldict_for_key(process, 'bpmn:userTask'):
+            bpmn_user_task = BPMNUserTask(user_task, process, self.properties)
+            self.user_tasks.append(bpmn_user_task)
+            self.component_map[user_task['@id']] = bpmn_user_task
 
         # Exclusive Gateways (conditional)
         self.xgateways = []
@@ -291,6 +297,10 @@ class BPMNProcess:
                 add_annotations(spec, get_rexflow_component_annotations(bpmn_component))
             results.extend(bpmn_component_specs)
 
+        if len(self.user_tasks):
+            # TODO: Deploy UI bridge.
+            logging.error('User tasks detected, need to deploy UI bridge.')
+
         # Now, add the REXFlow labels
         for k8s_spec in results:
             add_labels(k8s_spec, get_rexflow_labels(self.properties.id))
@@ -325,3 +335,7 @@ class BPMNProcess:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
 
         return result
+
+    @property
+    def xmldict(self) -> OrderedDict:
+        return self._process

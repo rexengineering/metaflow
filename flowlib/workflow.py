@@ -3,7 +3,7 @@ from io import StringIO
 import json
 import logging
 import subprocess
-from typing import Union
+from typing import List, Union
 import uuid
 
 from confluent_kafka.admin import AdminClient, NewTopic
@@ -26,6 +26,16 @@ from .config import get_kafka_config
 
 
 KAFKA_CONFIG = get_kafka_config()
+
+
+def get_workflows() -> List['Workflow']:
+    etcd = get_etcd(is_not_none=True)
+    wf_keys = [
+        wf_kv[1].key.decode()
+        for wf_kv in etcd.get_prefix(WorkflowKeys.ROOT, keys_only=True)
+    ]
+    wf_dids = set(wf_key.split('/')[3] for wf_key in wf_keys)
+    return [Workflow.from_id(wf_did) for wf_did in wf_dids]
 
 
 class Workflow:

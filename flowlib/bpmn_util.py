@@ -1,7 +1,7 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
-from typing import Any, Mapping, List
+from typing import Any, Generator, Mapping, List
 import yaml
 from hashlib import sha1, sha256
 import re
@@ -25,7 +25,7 @@ def calculate_id_hash(wf_id: str) -> str:
     return sha1(wf_id.encode()).hexdigest()[:8]
 
 
-def iter_xmldict_for_key(odict: OrderedDict, key: str):
+def iter_xmldict_for_key(odict: OrderedDict, key: str) -> Generator[OrderedDict, None, None]:
     '''Generator for iterating through an OrderedDict returned from xmltodict for a given key.
     '''
     value = odict.get(key)
@@ -486,13 +486,20 @@ class BPMNComponent:
             {'retry': {'total_attempts': self._global_props._retry_total_attempts}}
         )
 
-        if self._annotation is not None:
-            if 'call' in self._annotation:
-                self._call_properties.update(self._annotation['call'])
-            if 'health' in self._annotation:
-                self._health_properties.update(self._annotation['health'])
-            if 'service' in self._annotation:
-                self._service_properties.update(self._annotation['service'])
+        self.update_annotations()
+
+    def update_annotations(self, annotation=None):
+        if annotation is None:
+            annotation = self._annotation
+        elif self._annotation is None:
+            self._annotation = annotation
+        if annotation is not None:
+            if 'call' in annotation:
+                self._call_properties.update(annotation['call'])
+            if 'health' in annotation:
+                self._health_properties.update(annotation['health'])
+            if 'service' in annotation:
+                self._service_properties.update(annotation['service'])
 
     def init_env_config(self):
         if self._timer_description:

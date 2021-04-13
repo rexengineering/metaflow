@@ -5,6 +5,8 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 from collections import OrderedDict, namedtuple
 from typing import List, Mapping
 
+import yaml
+
 from .bpmn_util import WorkflowProperties, BPMNComponent, get_edge_transport
 
 from .k8s_utils import (
@@ -30,13 +32,22 @@ class BPMNTask(BPMNComponent):
         super().__init__(task, process, global_props)
         self._task = task
 
-        assert 'service' in self._annotation, \
-            "Must annotate Service Task with service information."
+        if self._annotation is not None:
+            # First priority: check for properties set in an annotation.
+            assert 'service' in self._annotation, \
+                "Must annotate Service Task with service information."
+            assert 'host' in self._annotation['service'], \
+                "Must annotate Service Task with service host."
+        elif 'bpmn:extensionElements' in task:
+            # Second priority: check for Camunda extensions.
+            extensions = task['bpmn:extensionElements']
+            if 'camunda:connector' in extensions:
+                self._service_properties._host = extensions['camunda:connector']['camunda:connectorId']
+        elif 'bpmn:documentation' in task and task['bpmn:documentation'].startswith('rexflow:'):
+            # Third priority: check for annotations in the documentation.
+            self.update_annotations(yaml.safe_load(task['bpmn:documentation']))
 
-        assert 'host' in self._annotation['service'], \
-            "Must annotate Service Task with service host."
-
-        if self._is_preexisting:
+        if self._is_preexisting and self._annotation is not None:
             assert 'namespace' in self._annotation['service'], \
                 "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']
