@@ -3,19 +3,12 @@ Removes significant copy-pasta by defining simple utilities to
 create a k8s Service, ServiceAccount, and Deployment.
 '''
 from base64 import b64encode
-import json
-import os
-from subprocess import check_output
 from typing import Mapping
-
-import kubernetes
-import requests
 
 from .config import (
     ETCD_CA_CERT,
     ETCD_CERT_CERT,
     ETCD_CERT_KEY,
-    FLOWD_HOST,
     KAFKA_HOST,
     KAFKA_API_KEY,
     KAFKA_API_SECRET,
@@ -36,7 +29,7 @@ def to_base64(file_loc):
     Should only be called on small files.
     '''
     with open(file_loc, 'r') as f:
-        return b64encode(f.read())
+        return b64encode(f.read().encode())
 
 
 def create_deployment(
