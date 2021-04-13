@@ -1,10 +1,13 @@
-# TODO: Stub out resolvers for queries and mutations defined in the schema.
+# resolvers for queries defined here
+# Note: mutation resolvers are in mutations.py
 import json
 import typing
 from ariadne import ObjectType
 from flowlib import etcd_utils
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
 
+# instantiate the query objects here. If you add another one,
+# you need to add it to the initializer list in app.py
 query = ObjectType("Query")
 workflow_query = ObjectType("WorkflowQuery")
 
