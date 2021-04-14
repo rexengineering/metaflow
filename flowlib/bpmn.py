@@ -311,17 +311,14 @@ class BPMNProcess:
             # TODO: Figure out configuration details for the UI bridge and add
             # to generated K8s specifications.
             ui_bridge_env = []
-            results.append(create_serviceaccount(
-                self.namespace,
-                UI_BRIDGE_NAME
-            ))
             results.append(create_deployment(
                 self.namespace,
                 UI_BRIDGE_NAME,
                 UI_BRIDGE_IMAGE,
                 UI_BRIDGE_PORT,
                 ui_bridge_env,
-                etcd_access=True
+                etcd_access=True,
+                use_service_account=False
             ))
             results.append(create_service(
                 self.namespace,
