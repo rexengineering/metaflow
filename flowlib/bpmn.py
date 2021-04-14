@@ -36,11 +36,20 @@ from .bpmn_util import (
 )
 from .k8s_utils import (
     add_labels,
+    create_deployment,
+    create_service,
+    create_serviceaccount,
     get_rexflow_labels,
     add_annotations,
     get_rexflow_component_annotations,
 )
-from .config import DO_MANUAL_INJECTION, K8S_SPECS_S3_BUCKET
+from .config import (
+    DO_MANUAL_INJECTION,
+    K8S_SPECS_S3_BUCKET,
+    UI_BRIDGE_IMAGE,
+    UI_BRIDGE_NAME,
+    UI_BRIDGE_PORT,
+)
 
 
 ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
@@ -297,9 +306,28 @@ class BPMNProcess:
                 add_annotations(spec, get_rexflow_component_annotations(bpmn_component))
             results.extend(bpmn_component_specs)
 
-        if len(self.user_tasks):
-            # TODO: Deploy UI bridge.
-            logging.error('User tasks detected, need to deploy UI bridge.')
+        if len(self.user_tasks) > 0:
+            logging.info('User tasks detected, adding UI bridge to deployment.')
+            # TODO: Figure out configuration details for the UI bridge and add
+            # to generated K8s specifications.
+            ui_bridge_env = []
+            results.append(create_serviceaccount(
+                self.namespace,
+                UI_BRIDGE_NAME
+            ))
+            results.append(create_deployment(
+                self.namespace,
+                UI_BRIDGE_NAME,
+                UI_BRIDGE_IMAGE,
+                UI_BRIDGE_PORT,
+                ui_bridge_env,
+                etcd_access=True
+            ))
+            results.append(create_service(
+                self.namespace,
+                UI_BRIDGE_NAME,
+                UI_BRIDGE_PORT
+            ))
 
         # Now, add the REXFlow labels
         for k8s_spec in results:

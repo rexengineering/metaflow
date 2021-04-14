@@ -120,6 +120,12 @@ def get_kafka_config():
 
 INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE")
 
-# This configuration is pertinent when running the UI bridge locally.
+# This configuration is pertinent when running the UI bridge.
+DEFAULT_UI_BRIDGE_NAME = 'ui-bridge'
+UI_BRIDGE_NAME = os.getenv('REXFLOW_UI_BRIDGE_NAME', DEFAULT_UI_BRIDGE_NAME)
+
+DEFAULT_UI_BRIDGE_IMAGE = f'{DEFAULT_UI_BRIDGE_NAME}:latest'
+UI_BRIDGE_IMAGE = os.getenv('REXFLOW_UI_BRIDGE_IMAGE', DEFAULT_UI_BRIDGE_IMAGE)
+
 DEFAULT_UI_BRIDGE_PORT=5051
 UI_BRIDGE_PORT = os.getenv('REXFLOW_UI_BRIDGE_PORT', DEFAULT_UI_BRIDGE_PORT)
