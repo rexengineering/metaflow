@@ -1,4 +1,5 @@
 import os.path
+import re
 
 from quart import jsonify, request
 from ariadne import load_schema_from_path, make_executable_schema
@@ -6,10 +7,22 @@ from ariadne.constants import PLAYGROUND_HTML
 from ariadne.graphql import graphql_sync
 
 from flowlib.constants import flow_result
-from . import bindables, resolvers, mutations
+from . import bindables, resolvers, mutations, flowd_api
 from .async_service import AsyncService
 
 BASEDIR = os.path.dirname(__file__)
+
+flowd_host = os.environ.get('FLOWD_HOST', 'localhost')
+flowd_port = os.environ.get('FLOWD_PORT', 9001)
+if ':' in flowd_port:
+    # inside k8s, FLOWD_PORT has format xxx://xx.xx.xx.xx:xxxx
+    # extract the IP and PORT using regex magic
+    x = re.search(r'.+://([\d\.]+):(\d+)', flowd_port)
+    flowd_host = x.group(1)
+    flowd_port = x.group(2)
+
+# the root Workflow object (created in init_route)
+_workflow = None
 
 from ariadne import ObjectType
 
@@ -17,7 +30,7 @@ class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.app.route('/ui', methods=['POST'])(self.ui_route)
-        self.app.route('/init', methods=['POST'])(self.init_route)
+        self.app.route('/init/<did>', methods=['POST'])(self.init_route)
         self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
         self.graphql_schema = make_executable_schema(
             self.schema,
@@ -37,9 +50,19 @@ class REXFlowUIBridge(AsyncService):
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)
 
-    def init_route(self):
-        # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
-        self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
+    def init_route(self, did:str):
+        '''
+        Only called once - this specifies the workflow id (DID) to process.
+        '''
+        global _workflow
+        if _workflow is None:
+            _workflow = flowd_api.Workflow(did)
+            _workflow.start()
+            # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
+            # self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
+            return {'status': 200, 'message': f'This REXFlow UI Bridge assigned to workflow {_workflow.did}'}
+        else:
+            return {'status': 400, 'message': f'This REXFlow UI Bridge already assigned to workflow {_workflow.did}'}
 
     def ui_route(self):
         state = self.get_state_from_etcd(request)  # Gets ID from request...
