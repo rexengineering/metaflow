@@ -173,7 +173,7 @@ def create_kafka_transport(
     assert namespace == to_component.workflow_properties.namespace, \
         "Global namespace should match within same wf."
 
-    k8s_specs = []
+    k8s_specs = from_component.init_env_config()
 
     k8s_specs.extend(create_reliable_wf_catcher(
         catch_service_name,

@@ -16,6 +16,7 @@ TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
 X_HEADER_FLOW_ID = 'X-Flow-Id'
 X_HEADER_WORKFLOW_ID = 'X-Rexflow-Wf-Id'
 X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
+X_HEADER_TASK_ID = 'X-Rexflow-Task-Id'
 
 K8S_MAX_NAMELENGTH = 63
 
@@ -52,7 +53,6 @@ def to_valid_k8s_name(name):
         f"NewGradProgrammerError: Was unable to make name {name} k8s-compatible."
     assert len(name) <= 63, "NewGradProgrammerError: k8s names must be <63 char long."
     return name
-
 
 
 class States:
@@ -125,19 +125,23 @@ class WorkflowInstanceKeys:
     ROOT = f'{REXFLOW_ROOT}/instances'
 
     def __init__(self, id):
-        self.root          = self.key_of(id)
-        self.proc          = self.proc_key(id)
-        self.result        = self.result_key(id)
-        self.state         = self.state_key(id)
-        self.headers       = self.headers_key(id)
-        self.payload       = self.payload_key(id)
-        self.error_key     = self.was_error_key(id)
-        self.parent        = self.parent_key(id)
-        self.end_event     = self.end_event_key(id)
-        self.traceid       = self.traceid_key(id)
-        self.content_type  = self.content_type_key(id)
-        self.timed_events  = self.timed_events_key(id)
-        self.timed_results = self.timed_results_key(id)
+        self.root           = self.key_of(id)
+        self.proc           = self.proc_key(id)
+        self.result         = self.result_key(id)
+        self.state          = self.state_key(id)
+        self.error_code     = self.error_code_key(id)
+        self.error_message  = self.error_message_key(id)
+        self.failed_task    = self.failed_task_key(id)
+        self.input_headers  = self.input_headers_key(id)
+        self.input_data     = self.input_data_key(id)
+        self.output_data    = self.output_data_key(id)
+        self.output_headers = self.output_headers_key(id)
+        self.parent         = self.parent_key(id)
+        self.end_event      = self.end_event_key(id)
+        self.traceid        = self.traceid_key(id)
+        self.content_type   = self.content_type_key(id)
+        self.timed_events   = self.timed_events_key(id)
+        self.timed_results  = self.timed_results_key(id)
 
     @classmethod
     def key_of(cls, id):
@@ -156,12 +160,32 @@ class WorkflowInstanceKeys:
         return f'{cls.key_of(id)}/result'
 
     @classmethod
-    def payload_key(cls, id):
-        return f'{cls.key_of(id)}/payload'
+    def error_code_key(cls, id):
+        return f'{cls.key_of(id)}/error_code'
 
     @classmethod
-    def headers_key(cls, id):
-        return f'{cls.key_of(id)}/headers'
+    def failed_task_key(cls, id):
+        return f'{cls.key_of(id)}/failed_task'
+
+    @classmethod
+    def error_message_key(cls, id):
+        return f'{cls.key_of(id)}/error_message'
+
+    @classmethod
+    def input_headers_key(cls, id):
+        return f'{cls.key_of(id)}/input_headers'
+
+    @classmethod
+    def input_data_key(cls, id):
+        return f'{cls.key_of(id)}/input_data'
+
+    @classmethod
+    def output_headers_key(cls, id):
+        return f'{cls.key_of(id)}/output_headers'
+
+    @classmethod
+    def output_data_key(cls, id):
+        return f'{cls.key_of(id)}/output_data'
 
     @classmethod
     def was_error_key(cls, id):

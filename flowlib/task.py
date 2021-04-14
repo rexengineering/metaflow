@@ -5,7 +5,12 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 from collections import OrderedDict, namedtuple
 from typing import List, Mapping
 
-from .bpmn_util import WorkflowProperties, BPMNComponent, get_edge_transport
+from .bpmn_util import (
+    WorkflowProperties,
+    BPMNComponent,
+    get_edge_transport,
+    iter_xmldict_for_key,
+)
 
 from .k8s_utils import (
     create_deployment,
@@ -21,6 +26,42 @@ Upstream = namedtuple(
     'Upstream',
     ['full_hostname', 'port', 'path', 'method', 'total_attempts', 'task_id']
 )
+
+DEFAULT_TOKEN = '__DEFAULT__'
+
+PARAM_TYPES = [
+    'JSON_OBJECT',
+    'STRING',
+    'DOUBLE',
+    'BOOLEAN',
+    'INTEGER',
+    'JSON_ARRAY',
+]
+
+
+def form_param_config(param):
+    text = param['#text']
+    param_type = text[:text.find("___")]
+    name_text = param['@name']
+    name = name_text[len(param_type) + len("___"):]
+
+    assert name_text[:name_text.find("___")] == param_type
+    assert param_type in PARAM_TYPES, f"Valid param types for Envoy: {PARAM_TYPES}"
+
+    value = param['#text'][len(param_type) + len('___'):]
+    default = None
+    if value.startswith(DEFAULT_TOKEN):
+        default = value[len(DEFAULT_TOKEN):]
+        value = None
+    elif '__DEFAULT__' in value:
+        value, default = value.split('__DEFAULT__')
+
+    return {
+        'name': name,
+        'value': value,
+        'type': param_type,
+        'default_value': default,
+    }
 
 
 class BPMNTask(BPMNComponent):
@@ -44,8 +85,9 @@ class BPMNTask(BPMNComponent):
                 # Can't make guarantee about where the service implementor put
                 # their health endpoint, so (for now) require it to be specified.
                 self._health_properties = None
+        self._process = process
 
-    def _generate_envoyfilter(self, upstreams: List[Upstream]) -> list:
+    def _generate_envoyfilter(self, upstreams: List[Upstream], component_map, edge_map) -> list:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
         FilterChain. This filter hijacks the response traffic and sends it to the next
         step of the workflow (whether that's a gateway, Event, or another ServiceTask.)
@@ -87,8 +129,57 @@ class BPMNTask(BPMNComponent):
             'task_id': self.id,
             'traffic_shadow_cluster': traffic_shadow_cluster,
             'traffic_shadow_path': traffic_shadow_path,
+            'closure_transport': self.workflow_properties.use_closure_transport,
             'headers_to_forward': [X_HEADER_TOKEN_POOL_ID.lower()],
+            'upstream_port': self.service_properties.port,
+            'inbound_retries': 0,
         }
+        # Error Gateway stuff
+        self.error_gateways = []
+        for boundary_event in iter_xmldict_for_key(self._process, 'bpmn:boundaryEvent'):
+            if 'bpmn:errorEventDefinition' not in boundary_event:
+                continue
+            if boundary_event['@attachedToRef'] == self.id:
+                self.error_gateways.append(boundary_event)
+        if len(self.error_gateways):
+            assert len(self.error_gateways) == 1, \
+                "Multiple error gateways for one task is unimplemented."
+            boundary_event = self.error_gateways[0]
+            outgoing_edge_list = edge_map[boundary_event['@id']]
+            bavs_config['error_upstreams'] = []
+            for edge in outgoing_edge_list:
+                error_target = component_map[edge['@targetRef']]
+                bavs_config['error_upstreams'].append(
+                    self._make_forward(Upstream(
+                        error_target.envoy_host,
+                        error_target.service_properties.port,
+                        error_target.call_properties.path,
+                        error_target.call_properties.method,
+                        error_target.call_properties.total_attempts,
+                        error_target.id,
+                    ))
+                )
+
+        # Smart Transport stuff
+        if self.workflow_properties.use_closure_transport \
+                    and 'bpmn:extensionElements' in self._task \
+                    and 'camunda:inputOutput' in self._task['bpmn:extensionElements']:
+            params = self._task['bpmn:extensionElements']['camunda:inputOutput']
+            bavs_config['input_params'] = [
+                form_param_config(param)
+                for param in iter_xmldict_for_key(params, 'camunda:inputParameter')
+            ]
+            input_param_names = [param['name'] for param in bavs_config['input_params']]
+            if '.' in input_param_names:
+                assert len(input_param_names) == 1, "Can only have one top-level input param."
+            bavs_config['output_params'] = [
+                form_param_config(param)
+                for param in iter_xmldict_for_key(params, 'camunda:outputParameter')
+            ]
+            output_param_values = [param['value'] for param in bavs_config['output_params']]
+            if '.' in output_param_values:
+                assert len(output_param_values) == 1, "Can only have one top-level output param."
+
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',
             'kind': 'EnvoyFilter',
@@ -193,7 +284,7 @@ class BPMNTask(BPMNComponent):
                     )
                 )
 
-        k8s_objects.append(self._generate_envoyfilter(upstreams))
+        k8s_objects.append(self._generate_envoyfilter(upstreams, component_map, edge_map))
         if not self._is_preexisting:
             k8s_objects.extend(self._generate_microservice())
         return k8s_objects
