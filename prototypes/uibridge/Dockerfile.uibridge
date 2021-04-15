@@ -9,7 +9,6 @@ RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -
     chmod +x ./kubectl && \
     mv ./kubectl /usr/local/bin/kubectl
 ENV ISTIO_VERSION=1.8.2
-ENV REXFLOW_DID=conditional-b4e83f41
 RUN curl -sL  https://istio.io/downloadIstioctl | sh - && \
     mv $HOME/.istioctl/bin/istioctl /usr/local/bin/istioctl
 

@@ -37,6 +37,7 @@ from .bpmn_util import (
 from .k8s_utils import (
     add_labels,
     create_deployment,
+    create_rexflow_ingress_vs,
     create_service,
     create_serviceaccount,
     get_rexflow_labels,
@@ -310,7 +311,12 @@ class BPMNProcess:
             logging.info('User tasks detected, adding UI bridge to deployment.')
             # TODO: Figure out configuration details for the UI bridge and add
             # to generated K8s specifications.
-            ui_bridge_env = []
+            ui_bridge_env = [
+                {
+                    'name': 'WORKFLOW_DID',
+                    'value': self.namespace
+                }
+            ]
             results.append(create_deployment(
                 self.namespace,
                 UI_BRIDGE_NAME,
@@ -324,6 +330,14 @@ class BPMNProcess:
                 self.namespace,
                 UI_BRIDGE_NAME,
                 UI_BRIDGE_PORT
+            ))
+            # TODO: Move the hard coded string to config or constants...
+            results.append(create_rexflow_ingress_vs(
+                self.namespace,
+                UI_BRIDGE_NAME,
+                f'/ui-bridge-{self.namespace}',
+                UI_BRIDGE_PORT,
+                f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
             ))
 
         # Now, add the REXFlow labels

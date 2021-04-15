@@ -16,7 +16,7 @@ BASEDIR = os.path.dirname(__file__)
 
 flowd_host = os.environ.get('FLOWD_HOST', 'localhost')
 flowd_port = os.environ.get('FLOWD_PORT', 9001)
-if ':' in flowd_port:
+if isinstance(flowd_port, str) and ':' in flowd_port:
     # inside k8s, FLOWD_PORT has format xxx://xx.xx.xx.xx:xxxx
     # extract the IP and PORT using regex magic
     x = re.search(r'.+://([\d\.]+):(\d+)', flowd_port)
