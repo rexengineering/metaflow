@@ -21,8 +21,6 @@ def resolve_workflows(_, info, filter=None):
 
 @workflow_query.field('active')
 def resolve_workflow_query_active(_, info, filter=None):
-    from .app import _workflow
-
     # pull tasks from etcd based on filter (if specified)
     etcd = etcd_utils.get_etcd()
     dids = etcd_utils.get_next_level(WorkflowKeys.ROOT)

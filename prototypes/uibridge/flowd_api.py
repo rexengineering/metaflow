@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import threading
@@ -11,21 +12,25 @@ from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
 
 class Workflow:
-    def __init__(self, did : str):
+    def __init__(self, did : str, flowd_host : str, flowd_port : int):
         self.did = did
         self.tasks = {}
         self.etcd = etcd_utils.get_etcd()
         self.running = False
+        self.flowd_host = flowd_host
+        self.flowd_port = flowd_port
 
         self.refresh_instances()
         tasks = etcd_utils.get_next_level(WorkflowKeys.probe_key(self.did))
         for tid in tasks:
             self.tasks[tid] = WorkflowTask(did,tid)
+        logging.info(f'Workflow object initialized to process workflow {did}')
 
     def start(self):
         self.timer = threading.Timer(30, self.watch_instances)
         self.running = True
         self.timer.start()
+        logging.info(f'{self.did} started')
 
     def stop(self):
         if self.running:
@@ -47,12 +52,12 @@ class Workflow:
             self.refresh_instances()
 
     def create_instance(self):
-        from .app import flowd_host, flowd_port
-        with get_flowd_connection(flowd_host, flowd_port) as flowd:
+        with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
             response = flowd.RunWorkflow(flow_pb2.RunRequest(
                 workflow_id=self.did, args=None,
                 stopped=False, start_event_id=None
             ))
+            return response
 
 class WorkflowTask:
     def __init__(self, did:str, tid:str):

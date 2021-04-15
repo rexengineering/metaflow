@@ -1,6 +1,9 @@
 # resolvers for mutations defined here
 # Note: query resolvers are in resolvers.py
+import logging
+
 from ariadne import ObjectType
+from .flowd_api import Workflow, WorkflowTask
 
 # instantiate the mutation objects here. If you add another one,
 # you need to add it to the initializer list in app.py
@@ -44,8 +47,10 @@ def mutation_workflow(_,info):
 
 @workflow_mutations.field('start')
 def workflow_mutations_start(_,info,input):
-    print(f'workflow_mutations_start {input}')
-    return {'status':'SUCCESS'}
+    workflow = info.context['workflow']
+    response = workflow.create_instance()
+    logging.info(response)
+    return {'status':'SUCCESS', 'response':response}
 
 @workflow_mutations.field('complete')
 def workflow_mutations_complete(_,info,input):
@@ -53,14 +58,12 @@ def workflow_mutations_complete(_,info,input):
     return {'status':'SUCCESS'}
 
 # Task Mutations
-
 @workflow_mutations.field('tasks')
 def workflow_mutations_complete(_,info):
     return task_mutations
 
 @task_mutations.field('start')
 def task_mutations_start(_,info,input=None):
-    print(f'task_mutations_start {input}')
     return {'status':'SUCCESS'}
 
 @task_mutations.field('validate')
