@@ -34,7 +34,7 @@ def to_base64(file_loc):
 
 def create_deployment(
         namespace, dns_safe_name, container, container_port, env, etcd_access=False,
-        kafka_access=False, replicas=1):
+        kafka_access=False, use_service_account=True, replicas=1):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -56,7 +56,6 @@ def create_deployment(
                     },
                 },
                 'spec': {
-                    'serviceAccountName': dns_safe_name,
                     'containers': [
                         {
                             'image': container,
@@ -101,7 +100,11 @@ def create_deployment(
                 continue
             env.append({"name": env_var, "value": value})
 
-    deployment['spec']['template']['spec']['containers'][0]['env'] = env
+    spec = deployment['spec']['template']['spec']
+    spec['containers'][0]['env'] = env
+    if use_service_account:
+        spec['serviceAccountName'] = dns_safe_name
+
     return deployment
 
 
