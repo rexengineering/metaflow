@@ -1,5 +1,6 @@
 from hashlib import sha256
 import re
+from flowlib.config import REXFLOW_ROOT_PREFIX
 
 '''
 These are the valid states for a workflow and the workflow instances, specified here
@@ -74,7 +75,7 @@ class ByteStatesClass:
 
 BStates = ByteStatesClass()
 
-REXFLOW_ROOT = '/rexflow'
+REXFLOW_ROOT = REXFLOW_ROOT_PREFIX
 TRACEID_HEADER = 'X-B3-Traceid'
 
 
