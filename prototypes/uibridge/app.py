@@ -28,6 +28,8 @@ logging.info(f'FLOWD address is {flowd_host}:{flowd_port}')
 # the Workflow object (created in init_route)
 WORKFLOW_DID = os.environ.get('WORKFLOW_DID','tde-15839350')
 assert WORKFLOW_DID is not None, 'WORKFLOW_DID not defined in environment - exiting'
+WORKFLOW_TIDS = os.environ.get('WORKFLOW_TIDS',None)
+assert WORKFLOW_TIDS is not None, 'WORKFLOW_TIDS not defined in environment - exiting'
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
@@ -53,7 +55,7 @@ class REXFlowUIBridge(AsyncService):
             graphql_handlers.task_mutation,
         )
 
-        self.workflow = flowd_api.Workflow(WORKFLOW_DID, flowd_host, flowd_port)
+        self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, flowd_host, flowd_port)
         self.workflow.start()
 
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)

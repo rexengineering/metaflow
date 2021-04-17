@@ -315,6 +315,10 @@ class BPMNProcess:
                 {
                     'name': 'WORKFLOW_DID',
                     'value': self.namespace
+                },
+                {
+                    'name': 'WORKFLOW_TIDS',
+                    'value': ':'.join([task.id for task in self.user_tasks])
                 }
             ]
             results.append(create_deployment(

@@ -12,7 +12,7 @@ from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
 
 class Workflow:
-    def __init__(self, did : str, flowd_host : str, flowd_port : int):
+    def __init__(self, did : str, tids : str, flowd_host : str, flowd_port : int):
         self.did = did
         self.tasks = {}
         self.etcd = etcd_utils.get_etcd()
@@ -21,7 +21,7 @@ class Workflow:
         self.flowd_port = flowd_port
 
         self.refresh_instances()
-        tasks = etcd_utils.get_next_level(WorkflowKeys.probe_key(self.did))
+        tasks = tids.split(':')
         for tid in tasks:
             self.tasks[tid] = WorkflowTask(did,tid)
         logging.info(f'Workflow object initialized to process workflow {did}')
