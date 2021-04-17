@@ -288,6 +288,7 @@ class WorkflowProperties:
         self._xgw_expression_type = 'feel'
         self._deployment_timeout = 120
         self._use_closure_transport = False
+        self._priority_class = None
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -344,7 +345,14 @@ class WorkflowProperties:
     def use_closure_transport(self):
         return self._use_closure_transport
 
+    @property
+    def priority_class(self):
+        return self._priority_class
+
     def update(self, annotations):
+        if 'priority_class' in annotations:
+            self._priority_class = annotations['priority_class']
+
         if 'use_closure_transport' in annotations:
             self._use_closure_transport = annotations['use_closure_transport']
             assert type(self._use_closure_transport) == bool
