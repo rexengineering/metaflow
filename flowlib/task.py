@@ -27,7 +27,7 @@ Upstream = namedtuple(
     ['full_hostname', 'port', 'path', 'method', 'total_attempts', 'task_id']
 )
 
-DEFAULT_TOKEN = '__DEFAULT__'
+DEFAULT_TOKEN = '___DEFAULT___'
 
 PARAM_TYPES = [
     'JSON_OBJECT',
@@ -40,27 +40,35 @@ PARAM_TYPES = [
 
 
 def form_param_config(param):
+    '''Takes in a `camunda:inputOutputParameter`. If curious, look in the bpmn xml.
+    '''
     text = param['#text']
-    param_type = text[:text.find("___")]
+
     name_text = param['@name']
+    param_type = name_text[:name_text.find("___")]
+    assert param_type in PARAM_TYPES, f"Valid param types: {PARAM_TYPES}. Got {param_type}."
     name = name_text[len(param_type) + len("___"):]
 
-    assert name_text[:name_text.find("___")] == param_type
-    assert param_type in PARAM_TYPES, f"Valid param types for Envoy: {PARAM_TYPES}"
+    default_value = ""
+    if DEFAULT_TOKEN in text:
+        default_value = text.split(DEFAULT_TOKEN)[1]
+        text = text[:text.find(DEFAULT_TOKEN)]
+        if '___' not in text:
+            return {
+                'name': name,
+                'value': "",
+                'type': text,
+                'default_value': default_value
+            }
 
-    value = param['#text'][len(param_type) + len('___'):]
-    default = None
-    if value.startswith(DEFAULT_TOKEN):
-        default = value[len(DEFAULT_TOKEN):]
-        value = None
-    elif '__DEFAULT__' in value:
-        value, default = value.split('__DEFAULT__')
+    assert param_type == text[:text.find("___")]
+    value = text[len(param_type) + len('___'):]
 
     return {
         'name': name,
         'value': value,
         'type': param_type,
-        'default_value': default,
+        'default_value': default_value,
     }
 
 
