@@ -1,6 +1,5 @@
 import logging
 import os.path
-import re
 
 from quart import jsonify, request
 from ariadne import load_schema_from_path, make_executable_schema
@@ -8,20 +7,23 @@ from ariadne.constants import PLAYGROUND_HTML
 from ariadne.graphql import graphql_sync
 
 from flowlib.constants import flow_result
-from . import bindables, resolvers, mutations, flowd_api
+from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
 from ariadne import ObjectType
 
 BASEDIR = os.path.dirname(__file__)
 
-flowd_host = os.environ.get('FLOWD_HOST', 'localhost')
+flowd_host = os.environ.get('FLOWD_HOST', 'flowd.rexflow')
 flowd_port = os.environ.get('FLOWD_PORT', 9001)
 if isinstance(flowd_port, str) and ':' in flowd_port:
+    import re
     # inside k8s, FLOWD_PORT has format xxx://xx.xx.xx.xx:xxxx
     # extract the IP and PORT using regex magic
     x = re.search(r'.+://([\d\.]+):(\d+)', flowd_port)
     flowd_host = x.group(1)
     flowd_port = x.group(2)
+
+logging.info(f'FLOWD address is {flowd_host}:{flowd_port}')
 
 # the Workflow object (created in init_route)
 WORKFLOW_DID = os.environ.get('WORKFLOW_DID','tde-15839350')
@@ -35,18 +37,20 @@ class REXFlowUIBridge(AsyncService):
         self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
         self.graphql_schema = make_executable_schema(
             self.schema,
-            bindables.session_id,
-            bindables.workflow_id,
-            bindables.workflow_type,
-            bindables.task_id,
-            bindables.state,
-            resolvers.query,
-            resolvers.workflow_query,
-            mutations.mutation,
-            mutations.session_mutation,
-            mutations.session_state_mutations,
-            mutations.workflow_mutations,
-            mutations.task_mutations,
+            # bindables.session_id,
+            # bindables.workflow_id,
+            # bindables.workflow_type,
+            # bindables.task_id,
+            # bindables.state,
+            # resolvers.query,
+            # resolvers.workflow_query,
+            # mutations.mutation,
+            # mutations.session_mutation,
+            # mutations.session_state_mutations,
+            # mutations.workflow_mutations,
+            # mutations.task_mutations,
+            graphql_handlers.mutation,
+            graphql_handlers.task_mutation,
         )
 
         self.workflow = flowd_api.Workflow(WORKFLOW_DID, flowd_host, flowd_port)

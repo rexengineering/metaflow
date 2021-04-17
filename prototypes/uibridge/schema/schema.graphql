@@ -1,0 +1,195 @@
+# mutation CreateWorkflowInstance {
+#     createInstance(did: "123") {
+#       status, iid, tasks
+#     }
+#   }
+#  
+# mutation TaskForm {
+# 	tasks {
+#     form(input: {iid:"wf_instance_id", tid:"task1"}) {
+#       iid, tid, status, fields {id}
+#     }
+#   }
+# }
+#
+# mutation TaskFormValidate {
+# 	tasks {
+#     validate(input: {iid:"wf_instance_id", tid:"task1", fields:[]}) {
+#       iid, tid, status, validatorResults {result}
+#     }
+#   }
+# }
+#
+# mutation TaskFormSave {
+# 	tasks {
+#     validate(input: {iid:"wf_instance_id", tid:"task1", fields:[]}) {
+#       iid, tid, status, validatorResults {result}
+#     }
+#   }
+# }
+#
+# mutation TaskComplete {
+# 	tasks {
+#     complete(input: {iid:"wf_instance_id", tid:"task1"}) {
+#       iid, tid, status
+#     }
+#   }
+# }
+
+# Scalar types
+
+scalar WorkflowInstanceId
+
+scalar WorkflowDeployemntId
+
+scalar TaskId
+
+scalar DataId
+
+# Enum types
+
+enum WorkflowStatus {
+    COMPLETED
+    ERROR
+    RUNNING
+    START
+    STARTING
+    STOPPED
+    STOPPING
+}
+
+enum TaskStatus {
+    UP
+    DOWN
+}
+
+enum OperationStatus {
+    SUCCESS
+    FAILURE
+}
+
+"""Client side constraints for user input"""
+enum ValidationType {
+    REQUIRED
+    REGEX
+}
+
+"""Data request types that will be mapped to UI components"""
+enum DataType {
+    TEXT
+}
+
+"""A task will request a list of data elements"""
+type Task {
+    iid: WorkflowInstanceId
+    tid: TaskId!
+    data: [TaskFieldData!]!
+    status: TaskStatus!
+}
+
+"""Individual data element that will map to a component on the UI"""
+type TaskFieldData {
+    id: DataId!
+    type: DataType!
+    order: Int!
+    label: String
+    data: String
+    encrypted: Boolean!
+    validators: [Validator!]!
+}
+
+type Validator {
+    type: ValidationType!
+    """For regex validation the regex should go here"""
+    constraint: String
+}
+
+"""Used to communicate specific validator results"""
+type ValidatorResult {
+    validator: Validator!
+    result: String
+}
+
+# Inputs
+input TaskMutationFormInput {
+    iid:WorkflowInstanceId!
+    tid:TaskId!
+}
+
+input TaskFieldInput {
+    id: DataId!
+    type: DataType!
+    data: String
+    encrypted: Boolean!
+}
+
+input TaskMutationValidateInput {
+    iid:WorkflowInstanceId!
+    tid:TaskId!
+    fields: [TaskFieldInput!]!
+}
+
+input TaskMutationSaveInput {
+    iid:WorkflowInstanceId!
+    tid:TaskId!
+    fields: [TaskFieldInput!]!
+}
+
+input TaskMutationCompleteInput {
+    iid:WorkflowInstanceId!
+    tid:TaskId!
+}
+
+# Payloads
+
+type CreateInstancePayload {
+    did: WorkflowDeployemntId!
+    iid: WorkflowInstanceId!
+    status: OperationStatus!
+    tasks: [TaskId!]!
+}
+
+type TaskFormPayload {
+    iid: WorkflowInstanceId!
+    tid: TaskId!
+    status: OperationStatus!
+    fields: [TaskFieldData!]!
+}
+
+type TaskValidatePayload {
+    iid: WorkflowInstanceId!
+    tid: TaskId!
+    status: OperationStatus!
+    validatorResults: [ValidatorResult!]!
+}
+
+type TaskSavePayload {
+    iid: WorkflowInstanceId!
+    tid: TaskId!
+    status: OperationStatus!
+    validatorResults: [ValidatorResult!]!
+}
+
+type TaskCompletePayload {
+    iid: WorkflowInstanceId!
+    tid: TaskId!
+    status: OperationStatus!
+}
+
+# Mutations
+
+type Query {
+    version: String
+}
+
+type Mutation {
+    createInstance : CreateInstancePayload
+    tasks: TaskMutation
+}
+
+type TaskMutation {
+    form(input: TaskMutationFormInput!) : TaskFormPayload
+    validate(input: TaskMutationValidateInput!) : TaskValidatePayload
+    save(input: TaskMutationSaveInput!) : TaskSavePayload
+    complete(input: TaskMutationCompleteInput!) : TaskCompletePayload
+}
