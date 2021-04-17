@@ -76,7 +76,6 @@ BStates = ByteStatesClass()
 
 REXFLOW_ROOT = '/rexflow'
 TRACEID_HEADER = 'X-B3-Traceid'
-HOST_SUFFIX = '/host'
 
 
 class WorkflowKeys:
@@ -87,7 +86,6 @@ class WorkflowKeys:
         self.proc = self.proc_key(id)
         self.probe = self.probe_key(id)
         self.state = self.state_key(id)
-        self.host = self.host_key(id)
 
         # Actually an S3 key since we don't store the k8s specs in etcd.
         self.specs = self.specs_key(id)
@@ -115,10 +113,6 @@ class WorkflowKeys:
     @classmethod
     def specs_key(cls, id):
         return f'{cls.key_of(id)}/k8s_specs'
-
-    @classmethod
-    def host_key(cls, id):
-        return f'{cls.key_of(id)}{HOST_SUFFIX}'
 
 
 class WorkflowInstanceKeys:
@@ -238,5 +232,21 @@ def get_ingress_object_name(hostname):
     return to_valid_k8s_name(long_name)
 
 
-def get_ingress_labels(wf_obj):
-    return {"key": "rexflow.rexhomes.com/wf-id", "value": wf_obj.id}
+class IngressHostKeys:
+    ROOT = f'{REXFLOW_ROOT}/hosts'
+
+    def __init__(self, host):
+        self.workflow_id = self.workflow_id_key(host)
+        self.component_name = self.component_name_key(host)
+
+    @classmethod
+    def key_of(cls, host):
+        return f'{IngressHostKeys.ROOT}/{host}'
+
+    @classmethod
+    def workflow_id_key(cls, host):
+        return f'{cls.key_of(host)}/workflow_id'
+
+    @classmethod
+    def component_name_key(cls, host):
+        return f'{cls.key_of(host)}/component_name'

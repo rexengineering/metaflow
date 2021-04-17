@@ -2,8 +2,9 @@ from io import StringIO
 
 from flowlib import flow_pb2
 from flowlib import etcd_utils
-from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, HOST_SUFFIX
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, IngressHostKeys
 from flowlib.workflow import Workflow
+from flowlib.ingress_utils import get_host_dict
 
 
 class PSHandlers:
@@ -11,7 +12,7 @@ class PSHandlers:
         self.etcd = etcd_utils.get_etcd(is_not_none=True)
 
     def handle_single_deployment(self, deployment_id, include_kubernetes):
-        keys = {'state', HOST_SUFFIX.lstrip('/')}
+        keys = {'state'}
         response = etcd_utils.get_dict_from_prefix(
             WorkflowKeys.key_of(deployment_id),
             keys=keys,
@@ -26,6 +27,10 @@ class PSHandlers:
             wf.process.to_istio(stream=k8s_specs_stream)
             response['k8s_specs'] = k8s_specs_stream.getvalue()
 
+        # Now must see if there's a host involved.
+        host_dict = get_host_dict(deployment_id)
+        if bool(host_dict):
+            response['ingress'] = host_dict
         return response
 
     def handle_some_deployments(self, ids, include_kubernetes):
