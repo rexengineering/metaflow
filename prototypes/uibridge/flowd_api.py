@@ -23,7 +23,7 @@ class Workflow:
         self.refresh_instances()
         tasks = tids.split(':')
         for tid in tasks:
-            self.tasks[tid] = WorkflowTask(did,tid)
+            self.tasks[tid] = WorkflowTask(self,tid)
         logging.info(f'Workflow object initialized to process workflow {did}')
 
     def start(self):
@@ -59,15 +59,21 @@ class Workflow:
             ))
             return response
 
+    def task_fields(self, tid : str) -> List:
+        if tid not in self.tasks.keys():
+            raise ValueError(f'Task {tid} does not exist in {self.did}')
+        return self.tasks[tid].fields
+
 class WorkflowTask:
-    def __init__(self, did:str, tid:str):
-        self.did = did
+    def __init__(self, wf:Workflow, tid:str):
+        self.did = wf.did
         self.tid = tid
         self.fields = []
-        etcd = etcd_utils.get_etcd()
-        fields = etcd.get(WorkflowKeys.field_key(self.did,tid))[0]
+        fields = wf.etcd.get(WorkflowKeys.field_key(self.did,tid))[0]
         if fields:
             self.fields = json.loads(fields.decode('utf-8'))
+            for field in self.fields:
+                field['encrypted'] = bool(field['encrypted'])
 
 if __name__ == "__main__":
     # flowd_run_workflow_instance("tde-15839350")
@@ -77,27 +83,3 @@ if __name__ == "__main__":
     data = flowd_run_workflow_instance("conditional-b4e83f41")
     print(data)
     x = Workflow("conditional-b4e83f41")
-        
-
-
-
-def flowd_ps_deployments(dids : List[str] = []) -> Tuple[str,str]:
-    return flowd_ps(flow_pb2.RequestKind.DEPLOYMENT, dids)
-
-def flowd_ps_instances(iids : List[str] = []) -> Tuple[str,str]:
-    return flowd_ps(flow_pb2.RequestKind.INSTANCE, iids)
-
-def flowd_ps_instances_for_deployment(did : str) -> Dict:
-    pass
-    
-def flowd_probe():
-    pass
-
-def flowd_start():
-    pass
-
-def flowd_stop():
-    pass
-
-def flowd_update():
-    pass

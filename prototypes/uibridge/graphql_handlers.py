@@ -29,9 +29,12 @@ def mutation_tasks(_,info):
     return task_mutation
 
 @task_mutation.field('form')
-def task_mutation_form(_,info,input):
-    logging.info(f'task_mutation_form {input["iid"]} {input["tid"]}')
-    return {'iid':'wf_instance_id','tid':'task1','status':'SUCCESS', 'fields':[]}
+def task_mutation_form(_, info, input):
+    try:
+        fields = info.context['workflow'].task_fields(input['tid'])
+        return {'iid':input['iid'], 'tid':input['tid'], 'status':'SUCCESS', 'fields':fields}
+    except Exception:
+        return {'iid':input['iid'], 'tid':input['tid'], 'status': 'FAILURE', 'fields':[]}
 
 @task_mutation.field('validate')
 def task_mutation_validate(_,info,input):
