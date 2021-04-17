@@ -5,7 +5,7 @@
       <bpmn:outgoing>SequenceFlow_190n0mt</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="SequenceFlow_190n0mt" sourceRef="StartEvent_1" targetRef="Task_1dqvybv" />
-    <bpmn:serviceTask id="Task_1dqvybv" name="Collect underpants">
+    <bpmn:serviceTask id="Task_1dqvybv" name="Collect people">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="collect" />
         <camunda:inputOutput>
