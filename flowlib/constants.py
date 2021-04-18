@@ -207,6 +207,10 @@ class WorkflowInstanceKeys:
     @classmethod
     def form_key(cls, iid):
         return f'{cls.key_of(iid)}/forms'
+    
+    @classmethod
+    def task_form_key(cls, iid, tid):
+        return f'{cls.form_key(iid)}/{tid}'
 
 def split_key(iid: str):
     '''

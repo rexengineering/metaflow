@@ -1,7 +1,11 @@
+from flowlib.constants import WorkflowInstanceKeys
 import json
 import logging
+import typing
+from typing import List, Dict, Tuple
 
 from ariadne import ObjectType
+
 from .flowd_api import Workflow, WorkflowTask
 
 mutation = ObjectType("Mutation")
@@ -30,13 +34,25 @@ def mutation_tasks(_,info):
 
 @task_mutation.field('form')
 def task_mutation_form(_, info, input):
-    try:
-        task = info.context['workflow'].task(input['tid'])
-        fields = task.fields()
-        return {'iid':input['iid'], 'tid':input['tid'], 'status':'SUCCESS', 'fields':fields}
-    except Exception as ex:
-        print(ex)
-        return {'iid':input['iid'], 'tid':input['tid'], 'status': 'FAILURE', 'fields':[]}
+    '''
+    Return the list of fields for the given tid. There are two copies of the 
+    form - the immutable copy in the did, and the instance copy in the iid.
+
+    Which one the caller receives depends on a few things:
+    1. If the iid is provided, then the iid copy is returned, unless
+       it does not exist, in which case it is created from the did copy.
+    2. If the iid is not provided then the did copy is returned. Any iid
+       copy is not affected.
+    '''
+    workflow = info.context['workflow']
+    task = workflow.task(input['tid'])
+    iid = '' if 'iid' not in input else input['iid']
+    fields = []
+    status = 'FAILURE'
+    if task:
+        fields = task.fields() if not iid else task.pull(iid)
+        status = 'SUCCESS'
+    return {'iid':iid, 'tid':input['tid'], 'status': status, 'fields':fields}
 
 @task_mutation.field('validate')
 def task_mutation_validate(_,info,input):
@@ -44,6 +60,8 @@ def task_mutation_validate(_,info,input):
     field_results = []
     all_passed = True
     for in_field in input['fields']:
+        # TODO: handle decryption here if in_field is marked encrypted
+
         # here we will need to run the data from the corresponding input.field through
         # the validator(s) provided by field.validators to determine the result. For
         # now balk
@@ -66,11 +84,14 @@ def task_mutation_validate(_,info,input):
 
 @task_mutation.field('save')
 def task_mutation_save(_,info,input):
-    logging.info(f'task_mutation_save {input["iid"]} {input["tid"]}')
+    # run the input though the validator to make sure it's good
+    val_results = task_mutation_validate(None,info,input)
+
+
+
     return {'iid':'wf_instance_id','tid':'task1','status':'SUCCESS', 'validatorResults':[]}
 
 @task_mutation.field('complete')
 def task_mutation_complete(_,info,input):
     logging.info(f'task_mutation_complete {input["iid"]} {input["tid"]}')
     return {'iid':'wf_instance_id','tid':'task1','status':'SUCCESS'}
-

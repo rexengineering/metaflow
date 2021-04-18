@@ -114,7 +114,7 @@ type FieldValidationResult {
 
 # Inputs
 input TaskMutationFormInput {
-    iid:WorkflowInstanceId!
+    iid:WorkflowInstanceId
     tid:TaskId!
 }
 
@@ -152,7 +152,7 @@ type CreateInstancePayload {
 }
 
 type TaskFormPayload {
-    iid: WorkflowInstanceId!
+    iid: WorkflowInstanceId
     tid: TaskId!
     status: OperationStatus!
     fields: [TaskFieldData!]!

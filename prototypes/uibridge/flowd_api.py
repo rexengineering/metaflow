@@ -61,23 +61,45 @@ class Workflow:
 
     def task(self, tid : str):
         if tid not in self.tasks.keys():
-            raise ValueError(f'Task {tid} does not exist in {self.did}')
+            return None
         return self.tasks[tid]
 
 
 class WorkflowTask:
     def __init__(self, wf:Workflow, tid:str):
-        self.did = wf.did
+        self.wf = wf
         self.tid = tid
         self._fields = {}
-        fields = wf.etcd.get(WorkflowKeys.field_key(self.did,tid))[0]
-        if fields:
-            fields = json.loads(fields.decode('utf-8'))
-            for field in fields:
-                field['encrypted'] = bool(field['encrypted'])
-                self._fields[field['id']] = field
-            print(self._fields)
-    
+        form,_ = wf.etcd.get(WorkflowKeys.field_key(wf.did,tid))
+        if form:
+            self._fields = self.normalize_fields(form)
+
+    def pull(self,iid:str):
+        '''
+        Pull the task form for the given iid. If the iid record does not exist,
+        create the iid form from the did form master.
+        '''
+        key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
+        print(f'Trying to pull form data for {key}', flush=True)
+        form, _ = self.wf.etcd.get(key)
+        print(f'Result for {key} is {form}', flush=True)
+        if form is None:
+            tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
+            print(f'Trying to pull form data from {tid_key}', flush=True)
+            form, _ = self.wf.etcd.get(tid_key)
+            print(f'Result for {tid_key} is {form}', flush=True)
+            self.wf.etcd.put(key,form)
+        return self.normalize_fields(form).values()
+
+    def normalize_fields(self, form:str) -> Dict[str,typing.Any]:
+        fields = {}
+        field_list = json.loads(form.decode('utf-8'))
+        for field in field_list:
+            field['encrypted'] = bool(field['encrypted'])
+            fields[field['id']] = field
+        print(fields)
+        return fields
+
     def fields(self) -> List[any]:
         return self._fields.values()
 
