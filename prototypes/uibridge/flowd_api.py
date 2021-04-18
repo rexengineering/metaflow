@@ -59,21 +59,32 @@ class Workflow:
             ))
             return response
 
-    def task_fields(self, tid : str) -> List:
+    def task(self, tid : str):
         if tid not in self.tasks.keys():
             raise ValueError(f'Task {tid} does not exist in {self.did}')
-        return self.tasks[tid].fields
+        return self.tasks[tid]
+
 
 class WorkflowTask:
     def __init__(self, wf:Workflow, tid:str):
         self.did = wf.did
         self.tid = tid
-        self.fields = []
+        self._fields = {}
         fields = wf.etcd.get(WorkflowKeys.field_key(self.did,tid))[0]
         if fields:
-            self.fields = json.loads(fields.decode('utf-8'))
-            for field in self.fields:
+            fields = json.loads(fields.decode('utf-8'))
+            for field in fields:
                 field['encrypted'] = bool(field['encrypted'])
+                self._fields[field['id']] = field
+            print(self._fields)
+    
+    def fields(self) -> List[any]:
+        return self._fields.values()
+
+    def field(self, id : str) -> Dict[str,any]:
+        if id not in self._fields.keys():
+            raise ValueError(f'Field {id} does not exist in task {self.tid}')
+        return self._fields[id]
 
 if __name__ == "__main__":
     # flowd_run_workflow_instance("tde-15839350")

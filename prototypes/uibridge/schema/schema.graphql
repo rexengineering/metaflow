@@ -1,40 +1,35 @@
+# mutation ValidateTaskForm {
+#   tasks {
+#     validate( input:{
+#         iid: "process-0p1yoqw-aa16211c-bcae82ba9f7a11eb99025a356ea63920", 
+#         tid: "Activity_144fvu9",
+#       	fields: [
+#           {id: "fname", type: TEXT, data: "Steve", encrypted: false},
+#           {id: "lname", type: TEXT, data: "McClure", encrypted: false}
+#         ]
+#     }
+#     ){
+#       iid, tid, status, passed, results { field, passed, results {passed, result} }
+#     }
+#   }
+# }
+#
+# mutation GetTaskForm {
+#   tasks{
+#       form( input: { 
+#         iid: "process-0p1yoqw-aa16211c-bcae82ba9f7a11eb99025a356ea63920", 
+#         tid: "Activity_144fvu9" 
+#       } ) {
+#       	iid, tid, status, fields {id, type, order, label, data, encrypted, validators{type}}
+#     }
+#   }
+# }
+#
 # mutation CreateWorkflowInstance {
-#     createInstance(did: "123") {
-#       status, iid, tasks
+#     createInstance {
+#       status, did, iid, tasks
 #     }
 #   }
-#  
-# mutation TaskForm {
-# 	tasks {
-#     form(input: {iid:"wf_instance_id", tid:"task1"}) {
-#       iid, tid, status, fields {id}
-#     }
-#   }
-# }
-#
-# mutation TaskFormValidate {
-# 	tasks {
-#     validate(input: {iid:"wf_instance_id", tid:"task1", fields:[]}) {
-#       iid, tid, status, validatorResults {result}
-#     }
-#   }
-# }
-#
-# mutation TaskFormSave {
-# 	tasks {
-#     validate(input: {iid:"wf_instance_id", tid:"task1", fields:[]}) {
-#       iid, tid, status, validatorResults {result}
-#     }
-#   }
-# }
-#
-# mutation TaskComplete {
-# 	tasks {
-#     complete(input: {iid:"wf_instance_id", tid:"task1"}) {
-#       iid, tid, status
-#     }
-#   }
-# }
 
 # Scalar types
 
@@ -107,7 +102,14 @@ type Validator {
 """Used to communicate specific validator results"""
 type ValidatorResult {
     validator: Validator!
+    passed: Boolean!
     result: String
+}
+
+type FieldValidationResult {
+    field: DataId!
+    passed: Boolean!
+    results: [ValidatorResult!]!
 }
 
 # Inputs
@@ -160,14 +162,15 @@ type TaskValidatePayload {
     iid: WorkflowInstanceId!
     tid: TaskId!
     status: OperationStatus!
-    validatorResults: [ValidatorResult!]!
+    passed: Boolean!
+    results: [FieldValidationResult!]!
 }
 
 type TaskSavePayload {
     iid: WorkflowInstanceId!
     tid: TaskId!
     status: OperationStatus!
-    validatorResults: [ValidatorResult!]!
+    results: [FieldValidationResult!]!
 }
 
 type TaskCompletePayload {

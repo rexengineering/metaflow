@@ -31,15 +31,38 @@ def mutation_tasks(_,info):
 @task_mutation.field('form')
 def task_mutation_form(_, info, input):
     try:
-        fields = info.context['workflow'].task_fields(input['tid'])
+        task = info.context['workflow'].task(input['tid'])
+        fields = task.fields()
         return {'iid':input['iid'], 'tid':input['tid'], 'status':'SUCCESS', 'fields':fields}
-    except Exception:
+    except Exception as ex:
+        print(ex)
         return {'iid':input['iid'], 'tid':input['tid'], 'status': 'FAILURE', 'fields':[]}
 
 @task_mutation.field('validate')
 def task_mutation_validate(_,info,input):
-    logging.info(f'task_mutation_validate {input["iid"]} {input["tid"]}')
-    return {'iid':'wf_instance_id','tid':'task1','status':'SUCCESS', 'validatorResults':[]}
+    task = info.context['workflow'].task(input['tid'])
+    field_results = []
+    all_passed = True
+    for in_field in input['fields']:
+        # here we will need to run the data from the corresponding input.field through
+        # the validator(s) provided by field.validators to determine the result. For
+        # now balk
+        try:
+            task_field = task.field(in_field['id'])
+            results = []
+            field_passed = True
+            for validator in task_field['validators']:
+                # ValidatorResult
+                passed = True #validator.result
+                field_passed = field_passed and passed #= validator.result
+                results.append({'validator':validator['type'], 'passed':passed, 'result':'It\'s a good show!'})
+            # FieldValidationResult
+            field_results.append({'field':in_field['id'], 'passed': field_passed, 'results':results})
+            all_passed = all_passed and field_passed
+        except Exception as ex:
+            print(ex)
+    # TaskValidatePayload
+    return {'iid':input['iid'], 'tid':input['tid'],'passed':all_passed, 'status':'SUCCESS', 'results':field_results}
 
 @task_mutation.field('save')
 def task_mutation_save(_,info,input):
