@@ -151,6 +151,11 @@ type CreateInstancePayload {
     tasks: [TaskId!]!
 }
 
+type GetInstancePayload {
+    did: WorkflowDeployemntId!
+    iid_list: [WorkflowInstanceId!]!
+}
+
 type TaskFormPayload {
     iid: WorkflowInstanceId
     tid: TaskId!
@@ -170,6 +175,7 @@ type TaskSavePayload {
     iid: WorkflowInstanceId!
     tid: TaskId!
     status: OperationStatus!
+    passed: Boolean!
     results: [FieldValidationResult!]!
 }
 
@@ -187,6 +193,7 @@ type Query {
 
 type Mutation {
     createInstance : CreateInstancePayload
+    getInstances : GetInstancePayload
     tasks: TaskMutation
 }
 
