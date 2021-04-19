@@ -9,8 +9,10 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="collect" />
         <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___person2">STRING___person2</camunda:outputParameter>
-          <camunda:outputParameter name="STRING___person1">STRING___person1</camunda:outputParameter>
+          <camunda:outputParameter name="number">not_a_real_value: INTEGER
+default: 1</camunda:outputParameter>
+          <camunda:outputParameter name="person2">person2: STRING</camunda:outputParameter>
+          <camunda:outputParameter name="person1">person1: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
@@ -37,8 +39,8 @@
     <bpmn:serviceTask id="Activity_15meqvg" name="email_person_1">
       <bpmn:extensionElements>
         <camunda:inputOutput>
-          <camunda:inputParameter name="STRING___recipient">STRING___person1</camunda:inputParameter>
-          <camunda:outputParameter name="STRING___person_who_got_emailed">STRING___person_i_emailed</camunda:outputParameter>
+          <camunda:inputParameter name="recipient">person1: STRING</camunda:inputParameter>
+          <camunda:outputParameter name="person_who_got_emailed">person_i_emailed: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_172xa7g</bpmn:incoming>
@@ -47,8 +49,8 @@
     <bpmn:serviceTask id="Activity_08qzm98" name="email_person_2">
       <bpmn:extensionElements>
         <camunda:inputOutput>
-          <camunda:inputParameter name="STRING___recipient">STRING___person2</camunda:inputParameter>
-          <camunda:outputParameter name="STRING___person_who_got_emailed">STRING___person_i_emailed</camunda:outputParameter>
+          <camunda:inputParameter name="recipient">person2: STRING</camunda:inputParameter>
+          <camunda:outputParameter name="person_who_got_emailed">person_i_emailed: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1f6ja2m</bpmn:incoming>

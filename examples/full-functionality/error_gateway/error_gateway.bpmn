@@ -9,7 +9,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="collect" />
         <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___underwear">STRING___underpants</camunda:outputParameter>
+          <camunda:outputParameter name="underwear">underpants: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
@@ -23,7 +23,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="profit" />
         <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___cashflow">STRING___cashflow</camunda:outputParameter>
+          <camunda:outputParameter name="cashflow">cashflow: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
@@ -37,7 +37,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="secret_sauce" />
         <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___sauce">STRING___sauce</camunda:outputParameter>
+          <camunda:outputParameter name="sauce">sauce: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_0y9yafp</bpmn:incoming>
@@ -81,18 +81,6 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="error-gateway">
-      <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
-        <dc:Bounds x="160" y="137" width="160" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
-        <dc:Bounds x="390" y="100" width="120" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_04roe2e_di" bpmnElement="TextAnnotation_04roe2e">
-        <dc:Bounds x="567" y="93" width="180" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
-        <dc:Bounds x="840" y="137" width="128" height="68" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_17i2t1b_di" bpmnElement="Flow_17i2t1b">
         <di:waypoint x="630" y="345" />
         <di:waypoint x="630" y="412" />
@@ -140,21 +128,33 @@
           <dc:Bounds x="618" y="455" width="24" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
+        <dc:Bounds x="160" y="137" width="160" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
+        <dc:Bounds x="390" y="100" width="120" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_04roe2e_di" bpmnElement="TextAnnotation_04roe2e">
+        <dc:Bounds x="567" y="93" width="180" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
+        <dc:Bounds x="840" y="137" width="128" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0jwhu8m_di" bpmnElement="Event_0o97hyx">
+        <dc:Bounds x="612" y="309" width="36" height="36" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
         <di:waypoint x="466" y="247" />
         <di:waypoint x="459" y="168" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
-        <di:waypoint x="830" y="247" />
-        <di:waypoint x="872" y="205" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1i25pe6_di" bpmnElement="Association_1i25pe6">
         <di:waypoint x="630" y="247" />
         <di:waypoint x="630" y="161" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNShape id="Event_0jwhu8m_di" bpmnElement="Event_0o97hyx">
-        <dc:Bounds x="612" y="309" width="36" height="36" />
-      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
+        <di:waypoint x="830" y="247" />
+        <di:waypoint x="872" y="205" />
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

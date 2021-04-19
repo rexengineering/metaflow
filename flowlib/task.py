@@ -37,39 +37,41 @@ PARAM_TYPES = [
     'INTEGER',
     'JSON_ARRAY',
 ]
+DEFAULT_PARAM_TYPE = 'JSON_OBJECT'
 
 
 def form_param_config(param):
     '''Takes in a `camunda:inputOutputParameter`. If curious, look in the bpmn xml.
     '''
-    text = param['#text']
+    name = param['@name']
+    text = param['#text'].replace('\xa0', '')
+    lines = text.split('\n')
+    assert len(lines) > 0, "Must annotate variables with assignment value."
 
-    name_text = param['@name']
-    param_type = name_text[:name_text.find("___")]
-    assert param_type in PARAM_TYPES, f"Valid param types: {PARAM_TYPES}. Got {param_type}."
-    name = name_text[len(param_type) + len("___"):]
+    split_first_line = lines[0].split(': ')
+    if len(split_first_line):
+        value, param_type = split_first_line[0], split_first_line[1]
+    else:
+        value, param_type = split_first_line[0], DEFAULT_PARAM_TYPE
 
-    default_value = ""
-    if DEFAULT_TOKEN in text:
-        default_value = text.split(DEFAULT_TOKEN)[1]
-        text = text[:text.find(DEFAULT_TOKEN)]
-        if '___' not in text:
-            return {
-                'name': name,
-                'value': "",
-                'type': text,
-                'default_value': default_value
-            }
+    if len(lines) > 1:
+        default_value_line = lines[1]
+        assert default_value_line.startswith('default: '), \
+            "second line of param config should specify default value. Syntax: `default: <value>`"
+        default_value = default_value_line[len('default: '):]
+        has_default_value = True
+    else:
+        has_default_value = False
+        default_value = None
 
-    assert param_type == text[:text.find("___")]
-    value = text[len(param_type) + len('___'):]
-
-    return {
+    result = {
         'name': name,
         'value': value,
         'type': param_type,
+        'has_default_value': has_default_value,
         'default_value': default_value,
     }
+    return result
 
 
 class BPMNTask(BPMNComponent):
