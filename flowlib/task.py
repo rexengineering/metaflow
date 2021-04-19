@@ -86,6 +86,11 @@ class BPMNTask(BPMNComponent):
 
         assert 'host' in self._annotation['service'], \
             "Must annotate Service Task with service host."
+        
+        if 'targetPort' in self._annotation['service']:
+            self._target_port = self._annotation['service']['targetPort']
+        else:
+            self._target_port = self.service_properties.port
 
         if self._is_preexisting:
             assert 'namespace' in self._annotation['service'], \
@@ -121,7 +126,6 @@ class BPMNTask(BPMNComponent):
         if self._is_preexisting:
             envoyfilter_name += '-' + self.workflow_properties.id_hash
 
-        port = self.service_properties.port
         namespace = self._namespace  # namespace in which the k8s objects live.
         traffic_shadow_cluster = ''
         traffic_shadow_path = ''
@@ -141,7 +145,7 @@ class BPMNTask(BPMNComponent):
             'traffic_shadow_path': traffic_shadow_path,
             'closure_transport': self.workflow_properties.use_closure_transport,
             'headers_to_forward': [X_HEADER_TOKEN_POOL_ID.lower()],
-            'upstream_port': self.service_properties.port,
+            'upstream_port': self._target_port,
             'inbound_retries': 0,
         }
         # Error Gateway stuff
@@ -205,7 +209,7 @@ class BPMNTask(BPMNComponent):
                         'match': {
                             'context': 'SIDECAR_INBOUND',
                             'listener': {
-                                'portNumber': port,
+                                'portNumber': self._target_port,
                                 'filterChain': {
                                     'filter': {
                                         'name': 'envoy.http_connection_manager',
@@ -307,18 +311,21 @@ class BPMNTask(BPMNComponent):
 
         # k8s ServiceAccount
         port = self.service_properties.port
+        target_port = self._target_port
         namespace = self._namespace
         assert self.namespace, "new-grad programmer error: namespace should be set by now."
         uri_prefix = f'/{service_name}' if namespace == 'default' \
             else f'/{namespace}/{service_name}'
 
         k8s_objects.append(create_serviceaccount(namespace, self.service_name))
-        k8s_objects.append(create_service(namespace, self.service_name, port))
+        k8s_objects.append(
+            create_service(namespace, self.service_name, port, target_port=target_port)
+        )
         k8s_objects.append(create_deployment(
             namespace,
             self.service_name,
             self.service_properties.container,
-            port,
+            target_port,
             env=[],
             priority_class=self.workflow_properties.priority_class,
         ))
