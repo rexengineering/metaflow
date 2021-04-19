@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -7,9 +8,15 @@ import typing
 from typing import Dict, List, NoReturn, Tuple
 
 from etcd3.events import DeleteEvent, PutEvent
+
 from flowlib import flow_pb2, etcd_utils
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
+from .graphql_factory import (
+    ENCRYPTED, 
+    ID, 
+    DATA,
+)
 
 class Workflow:
     def __init__(self, did : str, tids : str, flowd_host : str, flowd_port : int):
@@ -36,6 +43,7 @@ class Workflow:
         if self.running:
             self.timer.cancel()
         self.running = False
+        logging.info(f'{self.did} stopped')
 
     def is_running(self):
         return self.running
@@ -59,6 +67,18 @@ class Workflow:
             ))
             return response
 
+    def get_instances(self):
+        with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
+            request = flow_pb2.PSRequest(
+                kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False,
+            )
+            response = flowd.PSQuery(request)
+            data = json.loads(response.data)
+            return [key for key in data.keys() if key.startswith(self.did)]
+
+    def get_task_ids(self):
+        return self.tasks.keys()
+
     def task(self, tid : str):
         if tid not in self.tasks.keys():
             return None
@@ -69,38 +89,66 @@ class WorkflowTask:
     def __init__(self, wf:Workflow, tid:str):
         self.wf = wf
         self.tid = tid
-        self._fields = {}
-        form,_ = wf.etcd.get(WorkflowKeys.field_key(wf.did,tid))
+        self._fields = {}   # the immutable complete set of form information
+        self._values = {}   # the immutable initial set of form data
+        form, _ = wf.etcd.get(WorkflowKeys.field_key(wf.did,tid))
         if form:
-            self._fields = self.normalize_fields(form)
+            self._fields = self._normalize_fields(form)
+            for k,v in self._fields.items():
+                self._values[k] = v[DATA]
 
-    def pull(self,iid:str):
+    def get_form(self,iid:str):
         '''
         Pull the task form for the given iid. If the iid record does not exist,
         create the iid form from the did form master.
         '''
         key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
-        print(f'Trying to pull form data for {key}', flush=True)
         form, _ = self.wf.etcd.get(key)
-        print(f'Result for {key} is {form}', flush=True)
         if form is None:
             tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
-            print(f'Trying to pull form data from {tid_key}', flush=True)
             form, _ = self.wf.etcd.get(tid_key)
-            print(f'Result for {tid_key} is {form}', flush=True)
             self.wf.etcd.put(key,form)
-        return self.normalize_fields(form).values()
+        return list(self._normalize_fields(form).values())
+    
+    def update(self, iid:str, in_fields:list):
+        # get the current fields into a dict for easy access!
+        tmp = self.get_form(iid)
+        flds = {}
+        for f in tmp:
+            flds[f[ID]] = f
+        for f in in_fields:
+            flds[f[ID]][DATA] = f[DATA]
+        key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
+        val = json.dumps(list(flds.values()))
+        self.wf.etcd.put(key, val)
+        return flds
 
-    def normalize_fields(self, form:str) -> Dict[str,typing.Any]:
+    def _normalize_fields(self, form:str) -> Dict[str,any]:
+        '''
+        graphql provides booleans as strings, so convert them to their python equivalents.
+        '''
         fields = {}
         field_list = json.loads(form.decode('utf-8'))
         for field in field_list:
-            field['encrypted'] = bool(field['encrypted'])
-            fields[field['id']] = field
-        print(fields)
+            field[ENCRYPTED] = bool(field[ENCRYPTED])
+            fields[field[ID]] = field
         return fields
 
-    def fields(self) -> List[any]:
+    def fields(self, iid:str = None) -> List[any]:
+        '''
+        Return the fields for this task. If iid is provided, pull
+        the values for the iid and return a deep copy of the fields
+        for the i.
+        '''
+        if iid:
+            # deep copy of fields
+            flds = copy.deepcopy(list(self._fields.values()))
+            # pull iid values record
+            vals = {}
+            # replace data members in flds with iid values
+            for key,val in vals.items():
+                flds[key][DATA] = val
+            return flds
         return self._fields.values()
 
     def field(self, id : str) -> Dict[str,any]:

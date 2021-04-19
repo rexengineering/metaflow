@@ -2,6 +2,20 @@ from flowlib.constants import WorkflowInstanceKeys
 import json
 import logging
 import typing
+from . import graphql_factory as gql
+from .graphql_factory import (
+    DID,
+    FAILURE,
+    FIELDS,
+    ID,
+    IID,
+    PASSED,
+    RESULTS,
+    SUCCESS, 
+    TID,
+    VALIDATORS,
+    WORKFLOW,
+)
 from typing import List, Dict, Tuple
 
 from ariadne import ObjectType
@@ -15,17 +29,17 @@ task_mutation = ObjectType("TaskMutation")
 
 @mutation.field('createInstance')
 def mutation_create_instance(_,info):
-    workflow = info.context['workflow']
+    workflow = info.context[WORKFLOW]
     response = workflow.create_instance()
-    data = json.loads(response.data)
     #data: {"id": "process-0p1yoqw-aa16211c-9f5251689f1811eba4489a05f2a68bd3", "message": "Ok", "status": 0}
-    ret = {}
-    ret['did'] = workflow.did
-    ret['iid'] = data['id']
-    ret['status'] = 'SUCCESS'
-    ret['tasks'] = workflow.tasks.keys()
-    return ret
+    data = json.loads(response.data)
+    return gql.create_instance_payload(workflow.did, data[ID], SUCCESS, workflow.get_task_ids())
 
+@mutation.field('getInstances')
+def mutation_get_instance(_,info):
+    workflow = info.context[WORKFLOW]
+    iid_list = workflow.get_instances()
+    return gql.get_instances_payload(workflow.did, iid_list)
 # Task Mutations
 
 @mutation.field('tasks')
@@ -44,54 +58,67 @@ def task_mutation_form(_, info, input):
     2. If the iid is not provided then the did copy is returned. Any iid
        copy is not affected.
     '''
-    workflow = info.context['workflow']
-    task = workflow.task(input['tid'])
-    iid = '' if 'iid' not in input else input['iid']
-    fields = []
-    status = 'FAILURE'
+    workflow = info.context[WORKFLOW]
+    task = workflow.task(input[TID])
+    iid = '' if IID not in input else input[IID]
+    form = []
+    status = FAILURE
     if task:
-        fields = task.fields() if not iid else task.pull(iid)
-        status = 'SUCCESS'
-    return {'iid':iid, 'tid':input['tid'], 'status': status, 'fields':fields}
+        form = task.get_form(iid)
+        status = SUCCESS
+    return gql.task_form_payload(iid, input[TID], status, form)
 
 @task_mutation.field('validate')
 def task_mutation_validate(_,info,input):
-    task = info.context['workflow'].task(input['tid'])
-    field_results = []
-    all_passed = True
-    for in_field in input['fields']:
-        # TODO: handle decryption here if in_field is marked encrypted
-
-        # here we will need to run the data from the corresponding input.field through
-        # the validator(s) provided by field.validators to determine the result. For
-        # now balk
-        try:
-            task_field = task.field(in_field['id'])
-            results = []
-            field_passed = True
-            for validator in task_field['validators']:
-                # ValidatorResult
-                passed = True #validator.result
-                field_passed = field_passed and passed #= validator.result
-                results.append({'validator':validator['type'], 'passed':passed, 'result':'It\'s a good show!'})
-            # FieldValidationResult
-            field_results.append({'field':in_field['id'], 'passed': field_passed, 'results':results})
-            all_passed = all_passed and field_passed
-        except Exception as ex:
-            print(ex)
-    # TaskValidatePayload
-    return {'iid':input['iid'], 'tid':input['tid'],'passed':all_passed, 'status':'SUCCESS', 'results':field_results}
+    task = info.context[WORKFLOW].task(input[TID])
+    all_passed, field_results = _validate_fields(task, input[FIELDS])
+    return gql.task_validate_payload(input[IID], input[TID], SUCCESS, all_passed, field_results)
 
 @task_mutation.field('save')
 def task_mutation_save(_,info,input):
     # run the input though the validator to make sure it's good
-    val_results = task_mutation_validate(None,info,input)
-
-
-
-    return {'iid':'wf_instance_id','tid':'task1','status':'SUCCESS', 'validatorResults':[]}
+    iid = input[IID]
+    tid = input[TID]
+    task = info.context[WORKFLOW].task(tid)
+    field_results = []
+    status = FAILURE
+    passed = False
+    if task:
+        # not all fields may have been passed in. Hence, we merge or update the 
+        # provided fields into the stored image.
+        fields = list(task.update(iid, input[FIELDS]).values())
+        print(fields)
+        passed, field_results = _validate_fields(task, fields)
+        status = SUCCESS
+    return gql.task_save_payload(iid, tid,  status, passed, field_results)
 
 @task_mutation.field('complete')
 def task_mutation_complete(_,info,input):
-    logging.info(f'task_mutation_complete {input["iid"]} {input["tid"]}')
-    return {'iid':'wf_instance_id','tid':'task1','status':'SUCCESS'}
+    logging.info(f'task_mutation_complete {input[IID]} {input[TID]}')
+    return gql.task_complete_payload(input[IID], input[TID], SUCCESS)
+
+def _validate_fields(task:WorkflowTask, fields:List) -> Tuple[bool, List]:
+    field_results = []
+    all_passed = True # assume all validators for all fields pass
+    for in_field in fields:
+        # TODO: handle decryption here if in_field is marked encrypted
+
+        # here we will need to run the data from the corresponding input.field through
+        # the validator(s) provided by field.validators to determine the result. For
+        # now balk and all validators pass.
+        try:
+            field_id = in_field[ID]
+            task_field = task.field(field_id)
+            results = []
+            field_passed = True # assume all validators on this field pass
+            for validator in task_field[VALIDATORS]:
+                passed = True #validator.result
+                field_passed = field_passed and passed
+                results.append(gql.validator_result(validator, passed, 'It\'s a fair cop!'))
+            field_results.append(
+                gql.field_validation_result(field_id, field_passed, results)
+            )
+            all_passed = all_passed and field_passed
+        except Exception as ex:
+            print('_validate_fields',ex)
+    return (all_passed, field_results)
