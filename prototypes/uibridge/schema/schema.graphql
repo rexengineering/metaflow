@@ -113,6 +113,14 @@ type FieldValidationResult {
 }
 
 # Inputs
+input GetInstanceInput {
+    iid: WorkflowInstanceId!
+}
+
+input CreateWorkflowInstanceInput {
+    graphqlUri: String!
+}
+
 input TaskMutationFormInput {
     iid:WorkflowInstanceId
     tid:TaskId!
@@ -151,9 +159,14 @@ type CreateInstancePayload {
     tasks: [TaskId!]!
 }
 
+type WorkflowInstanceInfo {
+    iid: WorkflowInstanceId!
+    graphqlUri: String
+}
+
 type GetInstancePayload {
     did: WorkflowDeployemntId!
-    iid_list: [WorkflowInstanceId!]!
+    iid_list: [WorkflowInstanceInfo!]!
 }
 
 type TaskFormPayload {
@@ -189,11 +202,11 @@ type TaskCompletePayload {
 
 type Query {
     version: String
+    getInstances(input: GetInstanceInput) : GetInstancePayload
 }
 
 type Mutation {
-    createInstance : CreateInstancePayload
-    getInstances : GetInstancePayload
+    createInstance(input: CreateWorkflowInstanceInput!) : CreateInstancePayload
     tasks: TaskMutation
 }
 

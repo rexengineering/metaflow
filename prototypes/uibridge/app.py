@@ -51,6 +51,7 @@ class REXFlowUIBridge(AsyncService):
             # mutations.session_state_mutations,
             # mutations.workflow_mutations,
             # mutations.task_mutations,
+            graphql_handlers.query,
             graphql_handlers.mutation,
             graphql_handlers.task_mutation,
         )

@@ -59,13 +59,16 @@ class Workflow:
         for _ in watch_iter:
             self.refresh_instances()
 
-    def create_instance(self):
+    def create_instance(self, graphql_uri:str):
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
             response = flowd.RunWorkflow(flow_pb2.RunRequest(
                 workflow_id=self.did, args=None,
                 stopped=False, start_event_id=None
             ))
-            return response
+            data = json.loads(response.data)
+            iid = data[ID]
+            self.etcd.put(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
+            return data
 
     def get_instances(self):
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
@@ -75,6 +78,12 @@ class Workflow:
             response = flowd.PSQuery(request)
             data = json.loads(response.data)
             return [key for key in data.keys() if key.startswith(self.did)]
+
+    def get_instance_graphql_uri(self, iid:str) -> str:
+        uri, _ = self.etcd.get(WorkflowInstanceKeys.ui_server_uri_key(iid))
+        if uri:
+            uri = uri.decode('utf-8')
+        return uri      # will be None or the URI
 
     def get_task_ids(self):
         return self.tasks.keys()

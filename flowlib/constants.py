@@ -150,7 +150,6 @@ class WorkflowInstanceKeys:
         self.content_type  = self.content_type_key(iid)
         self.timed_events  = self.timed_events_key(iid)
         self.timed_results = self.timed_results_key(iid)
-        self.forms         = self.form_key(iid)
 
     @classmethod
     def key_of(cls, iid):
@@ -211,6 +210,10 @@ class WorkflowInstanceKeys:
     @classmethod
     def task_form_key(cls, iid, tid):
         return f'{cls.form_key(iid)}/{tid}'
+
+    @classmethod
+    def ui_server_uri_key(cls, iid):
+        return f'{cls.form_key(iid)}/graphql_uri'
 
 def split_key(iid: str):
     '''

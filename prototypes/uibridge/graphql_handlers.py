@@ -7,6 +7,7 @@ from .graphql_factory import (
     DID,
     FAILURE,
     FIELDS,
+    GRAPHQL_URI,
     ID,
     IID,
     PASSED,
@@ -22,24 +23,35 @@ from ariadne import ObjectType
 
 from .flowd_api import Workflow, WorkflowTask
 
+query = ObjectType("Query")
 mutation = ObjectType("Mutation")
 task_mutation = ObjectType("TaskMutation")
+
+# Queries
+
+@query.field('getInstances')
+def mutation_get_instance(_,info, input=None):
+    workflow = info.context[WORKFLOW]
+    if input and input[IID]:
+        iid_list = [input[IID]]
+    else:
+        iid_list = workflow.get_instances()
+
+    iid_info = []
+    for iid in iid_list:
+        uri = workflow.get_instance_graphql_uri(iid)
+        iid_info.append(gql.workflow_instance_info(iid, uri))
+    return gql.get_instances_payload(workflow.did, iid_info)
 
 # Workflow Mutations
 
 @mutation.field('createInstance')
-def mutation_create_instance(_,info):
+def mutation_create_instance(_,info,input):
     workflow = info.context[WORKFLOW]
-    response = workflow.create_instance()
     #data: {"id": "process-0p1yoqw-aa16211c-9f5251689f1811eba4489a05f2a68bd3", "message": "Ok", "status": 0}
-    data = json.loads(response.data)
+    data = workflow.create_instance(input[GRAPHQL_URI])
     return gql.create_instance_payload(workflow.did, data[ID], SUCCESS, workflow.get_task_ids())
 
-@mutation.field('getInstances')
-def mutation_get_instance(_,info):
-    workflow = info.context[WORKFLOW]
-    iid_list = workflow.get_instances()
-    return gql.get_instances_payload(workflow.did, iid_list)
 # Task Mutations
 
 @mutation.field('tasks')

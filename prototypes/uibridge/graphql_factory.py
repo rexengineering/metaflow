@@ -10,6 +10,7 @@ DID        = 'did'
 ENCRYPTED  = 'encrypted'
 FIELD      = 'field'
 FIELDS     = 'fields'
+GRAPHQL_URI= 'graphqlUri'
 ID         = 'id'
 IID        = 'iid'
 IID_LIST   = 'iid_list'
@@ -45,6 +46,11 @@ def field_validation_result(field:str, passed:bool, results:List):
         FIELD: field,
         PASSED: passed,
         RESULTS: results,
+    }
+
+def create_workflow_instance_input(iid: str, graphql_uri: str):
+    return {
+        GRAPHQL_URI: graphql_uri,
     }
 
 def task_mutations_form_input(iid:str, tid:str):
@@ -89,7 +95,13 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         TASKS: tasks
     }
 
-def get_instances_payload(did:str, iid_list:List[str]):
+def workflow_instance_info(iid:str, graphql_uri:str):
+    return {
+        IID: iid,
+        GRAPHQL_URI: graphql_uri,
+    }
+
+def get_instances_payload(did:str, iid_list:List):
     return {
         DID: did,
         IID_LIST: iid_list
