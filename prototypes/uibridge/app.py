@@ -8,14 +8,32 @@ from ariadne.graphql import graphql_sync
 
 from flowlib import executor
 from flowlib.constants import flow_result
-from . import bindables, resolvers, mutations
+from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
+from ariadne import ObjectType
 
 
 BASEDIR = os.path.dirname(__file__)
 # TODO: Remove this hardcoded endpoint and its uses.
 HAPPY_PATH = 'happiness.process-0p1yoqw-aa16211c'
 
+flowd_host = os.environ.get('FLOWD_HOST', 'flowd.rexflow')
+flowd_port = os.environ.get('FLOWD_PORT', 9001)
+if isinstance(flowd_port, str) and ':' in flowd_port:
+    import re
+    # inside k8s, FLOWD_PORT has format xxx://xx.xx.xx.xx:xxxx
+    # extract the IP and PORT using regex magic
+    x = re.search(r'.+://([\d\.]+):(\d+)', flowd_port)
+    flowd_host = x.group(1)
+    flowd_port = x.group(2)
+
+logging.info(f'FLOWD address is {flowd_host}:{flowd_port}')
+
+# the Workflow object (created in init_route)
+WORKFLOW_DID = os.environ.get('WORKFLOW_DID','tde-15839350')
+assert WORKFLOW_DID is not None, 'WORKFLOW_DID not defined in environment - exiting'
+WORKFLOW_TIDS = os.environ.get('WORKFLOW_TIDS',None)
+assert WORKFLOW_TIDS is not None, 'WORKFLOW_TIDS not defined in environment - exiting'
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
@@ -25,19 +43,26 @@ class REXFlowUIBridge(AsyncService):
         self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
         self.graphql_schema = make_executable_schema(
             self.schema,
-            bindables.session_id,
-            bindables.workflow_id,
-            bindables.workflow_type,
-            bindables.task_id,
-            bindables.state,
-            resolvers.query,
-            resolvers.workflow_query,
-            mutations.mutation,
-            mutations.session_mutation,
-            mutations.session_state_mutations,
-            mutations.workflow_mutations,
-            mutations.task_mutations,
+            # bindables.session_id,
+            # bindables.workflow_id,
+            # bindables.workflow_type,
+            # bindables.task_id,
+            # bindables.state,
+            # resolvers.query,
+            # resolvers.workflow_query,
+            # mutations.mutation,
+            # mutations.session_mutation,
+            # mutations.session_state_mutations,
+            # mutations.workflow_mutations,
+            # mutations.task_mutations,
+            graphql_handlers.query,
+            graphql_handlers.mutation,
+            graphql_handlers.task_mutation,
         )
+
+        self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, flowd_host, flowd_port)
+        self.workflow.start()
+
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)
 
@@ -58,7 +83,7 @@ class REXFlowUIBridge(AsyncService):
                 f'I am seeing a DNS entry for {HAPPY_PATH}, but it is not a string...',
                 exc_info=exn
             )
-        return 202
+        return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
 
     async def _happy_path(self, headers, json):
         import requests, functools, asyncio
@@ -94,10 +119,11 @@ class REXFlowUIBridge(AsyncService):
     async def graphql_server(self):
         global request
         data = await request.get_json()
+        logging.info(request, data)
         success, result = graphql_sync(
             self.graphql_schema,
             data,
-            context_value=[request],
+            context_value = {'request':request, 'workflow': self.workflow},
             debug=self.app.debug
         )
         status_code = 200 if success else 400
