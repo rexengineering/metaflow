@@ -66,8 +66,8 @@ Where timer_type is timeDate, timeCycle, or timeDuration
                  the timer_type
                  timeDate - DateTime (4.3) in GMT/UTC (Zulu)
                  timeDuration - Duration (4.4.2.b)
-                 timeCycle - Recurance (4.5.2)
-                    Infinite recurances are not permitted, hence
+                 timeCycle - Recurrence (4.5.2)
+                    Infinite recurrences are not permitted, hence
                     R/<duration> or R0/<duration> are invalid.
 
 '''

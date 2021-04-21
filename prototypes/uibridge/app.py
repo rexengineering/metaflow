@@ -1,3 +1,4 @@
+import logging
 import os.path
 
 from quart import jsonify, request
@@ -5,19 +6,22 @@ from ariadne import load_schema_from_path, make_executable_schema
 from ariadne.constants import PLAYGROUND_HTML
 from ariadne.graphql import graphql_sync
 
+from flowlib import executor
 from flowlib.constants import flow_result
 from . import bindables, resolvers, mutations
 from .async_service import AsyncService
 
-BASEDIR = os.path.dirname(__file__)
 
-from ariadne import ObjectType
+BASEDIR = os.path.dirname(__file__)
+# TODO: Remove this hardcoded endpoint and its uses.
+HAPPY_PATH = 'happiness.process-0p1yoqw-aa16211c'
+
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.app.route('/ui', methods=['POST'])(self.ui_route)
-        self.app.route('/init', methods=['POST'])(self.init_route)
+        self.app.route('/task/init', methods=['POST'])(self.init_route)
         self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
         self.graphql_schema = make_executable_schema(
             self.schema,
@@ -37,9 +41,36 @@ class REXFlowUIBridge(AsyncService):
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)
 
-    def init_route(self):
+    async def init_route(self):
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
+        import socket, asyncio
+        try:
+            my_executor = executor.get_executor()
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(my_executor, socket.gethostbyname, HAPPY_PATH)
+            assert isinstance(result, str)
+            json = await request.get_json()
+            loop.call_later(10, self._happy_path, request.headers, json)
+
+        except AssertionError as exn:
+            logging.exception(
+                f'I am seeing a DNS entry for {HAPPY_PATH}, but it is not a string...',
+                exc_info=exn
+            )
+        return 202
+
+    async def _happy_path(self, headers, json):
+        import requests, functools, asyncio
+        try:
+            my_executor = executor.get_executor()
+            loop = asyncio.get_running_loop()
+            post = functools.partial(requests.post, url=f'http://{HAPPY_PATH}', headers=headers, json=json)
+            result = await loop.run_in_executor(my_executor, post)
+            logging.info(f'ok={result.ok}, json={await result.json()}')
+            result.raise_for_status()
+        except Exception as exn:
+            logging.exception('Happy path is sad...', exc_info=exn)
 
     def ui_route(self):
         state = self.get_state_from_etcd(request)  # Gets ID from request...
