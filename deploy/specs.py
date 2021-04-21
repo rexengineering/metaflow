@@ -121,6 +121,14 @@ def mk_flowd_deployment_spec(etcd_host, kafka_enabled):
                         'env': [
                             {'name': 'ETCD_HOST', 'value': etcd_host},
                             {"name": "I_AM_FLOWD", "value": "True"},
+                            {
+                                "name": "REXFLOW_FLOWD_HOST",
+                                "value": "flowd.rexflow",
+                            },
+                            {
+                                "name": "REXFLOW_FLOWD_PORT",
+                                "value": "9002",
+                            },
                         ]
                     }],
                     'serviceAccountName': 'flowd'}
@@ -227,6 +235,14 @@ def mk_healthd_deployment_spec(etcd_host, kafka_enabled):
                             'ports': [{'containerPort': 5050}],
                             'env': [
                                 {'name': 'ETCD_HOST', 'value': etcd_host},
+                                {
+                                    "name": "REXFLOW_FLOWD_HOST",
+                                    "value": "flowd.rexflow",
+                                },
+                                {
+                                    "name": "REXFLOW_FLOWD_PORT",
+                                    "value": "9002",
+                                },
                                 {'name': 'HEALTHD_ON_KUBERNETES', 'value': 'True'}
                             ],
                         },

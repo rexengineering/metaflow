@@ -219,9 +219,20 @@ class EventCatchPoller:
         o = urlparse(FORWARD_URL)
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
-        requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=next_headers)
-        next_headers['x-rexflow-failure'] = True
-        self._shadow_to_kafka(data, next_headers)
+        try:
+            logging.info("hello there")
+            response = requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=next_headers)
+            logging.info(response)
+            response.raise_for_status()
+        except Exception as exn:
+            logging.exception(
+                f"Instance: {flow_id}. Failed to notify flowd of error.",
+                exc_info=exn,
+            )
+            return None
+        finally:    
+            next_headers['x-rexflow-failure'] = True
+            self._shadow_to_kafka(data, next_headers)
 
     def __call__(self):
         while True:  # do forever
