@@ -23,12 +23,12 @@ docker push $THROW_IMAGE_TAG
 REXFLOW_ROOT=$PWD
 cd $REXFLOW_ROOT/gateway_containers/exclusive-gateway && make build
 XGW_IMAGE_TAG=355508092300.dkr.ecr.us-west-2.amazonaws.com/rex/rexflow-exclusive-gateway:$1
-docker tag exclusive-gateway:1.0.0 $XGW_IMAGE_TAG  # the 1.0.0 comes from `make build` 2 lines up.
+docker tag exclusive-gateway $XGW_IMAGE_TAG
 docker push $XGW_IMAGE_TAG
 
 cd $REXFLOW_ROOT/gateway_containers/parallel-gateway && make build
 PGW_IMAGE_TAG=355508092300.dkr.ecr.us-west-2.amazonaws.com/rex/rexflow-parallel-gateway:$1
-docker tag parallel-gateway:1.0.0 $PGW_IMAGE_TAG  # the 1.0.0 comes from `make build` 2 lines up.
+docker tag parallel-gateway $PGW_IMAGE_TAG
 docker push $PGW_IMAGE_TAG
 
 rex-k8s-context $1:rexflow

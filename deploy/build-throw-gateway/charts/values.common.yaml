@@ -1,0 +1,5 @@
+nameOverride: rexflow-throw-gateway
+
+build:
+  from_root: true
+  dockerfile: deploy/Dockerfile.throw

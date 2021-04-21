@@ -41,7 +41,7 @@ spec:
     spec:
       serviceAccountName: kafka-shadow
       containers:
-      - image: throw-gateway:1.0.0
+      - image: throw-gateway:latest
         imagePullPolicy: IfNotPresent
         name: kafka-shadow
         ports:

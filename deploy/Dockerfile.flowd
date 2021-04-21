@@ -1,4 +1,4 @@
-FROM python:3.8-slim
+FROM python:3.8-slim AS base
 WORKDIR /opt/rexflow
 COPY requirements.txt .
 RUN pip install -r requirements.txt
@@ -14,5 +14,11 @@ RUN curl -sL  https://istio.io/downloadIstioctl | sh - && \
 
 COPY flowlib flowlib/
 COPY flowd flowd/
+
+FROM base AS test
+
+CMD ["echo", "TODO: run quick unit tests here."]
+
+FROM base AS container
 
 CMD [ "python", "-m", "flowd"]

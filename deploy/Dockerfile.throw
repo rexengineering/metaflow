@@ -1,4 +1,4 @@
-FROM python:3.8-slim
+FROM python:3.8-slim AS base
 WORKDIR /opt/rexflow
 RUN apt-get update && apt-get install -y curl
 COPY requirements.txt .
@@ -6,4 +6,11 @@ RUN pip install -r requirements.txt
 COPY flowlib flowlib/
 COPY throwgateway.py .
 EXPOSE 5050/tcp
-CMD ["python", "-m", "throwgateway"]
+
+FROM base AS test
+
+CMD ["echo", "TODO: run quick unit tests here."]
+
+FROM base AS container
+
+CMD ["python", "-m", "catchgateway"]
