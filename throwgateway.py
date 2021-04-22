@@ -175,7 +175,6 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
         assert False, "somehow it was already completed?"
     return 'Great shot kid, that was one in a million!'
 
-
 class EventThrowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
@@ -194,8 +193,6 @@ class EventThrowApp(QuartApp):
                 request.headers[Headers.WFID_HEADER],
                 request.headers['content-type'],
             )
-        if FORWARD_URL:
-            make_call_(data)
         if FUNCTION == 'END':
             complete_instance(
                 request.headers[Headers.FLOWID_HEADER],
@@ -204,6 +201,8 @@ class EventThrowApp(QuartApp):
                 request.headers['content-type'],
                 request.headers.get(X_HEADER_TOKEN_POOL_ID),
             )
+        if FORWARD_URL:
+            make_call_(data)
         resp = await make_response(flow_result(0, ""))
 
         if Headers.TRACEID_HEADER in request.headers:
