@@ -10,9 +10,9 @@ healthd: deploy/Dockerfile.healthd
 	docker build -t $@ -f $< .
 
 throw: deploy/Dockerfile.throw
-	docker build -t $@ -f $< .
+	docker build -t $@-gateway:1.0.0 -f $< .
 
 catch: deploy/Dockerfile.catch
-	docker build -t $@ -f $< .
+	docker build -t $@-gateway:1.0.0 -f $< .
 
 .PHONY: containers flowd flowd.dev healthd throw catch

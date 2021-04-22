@@ -13,8 +13,8 @@ from flowlib import flow_pb2, etcd_utils
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
 from .graphql_factory import (
-    ENCRYPTED, 
-    ID, 
+    ENCRYPTED,
+    ID,
     DATA,
 )
 
@@ -118,7 +118,7 @@ class WorkflowTask:
             form, _ = self.wf.etcd.get(tid_key)
             self.wf.etcd.put(key,form)
         return list(self._normalize_fields(form).values())
-    
+
     def update(self, iid:str, in_fields:list):
         # get the current fields into a dict for easy access!
         tmp = self.get_form(iid)

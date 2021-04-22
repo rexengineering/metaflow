@@ -1,4 +1,5 @@
 import logging
+import os
 import os.path
 
 from quart import jsonify, request
@@ -10,7 +11,6 @@ from flowlib import executor
 from flowlib.constants import flow_result
 from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
-from ariadne import ObjectType
 
 
 BASEDIR = os.path.dirname(__file__)
@@ -18,22 +18,26 @@ BASEDIR = os.path.dirname(__file__)
 HAPPY_PATH = 'happiness.process-0p1yoqw-aa16211c'
 
 flowd_host = os.environ.get('FLOWD_HOST', 'flowd.rexflow')
-flowd_port = os.environ.get('FLOWD_PORT', 9001)
-if isinstance(flowd_port, str) and ':' in flowd_port:
+env_flowd_port = os.environ.get('FLOWD_PORT', None)
+if env_flowd_port is None:
+    flowd_port = 9001
+elif ':' in env_flowd_port:
     import re
     # inside k8s, FLOWD_PORT has format xxx://xx.xx.xx.xx:xxxx
     # extract the IP and PORT using regex magic
-    x = re.search(r'.+://([\d\.]+):(\d+)', flowd_port)
+    x = re.search(r'.+://([\d\.]+):(\d+)', env_flowd_port)
     flowd_host = x.group(1)
-    flowd_port = x.group(2)
+    flowd_port = int(x.group(2))
+else:
+    flowd_port = int(env_flowd_port)
 
 logging.info(f'FLOWD address is {flowd_host}:{flowd_port}')
 
 # the Workflow object (created in init_route)
 WORKFLOW_DID = os.environ.get('WORKFLOW_DID','tde-15839350')
 assert WORKFLOW_DID is not None, 'WORKFLOW_DID not defined in environment - exiting'
-WORKFLOW_TIDS = os.environ.get('WORKFLOW_TIDS',None)
-assert WORKFLOW_TIDS is not None, 'WORKFLOW_TIDS not defined in environment - exiting'
+WORKFLOW_TIDS = os.environ.get('WORKFLOW_TIDS', '')
+assert WORKFLOW_TIDS != '', 'WORKFLOW_TIDS not defined in environment - exiting'
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
@@ -67,6 +71,7 @@ class REXFlowUIBridge(AsyncService):
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)
 
     async def init_route(self):
+        logging.info('Starting init_route()...')
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
         import socket, asyncio
@@ -76,8 +81,8 @@ class REXFlowUIBridge(AsyncService):
             result = await loop.run_in_executor(my_executor, socket.gethostbyname, HAPPY_PATH)
             assert isinstance(result, str)
             json = await request.get_json()
-            loop.call_later(10, self._happy_path, request.headers, json)
-
+            loop.create_task(self._happy_path(request.headers, json))
+            logging.info('Completing init_route() for happy path...')
         except AssertionError as exn:
             logging.exception(
                 f'I am seeing a DNS entry for {HAPPY_PATH}, but it is not a string...',
@@ -87,12 +92,18 @@ class REXFlowUIBridge(AsyncService):
 
     async def _happy_path(self, headers, json):
         import requests, functools, asyncio
+        logging.info('You have reached the _happy_path() hotline!')
         try:
+            await asyncio.sleep(10)
             my_executor = executor.get_executor()
             loop = asyncio.get_running_loop()
-            post = functools.partial(requests.post, url=f'http://{HAPPY_PATH}', headers=headers, json=json)
-            result = await loop.run_in_executor(my_executor, post)
-            logging.info(f'ok={result.ok}, json={await result.json()}')
+            headers['X-Rexflow-Task-Id'] = 'Activity_0jtv9s8'
+            logging.info(f'headers={headers}')
+            get = functools.partial(requests.get, url=f'http://{HAPPY_PATH}', headers=headers, json=json)
+            result = await loop.run_in_executor(my_executor, get)
+            logging.info(f'result={result.ok}')
+            logging.info(f'result.headers={result.headers}')
+            logging.info(f'result.text={repr(result.text)}')
             result.raise_for_status()
         except Exception as exn:
             logging.exception('Happy path is sad...', exc_info=exn)

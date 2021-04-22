@@ -1,7 +1,7 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
-from typing import Any, Generator, Mapping, List
+from typing import Any, Generator, Mapping, List, Set, Union
 import yaml
 from hashlib import sha1, sha256
 import re
@@ -507,7 +507,7 @@ class BPMNComponent:
         return []
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
-                      digraph: OrderedDict, sequence_flow_table: Mapping[str, Any]) -> list:
+                      digraph: Mapping[str, Set[str]], sequence_flow_table: Mapping[str, Any]) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -595,8 +595,8 @@ class BPMNComponent:
         return self._global_props
 
     @property
-    def transport_kafka_topic(self) -> str:
-        if not self.workflow_properties.is_reliable_transport:
+    def transport_kafka_topic(self) -> Union[str, None]:
+        if not self.workflow_properties.is_recoverable:
             return None
         return to_valid_k8s_name(f'{self.name}-{self._global_props.id_hash}-incoming')
 
@@ -632,7 +632,7 @@ class BPMNComponent:
     def annotation(self) -> dict:
         '''Returns the python dictionary representation of the rexflow annotation on the
         BPMN diagram for this BPMNComponent.'''
-        return self._annotation
+        return self._annotation if self._annotation else dict()
 
     @property
     def path(self) -> str:

@@ -18,7 +18,13 @@ if __name__ == '__main__':
     config = None
     if namespace.config:
         config = importlib.import_module(namespace.config[0]).__dict__
-    logging.basicConfig(format=get_log_format('uibridge'),
-                        level=getattr(logging, namespace.level, logging.INFO))
+    log_level = int(getattr(logging, namespace.level, logging.INFO))
+    print(f'log_level is {log_level}', flush=True)
+    log_format = get_log_format('ui-bridge')
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_handler = root_logger.handlers[0]
+    root_handler.setLevel(log_level)
+    root_handler.setFormatter(logging.Formatter(log_format))
     app = REXFlowUIBridge(bind=f'0.0.0.0:{UI_BRIDGE_PORT}', config=config)
     app.run()
