@@ -103,7 +103,7 @@ class Workflow:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def _create_kafka_topics(self):
-        if KAFKA_CONFIG is None:
+        if KAFKA_CONFIG is None or len(self.process.kafka_topics) == 0:
             return
         kafka_client = AdminClient(KAFKA_CONFIG)
         topic_metadata = kafka_client.list_topics()
@@ -124,7 +124,7 @@ class Workflow:
                     logging.error(f"Failed to create topic {topic}: {e}")
 
     def _delete_kafka_topics(self):
-        if KAFKA_CONFIG is None:
+        if KAFKA_CONFIG is None or len(self.process.kafka_topics) == 0:
             return
         kafka_client = AdminClient(KAFKA_CONFIG)
         topic_metadata = kafka_client.list_topics()
