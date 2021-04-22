@@ -220,7 +220,6 @@ class EventCatchPoller:
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
         try:
-            logging.info("hello there")
             response = requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=next_headers)
             logging.info(response)
             response.raise_for_status()
