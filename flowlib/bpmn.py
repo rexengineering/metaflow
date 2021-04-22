@@ -311,6 +311,21 @@ class BPMNProcess:
             logging.info('User tasks detected, adding UI bridge to deployment.')
             # TODO: Figure out configuration details for the UI bridge and add
             # to generated K8s specifications.
+
+            bridge_config = {}
+            for task in self.user_tasks:
+                task_outbound_edges = set(self.digraph[task.id])
+                task_outbound_components = [
+                    self.component_map[component_id] for component_id in task_outbound_edges
+                ]
+                bridge_config[task.id] = [
+                    {
+                        'next_task_id_header': next_task.id,
+                        'k8s_url': next_task.k8s_url,
+                    }
+                    for next_task in task_outbound_components
+                ]
+
             ui_bridge_env = [
                 {
                     'name': 'WORKFLOW_DID',
@@ -318,7 +333,11 @@ class BPMNProcess:
                 },
                 {
                     'name': 'WORKFLOW_TIDS',
-                    'value': ':'.join([task.id for task in self.user_tasks])
+                    'value': ':'.join([task.id for task in self.user_tasks]),
+                },
+                {
+                    'name': 'BRIDGE_CONFIG',
+                    'value': json.dumps(bridge_config),
                 }
             ]
             results.append(create_deployment(
