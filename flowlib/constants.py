@@ -1,5 +1,6 @@
 from hashlib import sha256
 import re
+from flowlib.config import REXFLOW_ROOT_PREFIX
 
 '''
 These are the valid states for a workflow and the workflow instances, specified here
@@ -17,6 +18,7 @@ TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
 X_HEADER_FLOW_ID = 'X-Flow-Id'
 X_HEADER_WORKFLOW_ID = 'X-Rexflow-Wf-Id'
 X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
+X_HEADER_TASK_ID = 'X-Rexflow-Task-Id'
 
 K8S_MAX_NAMELENGTH = 63
 
@@ -55,7 +57,6 @@ def to_valid_k8s_name(name):
     return name
 
 
-
 class States:
     COMPLETED = 'COMPLETED'
     ERROR = 'ERROR'
@@ -75,8 +76,8 @@ class ByteStatesClass:
 
 BStates = ByteStatesClass()
 
-REXFLOW_ROOT = '/rexflow'
 HOST_SUFFIX = '/host'
+REXFLOW_ROOT = REXFLOW_ROOT_PREFIX
 
 
 class Headers:
@@ -133,23 +134,31 @@ class WorkflowKeys:
         return f'{cls.key_of(did)}/fields/{tid}'
 
 
+# TODO: There seems to be a proliferation of instance-related keys in ETCD.
+# Schedule a careful review of these and remove as many as possible.
+
 class WorkflowInstanceKeys:
     ROOT = f'{REXFLOW_ROOT}/instances'
 
     def __init__(self, iid):
-        self.root          = self.key_of(iid)
-        self.proc          = self.proc_key(iid)
-        self.result        = self.result_key(iid)
-        self.state         = self.state_key(iid)
-        self.headers       = self.headers_key(iid)
-        self.payload       = self.payload_key(iid)
-        self.error_key     = self.was_error_key(iid)
-        self.parent        = self.parent_key(iid)
-        self.end_event     = self.end_event_key(iid)
-        self.traceid       = self.traceid_key(iid)
-        self.content_type  = self.content_type_key(iid)
-        self.timed_events  = self.timed_events_key(iid)
-        self.timed_results = self.timed_results_key(iid)
+        self.root           = self.key_of(iid)
+        self.proc           = self.proc_key(iid)
+        self.result         = self.result_key(iid)
+        self.state          = self.state_key(iid)
+        self.error_code     = self.error_code_key(iid)
+        self.error_key      = self.was_error_key(iid)
+        self.error_message  = self.error_message_key(iid)
+        self.failed_task    = self.failed_task_key(iid)
+        self.input_headers  = self.input_headers_key(iid)
+        self.input_data     = self.input_data_key(iid)
+        self.output_data    = self.output_data_key(iid)
+        self.output_headers = self.output_headers_key(iid)
+        self.parent         = self.parent_key(iid)
+        self.end_event      = self.end_event_key(iid)
+        self.traceid        = self.traceid_key(iid)
+        self.content_type   = self.content_type_key(iid)
+        self.timed_events   = self.timed_events_key(iid)
+        self.timed_results  = self.timed_results_key(iid)
 
     @classmethod
     def key_of(cls, iid):
@@ -177,7 +186,7 @@ class WorkflowInstanceKeys:
 
     @classmethod
     def was_error_key(cls, iid):
-        return f'{cls.key_of(iid)}/wasError'
+        return f'{cls.key_of(iid)}/was_error'
 
     @classmethod
     def parent_key(cls, iid):
@@ -186,6 +195,34 @@ class WorkflowInstanceKeys:
     @classmethod
     def end_event_key(cls, iid):
         return f'{cls.key_of(iid)}/end_event'
+
+    @classmethod
+    def error_code_key(cls, id):
+        return f'{cls.key_of(id)}/error_code'
+
+    @classmethod
+    def failed_task_key(cls, id):
+        return f'{cls.key_of(id)}/failed_task'
+
+    @classmethod
+    def error_message_key(cls, id):
+        return f'{cls.key_of(id)}/error_message'
+
+    @classmethod
+    def input_headers_key(cls, id):
+        return f'{cls.key_of(id)}/input_headers'
+
+    @classmethod
+    def input_data_key(cls, id):
+        return f'{cls.key_of(id)}/input_data'
+
+    @classmethod
+    def output_headers_key(cls, id):
+        return f'{cls.key_of(id)}/output_headers'
+
+    @classmethod
+    def output_data_key(cls, id):
+        return f'{cls.key_of(id)}/output_data'
 
     @classmethod
     def traceid_key(cls, iid):
@@ -206,7 +243,7 @@ class WorkflowInstanceKeys:
     @classmethod
     def form_key(cls, iid):
         return f'{cls.key_of(iid)}/forms'
-    
+
     @classmethod
     def task_form_key(cls, iid, tid):
         return f'{cls.form_key(iid)}/{tid}'
@@ -238,5 +275,21 @@ def get_ingress_object_name(hostname):
     return to_valid_k8s_name(long_name)
 
 
-def get_ingress_labels(wf_obj):
-    return {"key": "rexflow.rexhomes.com/wf-id", "value": wf_obj.id}
+class IngressHostKeys:
+    ROOT = f'{REXFLOW_ROOT}/hosts'
+
+    def __init__(self, host):
+        self.workflow_id = self.workflow_id_key(host)
+        self.component_name = self.component_name_key(host)
+
+    @classmethod
+    def key_of(cls, host):
+        return f'{IngressHostKeys.ROOT}/{host}'
+
+    @classmethod
+    def workflow_id_key(cls, host):
+        return f'{cls.key_of(host)}/workflow_id'
+
+    @classmethod
+    def component_name_key(cls, host):
+        return f'{cls.key_of(host)}/component_name'

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_0d4zc4f" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.6.0">
+  <bpmn:process id="closure-example" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Start">
+      <bpmn:outgoing>SequenceFlow_190n0mt</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="SequenceFlow_190n0mt" sourceRef="StartEvent_1" targetRef="Task_1dqvybv" />
+    <bpmn:serviceTask id="Task_1dqvybv" name="Collect people">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="collect" />
+        <camunda:inputOutput>
+          <camunda:outputParameter name="number">not_a_real_value: INTEGER
+default: 1</camunda:outputParameter>
+          <camunda:outputParameter name="person2">person2: STRING</camunda:outputParameter>
+          <camunda:outputParameter name="person1">person1: STRING</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
+      <bpmn:outgoing>Flow_19qe7vw</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_124y97k">
+      <bpmn:incoming>Flow_19qe7vw</bpmn:incoming>
+      <bpmn:outgoing>Flow_172xa7g</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1f6ja2m</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_19qe7vw" sourceRef="Task_1dqvybv" targetRef="Gateway_124y97k" />
+    <bpmn:sequenceFlow id="Flow_172xa7g" sourceRef="Gateway_124y97k" targetRef="Activity_15meqvg">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">request.json['number'] == 1</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1f6ja2m" sourceRef="Gateway_124y97k" targetRef="Activity_08qzm98" />
+    <bpmn:endEvent id="Event_1tm3vxv" name="emailed_2">
+      <bpmn:incoming>Flow_0xvjvgz</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0xvjvgz" sourceRef="Activity_08qzm98" targetRef="Event_1tm3vxv" />
+    <bpmn:endEvent id="Event_14raixg" name="emailed_1">
+      <bpmn:incoming>Flow_1tjt4yz</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1tjt4yz" sourceRef="Activity_15meqvg" targetRef="Event_14raixg" />
+    <bpmn:serviceTask id="Activity_15meqvg" name="email_person_1">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="recipient">person1: STRING</camunda:inputParameter>
+          <camunda:outputParameter name="person_who_got_emailed">person_i_emailed: STRING</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_172xa7g</bpmn:incoming>
+      <bpmn:outgoing>Flow_1tjt4yz</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_08qzm98" name="email_person_2">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="recipient">person2: STRING</camunda:inputParameter>
+          <camunda:outputParameter name="person_who_got_emailed">person_i_emailed: STRING</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1f6ja2m</bpmn:incoming>
+      <bpmn:outgoing>Flow_0xvjvgz</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
+      <bpmn:text>rexflow_global_properties:
+    xgw_expression_type: python
+    use_closure_transport: true</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_1vjflrc">
+      <bpmn:text>rexflow:
+    service:
+        host: collect-people
+        port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1uohovd" sourceRef="Task_1dqvybv" targetRef="TextAnnotation_1vjflrc" />
+    <bpmn:textAnnotation id="TextAnnotation_0c7w5pq">
+      <bpmn:text>rexflow:
+  service:
+    host: fake-email-2
+    port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1jfcxzn" sourceRef="Activity_08qzm98" targetRef="TextAnnotation_0c7w5pq" />
+    <bpmn:textAnnotation id="TextAnnotation_0bggksc">
+      <bpmn:text>rexflow:
+  service:
+    host: fake-email
+    port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1aek399" sourceRef="Activity_15meqvg" targetRef="TextAnnotation_0bggksc" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="closure-example">
+      <bpmndi:BPMNEdge id="Flow_1tjt4yz_di" bpmnElement="Flow_1tjt4yz">
+        <di:waypoint x="810" y="237" />
+        <di:waypoint x="872" y="237" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xvjvgz_di" bpmnElement="Flow_0xvjvgz">
+        <di:waypoint x="810" y="350" />
+        <di:waypoint x="872" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1f6ja2m_di" bpmnElement="Flow_1f6ja2m">
+        <di:waypoint x="630" y="262" />
+        <di:waypoint x="630" y="350" />
+        <di:waypoint x="710" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_172xa7g_di" bpmnElement="Flow_172xa7g">
+        <di:waypoint x="655" y="237" />
+        <di:waypoint x="710" y="237" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19qe7vw_di" bpmnElement="Flow_19qe7vw">
+        <di:waypoint x="550" y="237" />
+        <di:waypoint x="605" y="237" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="SequenceFlow_190n0mt_di" bpmnElement="SequenceFlow_190n0mt">
+        <di:waypoint x="395" y="237" />
+        <di:waypoint x="450" y="237" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="359" y="219" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="365" y="262" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_0ogjpx6_di" bpmnElement="Task_1dqvybv">
+        <dc:Bounds x="450" y="197" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_124y97k_di" bpmnElement="Gateway_124y97k" isMarkerVisible="true">
+        <dc:Bounds x="605" y="212" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1tm3vxv_di" bpmnElement="Event_1tm3vxv">
+        <dc:Bounds x="872" y="332" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="865" y="375" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_14raixg_di" bpmnElement="Event_14raixg">
+        <dc:Bounds x="872" y="219" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="865" y="262" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1szjek0_di" bpmnElement="Activity_15meqvg">
+        <dc:Bounds x="710" y="197" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_17e0tl8_di" bpmnElement="Activity_08qzm98">
+        <dc:Bounds x="710" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
+        <dc:Bounds x="170" y="89" width="180" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
+        <dc:Bounds x="433" y="87" width="120" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0c7w5pq_di" bpmnElement="TextAnnotation_0c7w5pq">
+        <dc:Bounds x="710" y="480" width="130" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0bggksc_di" bpmnElement="TextAnnotation_0bggksc">
+        <dc:Bounds x="670" y="50" width="130" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
+        <di:waypoint x="499" y="197" />
+        <di:waypoint x="499" y="169" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1jfcxzn_di" bpmnElement="Association_1jfcxzn">
+        <di:waypoint x="760" y="390" />
+        <di:waypoint x="760" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1aek399_di" bpmnElement="Association_1aek399">
+        <di:waypoint x="755" y="197" />
+        <di:waypoint x="746" y="132" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

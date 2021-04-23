@@ -8,6 +8,8 @@ See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
 
+DEFAULT_REXFLOW_ROOT_PREFIX = "/rexflow"
+REXFLOW_ROOT_PREFIX = os.getenv('REXFLOW_ROOT_PREFIX', DEFAULT_REXFLOW_ROOT_PREFIX)
 
 # Flowd Endpoints
 DEFAULT_FLOWD_HOST = 'localhost'
@@ -118,7 +120,50 @@ def get_kafka_config():
         key: kafka_env_map[key] for key in kafka_env_map.keys() if kafka_env_map[key] is not None
     }
 
-INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE")
+DEFAULT_INGRESS = """
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {name}
+  labels:
+    cicd.rexhomes.com/deployed-by: rexflow
+    rexflow.rexhomes.com/wf-id: {wf_id}
+    rexflow.rexhomes.com/component-name: {component_name}
+    rexflow.rexhomes.com/component-id: {component_id}
+spec:
+  rules:
+  - host: {hostname}
+    http:
+      paths:
+      - backend:
+          serviceName: forward-to-istio
+          servicePort: use-annotation
+        path: /
+        pathType: ImplementationSpecific
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {name}
+  labels:
+    cicd.rexhomes.com/deployed-by: rexflow
+    rexflow.rexhomes.com/wf-id: {wf_id}
+    rexflow.rexhomes.com/component-name: {component_name}
+    rexflow.rexhomes.com/component-id: {component_id}
+spec:
+  gateways:
+  - {ingress_type}
+  hosts:
+  - {hostname}
+  http:
+  - route:
+    - destination:
+        host: {service_host}
+        port:
+          number: {service_port}
+"""
+
+INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE", DEFAULT_INGRESS)
 
 # This configuration is pertinent when running the UI bridge.
 DEFAULT_UI_BRIDGE_NAME = 'ui-bridge'

@@ -144,13 +144,6 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
     logging.info("Either no timers or all timers are done - COMPLETING")
     if etcd.put_if_not_exists(keys.result, payload):
-        # The following code block checks to see if this WF Instance was 'restart'ed.
-        # If it was `restart`ed, we should see a previous `payload` and `headers` key.
-        previous_payload = etcd.get(keys.payload)
-        if previous_payload[0]:
-            etcd.delete(keys.headers)
-            etcd.delete(keys.payload)
-            etcd.put(keys.was_error, BStates.TRUE)
 
         if not etcd.put_if_not_exists(keys.content_type, content_type):
             logging.error(f"Couldn't store content type {content_type} on instance {instance_id}.")
