@@ -8,15 +8,13 @@ from ariadne import load_schema_from_path, make_executable_schema
 from ariadne.constants import PLAYGROUND_HTML
 from ariadne.graphql import graphql_sync
 
-from flowlib import executor
+from flowlib import executor, user_task
 from flowlib.constants import flow_result
 from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
 
 
 BASEDIR = os.path.dirname(__file__)
-# TODO: Remove this hardcoded endpoint and its uses.
-# HAPPY_PATH = 'happiness.process-0p1yoqw-aa16211c'
 
 flowd_host = os.environ.get('FLOWD_HOST', 'flowd.rexflow')
 env_flowd_port = os.environ.get('FLOWD_PORT', None)
@@ -39,9 +37,11 @@ WORKFLOW_DID = os.environ.get('WORKFLOW_DID','tde-15839350')
 assert WORKFLOW_DID is not None, 'WORKFLOW_DID not defined in environment - exiting'
 
 
-BRIDGE_CONFIG = json.loads(os.environ['BRIDGE_CONFIG'])
+BRIDGE_CONFIG = json.loads(os.environ.get('BRIDGE_CONFIG', '{}'))
+logging.info(f'My UI bridge configuration is {BRIDGE_CONFIG}')
 WORKFLOW_TIDS = list(BRIDGE_CONFIG.keys())
-assert WORKFLOW_TIDS != '', 'Bad BRIDGE_CONFIG defined in environment - exiting'
+assert len(WORKFLOW_TIDS) > 0, 'Bad BRIDGE_CONFIG defined in environment - exiting'
+
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
@@ -78,29 +78,21 @@ class REXFlowUIBridge(AsyncService):
         logging.info('Starting init_route()...')
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
-        import socket, asyncio
-        try:
-            my_executor = executor.get_executor()
-            loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(my_executor, socket.gethostbyname, HAPPY_PATH)
-            assert isinstance(result, str)
-            json = await request.get_json()
-            loop.create_task(self._happy_path(request.headers, json))
-            logging.info('Completing init_route() for happy path...')
-        except AssertionError as exn:
-            old_happy_path_url = BRIDGE_CONFIG[WORKFLOW_TIDS[0]]['k8s_url']
-            logging.exception(
-                f'I am seeing a DNS entry for {old_happy_path_url}, but it is not a string...',
-                exc_info=exn
-            )
+        import asyncio
+        json = await request.get_json()
+        loop = asyncio.get_running_loop()
+        loop.create_task(self._happy_path(request.headers, json))
+        logging.info('Completing init_route() for happy path...')
         return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
 
     async def _happy_path(self, headers, json):
         import requests, functools, asyncio
         logging.info('You have reached the _happy_path() hotline!')
 
-        assert len(WORKFLOW_TIDS) == 1, "TODO: handle more than one user task...?"
-        next_tasks = BRIDGE_CONFIG[WORKFLOW_TIDS[0]]
+        user_task_id = headers['X-Rexflow-Task-Id']
+        assert user_task_id in BRIDGE_CONFIG
+        next_tasks = BRIDGE_CONFIG[user_task_id]
+
         assert len(next_tasks) == 1, "TODO: Handle more than one outbound edge"
         next_task = next_tasks[0]
 
