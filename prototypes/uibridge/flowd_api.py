@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import json
 import logging
@@ -11,12 +12,13 @@ from etcd3.events import DeleteEvent, PutEvent
 
 from flowlib import flow_pb2, etcd_utils
 from flowlib.flowd_utils import get_flowd_connection
-from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States
 from .graphql_factory import (
     ENCRYPTED,
     ID,
     DATA,
 )
+from .prism_api.client import PrismApiClient
 
 class Workflow:
     def __init__(self, did : str, tids : str, flowd_host : str, flowd_port : int):
@@ -26,15 +28,15 @@ class Workflow:
         self.running = False
         self.flowd_host = flowd_host
         self.flowd_port = flowd_port
+        self.cancel_watch = None
 
-        self.refresh_instances()
         tasks = tids.split(':')
         for tid in tasks:
             self.tasks[tid] = WorkflowTask(self,tid)
         logging.info(f'Workflow object initialized to process workflow {did}')
 
     def start(self):
-        self.timer = threading.Timer(30, self.watch_instances)
+        self.timer = threading.Timer(1, self.watch_instances)
         self.running = True
         self.timer.start()
         logging.info(f'{self.did} started')
@@ -48,16 +50,36 @@ class Workflow:
     def is_running(self):
         return self.running
 
-    def refresh_instances(self):
-        self.instances = set(
-            metadata.key.decode('utf-8').split('/')[3]
-            for _, metadata in self.etcd.get_prefix(WorkflowInstanceKeys.key_of(self.did), keys_only = True)
-        )
-
     def watch_instances(self):
-        watch_iter, self.cancel_watch = self.etcd.watch_prefix(WorkflowInstanceKeys.ROOT)
-        for _ in watch_iter:
-            self.refresh_instances()
+        '''
+        monitor the state keys of the instances belonging to our workflow. If any of them
+        disappear (delete) or change to COMPLETED or ERROR state, notify prism that the
+        instance has gone away ...
+        '''
+        watch_iter, _ = self.etcd.watch_prefix(WorkflowInstanceKeys.key_of(self.did))
+        for event in watch_iter:
+            key   = event.key.decode('utf-8')
+            value = event.value.decode('utf-8')
+            if key.endswith('/state'):
+                iid = key.split('/')[3]
+                if isinstance(event, PutEvent):
+                    if value in (States.COMPLETED, States.ERROR):
+                        '''notify any graphql_uri that this instance is done'''
+                        endpoint = self.get_instance_graphql_uri(iid)
+                        if endpoint:
+                            asyncio.run(self.notify_prism_iid_complete(endpoint, iid, value))
+                elif isinstance(event, DeleteEvent):
+                    '''
+                    Delete is complicated, because we only want to presume the instance has
+                    been deleted if the instance ROOT key is deleted, and not necessarilly
+                    any of its children. In this case, we might get notified for every key
+                    that's deleted.
+                    '''
+                    pass
+
+    async def notify_prism_iid_complete(self, endpoint:str, iid:str, state:str) -> NoReturn:
+        response = await PrismApiClient.complete_workflow(endpoint,iid)
+        logging.info(f'Notifying {endpoint} that {iid} has completed state ({state}); response {response}')
 
     def create_instance(self, graphql_uri:str):
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
@@ -66,8 +88,9 @@ class Workflow:
                 stopped=False, start_event_id=None
             ))
             data = json.loads(response.data)
-            iid = data[ID]
-            self.etcd.put(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
+            if graphql_uri:
+                iid = data[ID]
+                self.etcd.put(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
             return data
 
     def get_instances(self):
@@ -167,9 +190,23 @@ class WorkflowTask:
 
 if __name__ == "__main__":
     # flowd_run_workflow_instance("tde-15839350")
-    message, data = flowd_ps(flow_pb2.RequestKind.DEPLOYMENT)
-    if message == 'Ok':
-        info = json.loads(data)
-    data = flowd_run_workflow_instance("conditional-b4e83f41")
-    print(data)
-    x = Workflow("conditional-b4e83f41")
+    # message, data = flowd_ps(flow_pb2.RequestKind.DEPLOYMENT)
+    # if message == 'Ok':
+    #     info = json.loads(data)
+    # data = flowd_run_workflow_instance("conditional-b4e83f41")
+    # print(data)
+    from flowlib.constants import BStates
+    import time
+    did = "process-0p1yoqw-aa16211c"
+    iid = 'process-0p1yoqw-aa16211c-bogus'
+    x = Workflow(did, 'a:b:c', 'localhost', 9001)
+    x.start()
+    x.notify_prism_iid_complete("http://localhost:8000/callback", iid, BStates.COMPLETED)
+    etcd = etcd_utils.get_etcd()
+    keys = WorkflowInstanceKeys(iid)
+    etcd.put(keys.ui_server_uri_key(iid), "http://localhost:8000/callback")
+    time.sleep(5)
+    etcd.put(keys.state, BStates.RUNNING)
+    etcd.put(keys.state, BStates.COMPLETED)
+    print('hello')
+

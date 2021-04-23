@@ -131,27 +131,23 @@ class REXFlowUIBridge(AsyncService):
         iid = request.headers['X-flow-id']
         tid = request.headers['X-rexflow-task-id']
         endpoint = self.workflow.get_instance_graphql_uri(iid)
-        if not endpoint:
-            return {'status':400, 'message': f'{iid} is not a registered workflow instance'}
+        if not endpoint or not iid.startswith(self.workflow.did):
+            return {'status':400, 'message': f'{iid} is not a registered with this server.'}
 
-        # X-flow-id
-        # X-rexflow-task-id
         # make a graphql call to the endpoint contained in endpoint
         # with the iid and tid to indicate that the user task identified by
         # tid has started and awaiting UI interaction
-        # ... construct the required graphql data structures here ...
         result = await PrismApiClient.start_task(endpoint, iid, tid)
         return {'status': 200, 'message': json.dumps(result)}
 
     async def complete(self):
         iid = request.headers['X-flow-id']
         endpoint = self.workflow.get_instance_graphql_uri(iid)
-        if not endpoint:
-            return {'status':400, 'message': f'{iid} is not a registered workflow instance'}
+        if not endpoint or not iid.startswith(self.workflow.did):
+            return {'status':400, 'message': f'{iid} is not a registered with this server.'}
 
         # make a graphql call to the endpoint contained in endpoint
         # with the iid to indicate that the workflow instance has completed
-        # ... construct the required graphql data structures here ...
         result = await PrismApiClient.complete_workflow(endpoint, iid)
         return {'status': 200, 'message': json.dumps(result)}
 
