@@ -50,18 +50,6 @@ class REXFlowUIBridge(AsyncService):
         self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
         self.graphql_schema = make_executable_schema(
             self.schema,
-            # bindables.session_id,
-            # bindables.workflow_id,
-            # bindables.workflow_type,
-            # bindables.task_id,
-            # bindables.state,
-            # resolvers.query,
-            # resolvers.workflow_query,
-            # mutations.mutation,
-            # mutations.session_mutation,
-            # mutations.session_state_mutations,
-            # mutations.workflow_mutations,
-            # mutations.task_mutations,
             graphql_handlers.query,
             graphql_handlers.mutation,
             graphql_handlers.task_mutation,
