@@ -5,8 +5,7 @@ import logging
 import os
 import re
 import threading
-import typing
-from typing import Dict, List, NoReturn, Tuple
+from typing import Any, Dict, List, NoReturn, Tuple
 
 from etcd3.events import DeleteEvent, PutEvent
 
@@ -21,7 +20,7 @@ from .graphql_factory import (
 from .prism_api.client import PrismApiClient
 
 class Workflow:
-    def __init__(self, did : str, tids : str, flowd_host : str, flowd_port : int):
+    def __init__(self, did : str, tids : List[str], flowd_host : str, flowd_port : int):
         self.did = did
         self.tasks = {}
         self.etcd = etcd_utils.get_etcd()
@@ -155,7 +154,7 @@ class WorkflowTask:
         self.wf.etcd.put(key, val)
         return flds
 
-    def _normalize_fields(self, form:str) -> Dict[str,any]:
+    def _normalize_fields(self, form:str) -> Dict[str, Any]:
         '''
         graphql provides booleans as strings, so convert them to their python equivalents.
         '''
@@ -166,7 +165,7 @@ class WorkflowTask:
             fields[field[ID]] = field
         return fields
 
-    def fields(self, iid:str = None) -> List[any]:
+    def fields(self, iid:str = None) -> List[Any]:
         '''
         Return the fields for this task. If iid is provided, pull
         the values for the iid and return a deep copy of the fields
@@ -183,7 +182,7 @@ class WorkflowTask:
             return flds
         return self._fields.values()
 
-    def field(self, id : str) -> Dict[str,any]:
+    def field(self, id : str) -> Dict[str, Any]:
         if id not in self._fields.keys():
             raise ValueError(f'Field {id} does not exist in task {self.tid}')
         return self._fields[id]
