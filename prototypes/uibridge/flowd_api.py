@@ -29,8 +29,7 @@ class Workflow:
         self.flowd_port = flowd_port
         self.cancel_watch = None
 
-        tasks = tids.split(':')
-        for tid in tasks:
+        for tid in tids:
             self.tasks[tid] = WorkflowTask(self,tid)
         logging.info(f'Workflow object initialized to process workflow {did}')
 
@@ -198,7 +197,7 @@ if __name__ == "__main__":
     import time
     did = "process-0p1yoqw-aa16211c"
     iid = 'process-0p1yoqw-aa16211c-bogus'
-    x = Workflow(did, 'a:b:c', 'localhost', 9001)
+    x = Workflow(did, 'a:b:c'.split(':'), 'localhost', 9001)
     x.start()
     x.notify_prism_iid_complete("http://localhost:8000/callback", iid, BStates.COMPLETED)
     etcd = etcd_utils.get_etcd()

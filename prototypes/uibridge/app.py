@@ -39,12 +39,10 @@ logging.info(f'FLOWD address is {flowd_host}:{flowd_port}')
 WORKFLOW_DID = os.environ.get('WORKFLOW_DID','tde-15839350')
 assert WORKFLOW_DID is not None, 'WORKFLOW_DID not defined in environment - exiting'
 
-
 BRIDGE_CONFIG = json.loads(os.environ.get('BRIDGE_CONFIG', '{}'))
 logging.info(f'My UI bridge configuration is {BRIDGE_CONFIG}')
 WORKFLOW_TIDS = list(BRIDGE_CONFIG.keys())
 assert len(WORKFLOW_TIDS) > 0, 'Bad BRIDGE_CONFIG defined in environment - exiting'
-
 
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
