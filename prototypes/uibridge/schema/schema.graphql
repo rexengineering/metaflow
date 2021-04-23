@@ -167,6 +167,7 @@ type WorkflowInstanceInfo {
 type GetInstancePayload {
     did: WorkflowDeployemntId!
     iid_list: [WorkflowInstanceInfo!]!
+    tasks: [TaskId!]!
 }
 
 type TaskFormPayload {

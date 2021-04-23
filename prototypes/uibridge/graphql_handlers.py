@@ -41,7 +41,7 @@ def mutation_get_instance(_,info, input=None):
     for iid in iid_list:
         uri = workflow.get_instance_graphql_uri(iid)
         iid_info.append(gql.workflow_instance_info(iid, uri))
-    return gql.get_instances_payload(workflow.did, iid_info)
+    return gql.get_instances_payload(workflow.did, iid_info, workflow.get_task_ids())
 
 # Workflow Mutations
 

@@ -31,7 +31,7 @@ FAILURE = 'FAILURE'
 def validator(type:str, constraint:str) -> Dict[str,any]:
     return {
         TYPE:type,
-        CONSTRAINT:constraint
+        CONSTRAINT:constraint,
     }
 
 def validator_result(validator:Dict[str,str], passed:bool, result:str):
@@ -71,20 +71,20 @@ def task_mutation_validate_input(iid:str, tid:str, fields:List):
     return {
         IID: iid,
         TID: tid,
-        FIELDS: fields
+        FIELDS: fields,
     }
 
 def task_mutation_save_input(iid:str, tid:str, fields:List):
     return {
         IID: iid,
         TID: tid,
-        FIELDS: fields
+        FIELDS: fields,
     }
 
 def task_mutation_complete_input(iid:str, tid:str):
     return {
         IID: iid,
-        TID: tid
+        TID: tid,
     }
 
 def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
@@ -92,7 +92,7 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         DID: did,
         IID: iid,
         STATUS: status,
-        TASKS: tasks
+        TASKS: tasks,
     }
 
 def workflow_instance_info(iid:str, graphql_uri:str):
@@ -101,10 +101,11 @@ def workflow_instance_info(iid:str, graphql_uri:str):
         GRAPHQL_URI: graphql_uri,
     }
 
-def get_instances_payload(did:str, iid_list:List):
+def get_instances_payload(did:str, iid_list:List, tasks:List[str]):
     return {
         DID: did,
-        IID_LIST: iid_list
+        IID_LIST: iid_list,
+        TASKS: tasks,
     }
 
 def task_form_payload(iid:str, tid:str, status:str, fields:List):
@@ -112,7 +113,7 @@ def task_form_payload(iid:str, tid:str, status:str, fields:List):
         IID: iid,
         TID: tid,
         STATUS: status,
-        FIELDS: fields
+        FIELDS: fields,
     }
 
 def task_validate_payload(iid:str, tid:str, status:str, passed:bool, results:List):
@@ -121,7 +122,7 @@ def task_validate_payload(iid:str, tid:str, status:str, passed:bool, results:Lis
         TID: tid,
         STATUS: status,
         PASSED: passed,
-        RESULTS: results
+        RESULTS: results,
     }
 
 def task_save_payload(iid:str, tid:str, status:str, passed:bool, results:List):
@@ -132,6 +133,6 @@ def task_complete_payload(iid:str, tid:str, status:str):
     return {
         IID: iid,
         TID: tid,
-        STATUS: status
+        STATUS: status,
     }
 
