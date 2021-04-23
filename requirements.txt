@@ -9,7 +9,10 @@ etcd3
 kubernetes
 docker
 quart
+httpx==0.17.*
 ariadne
+gql[aiohttp]==3.0.0a5
+pydantic==1.8.*
 isodate
 # Optional development dependency
 grpcio-tools

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import os.path
@@ -6,6 +7,8 @@ from quart import jsonify, request
 from ariadne import load_schema_from_path, make_executable_schema
 from ariadne.constants import PLAYGROUND_HTML
 from ariadne.graphql import graphql_sync
+
+from .prism_api.client import PrismApiClient
 
 from flowlib import executor
 from flowlib.constants import flow_result
@@ -124,12 +127,12 @@ class REXFlowUIBridge(AsyncService):
             return self.completed(request)
         return self.handle_error(request)
 
-    def user_task(self):
+    async def user_task(self):
         iid = request.headers['X-flow-id']
         tid = request.headers['X-rexflow-task-id']
         endpoint = self.workflow.get_instance_graphql_uri(iid)
         if not endpoint:
-            return f'{iid} is not a registered workflow instance', 400
+            return {'status':400, 'message': f'{iid} is not a registered workflow instance'}
 
         # X-flow-id
         # X-rexflow-task-id
@@ -137,26 +140,20 @@ class REXFlowUIBridge(AsyncService):
         # with the iid and tid to indicate that the user task identified by
         # tid has started and awaiting UI interaction
         # ... construct the required graphql data structures here ...
+        result = await PrismApiClient.start_task(endpoint, iid, tid)
+        return {'status': 200, 'message': json.dumps(result)}
 
-        query = f'{iid} {tid}'
-        self.call_graphql(endpoint, query)
-
-    def complete(self):
+    async def complete(self):
         iid = request.headers['X-flow-id']
         endpoint = self.workflow.get_instance_graphql_uri(iid)
         if not endpoint:
-            return f'{iid} is not a registered workflow instance', 400
+            return {'status':400, 'message': f'{iid} is not a registered workflow instance'}
 
         # make a graphql call to the endpoint contained in endpoint
         # with the iid to indicate that the workflow instance has completed
         # ... construct the required graphql data structures here ...
-
-        query = iid
-        self.call_graphql(endpoint, query)
-
-    def call_graphql(self, endpoint, query):
-        # handle the graphql call
-        return query, 200
+        result = await PrismApiClient.complete_workflow(endpoint, iid)
+        return {'status': 200, 'message': json.dumps(result)}
 
     def graphql_playground(self):
         return PLAYGROUND_HTML, 200
