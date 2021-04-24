@@ -95,8 +95,9 @@ class REXFlowUIBridge(AsyncService):
             loop = asyncio.get_running_loop()
             headers['X-Rexflow-Task-Id'] = next_task['next_task_id_header']
             logging.info(f'headers={headers}')
-            get = functools.partial(requests.get, url=next_task['k8s_url'], headers=headers, json=json)
-            result = await loop.run_in_executor(my_executor, get)
+            call_method = requests.post if next_task['method'] == 'POST' else requests.get
+            call = functools.partial(call_method, url=next_task['k8s_url'], headers=headers, json=json)
+            result = await loop.run_in_executor(my_executor, call)
             logging.info(f'result={result.ok}')
             logging.info(f'result.headers={result.headers}')
             logging.info(f'result.text={repr(result.text)}')

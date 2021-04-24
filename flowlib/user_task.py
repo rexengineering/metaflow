@@ -62,6 +62,7 @@ class BPMNUserTask(BPMNComponent):
                 {
                     'next_task_id_header': next_task.id,
                     'k8s_url': next_task.k8s_url,
+                    'method': next_task.call_properties.method,
                 }
                 for next_task in task_outbound_components
             ]
