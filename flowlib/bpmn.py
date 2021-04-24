@@ -271,7 +271,6 @@ class BPMNProcess:
             logging.info(f"Unable to download s3 object for {key}.")
             return None
 
-    @functools.lru_cache
     def to_istio(self, stream: IOBase = None, id_hash: str = None, **kws):
         if stream is None:
             stream = sys.stdout
@@ -280,6 +279,7 @@ class BPMNProcess:
             stream.write(result)
         return result
 
+    @functools.lru_cache
     def to_istio_helper(self, id_hash, **kws):
         # First, check if the input has been cached in s3. If so, then we retrieve and
         # do NOT recompute. This is critical so that we can update versions of flowd
