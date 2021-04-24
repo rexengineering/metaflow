@@ -161,7 +161,14 @@ class BPMNProcess:
         self.user_task_definitions = [defn for defn in iter_xmldict_for_key(process, 'bpmn:userTask')]
         self.user_tasks = []
         for defn in iter_xmldict_for_key(process, 'bpmn:userTask'):
-            bpmn_user_task = BPMNUserTask(defn, process, self.properties, self.user_task_definitions)
+            # Because there's only one UI Bridge deployment per WF Deployment, the to_kubernetes()
+            # method returns the same exact set of k8s specs for every BPMNUserTask object.
+            # Therefore, we only need one of them to deploy. Deploying multiple is idempotent, but
+            # for cleanliness sake, only deploy one of them.
+            should_deploy = len(self.user_tasks) == 0
+            bpmn_user_task = BPMNUserTask(
+                defn, process, self.properties, self.user_task_definitions, should_deploy=should_deploy
+            )
             self.user_tasks.append(bpmn_user_task)
             self.component_map[defn['@id']] = bpmn_user_task
 
