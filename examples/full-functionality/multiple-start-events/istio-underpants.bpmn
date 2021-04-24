@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_0d4zc4f" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.6.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_0d4zc4f" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.6.0">
   <bpmn:process id="closure" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1" name="closure-start">
       <bpmn:outgoing>SequenceFlow_190n0mt</bpmn:outgoing>
@@ -8,9 +8,6 @@
     <bpmn:serviceTask id="Task_1dqvybv" name="Collect underpants">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="collect" />
-        <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___underwear">STRING___underpants</camunda:outputParameter>
-        </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
       <bpmn:incoming>Flow_0hb65vx</bpmn:incoming>
@@ -31,9 +28,6 @@
     <bpmn:serviceTask id="Task_1nyu98k" name="Dot dot dot...">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="secret-sauce" />
-        <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___salsa">STRING___sauce</camunda:outputParameter>
-        </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_0y9yafp</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_0wlepjp</bpmn:outgoing>
@@ -72,9 +66,12 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="closure">
-      <bpmndi:BPMNShape id="TextAnnotation_06z13tm_di" bpmnElement="TextAnnotation_06z13tm">
-        <dc:Bounds x="160" y="350" width="178" height="54" />
-      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0hb65vx_di" bpmnElement="Flow_0hb65vx">
+        <di:waypoint x="215" y="130" />
+        <di:waypoint x="243" y="130" />
+        <di:waypoint x="243" y="207" />
+        <di:waypoint x="270" y="207" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="SequenceFlow_0wlepjp_di" bpmnElement="SequenceFlow_0wlepjp">
         <di:waypoint x="530" y="237" />
         <di:waypoint x="590" y="237" />
@@ -90,12 +87,6 @@
       <bpmndi:BPMNEdge id="SequenceFlow_190n0mt_di" bpmnElement="SequenceFlow_190n0mt">
         <di:waypoint x="215" y="237" />
         <di:waypoint x="270" y="237" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0hb65vx_di" bpmnElement="Flow_0hb65vx">
-        <di:waypoint x="215" y="130" />
-        <di:waypoint x="243" y="130" />
-        <di:waypoint x="243" y="207" />
-        <di:waypoint x="270" y="207" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="179" y="219" width="36" height="36" />
@@ -118,6 +109,12 @@
       <bpmndi:BPMNShape id="ServiceTask_0n790cu_di" bpmnElement="Task_1nyu98k">
         <dc:Bounds x="430" y="197" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0w4v4rs_di" bpmnElement="Event_0w4v4rs">
+        <dc:Bounds x="179" y="112" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="169" y="155" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
         <dc:Bounds x="340" y="80" width="120" height="68" />
       </bpmndi:BPMNShape>
@@ -127,11 +124,8 @@
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
         <dc:Bounds x="640" y="87" width="128" height="68" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0w4v4rs_di" bpmnElement="Event_0w4v4rs">
-        <dc:Bounds x="179" y="112" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="169" y="155" width="57" height="14" />
-        </bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="TextAnnotation_06z13tm_di" bpmnElement="TextAnnotation_06z13tm">
+        <dc:Bounds x="160" y="350" width="178" height="54" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
         <di:waypoint x="348" y="197" />

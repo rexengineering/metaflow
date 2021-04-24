@@ -169,7 +169,9 @@ def create_rexflow_ingress_vs(namespace, dns_safe_name, uri_prefix, dest_port, d
     return virtual_service
 
 
-def create_service(namespace, dns_safe_name, target_port):
+def create_service(namespace, dns_safe_name, port, target_port=None):
+    if target_port is None:
+        target_port = port
     service = {
         'apiVersion': 'v1',
         'kind': 'Service',
@@ -184,7 +186,7 @@ def create_service(namespace, dns_safe_name, target_port):
             'ports': [
                 {
                     'name': 'http',
-                    'port': target_port,
+                    'port': port,
                     'targetPort': target_port,
                 }
             ],

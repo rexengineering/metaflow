@@ -9,7 +9,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="collect" />
         <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___underwear">STRING___underpants</camunda:outputParameter>
+          <camunda:outputParameter name="underwear">underpants: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_190n0mt</bpmn:incoming>
@@ -23,7 +23,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="profit" />
         <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___cashflow">STRING___cashflow</camunda:outputParameter>
+          <camunda:outputParameter name="cashflow">cashflow: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
@@ -37,7 +37,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="secret_sauce" />
         <camunda:inputOutput>
-          <camunda:outputParameter name="STRING___sauce">STRING___sauce</camunda:outputParameter>
+          <camunda:outputParameter name="sauce">sauce: STRING</camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_0y9yafp</bpmn:incoming>

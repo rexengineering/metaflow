@@ -37,39 +37,41 @@ PARAM_TYPES = [
     'INTEGER',
     'JSON_ARRAY',
 ]
+DEFAULT_PARAM_TYPE = 'JSON_OBJECT'
 
 
 def form_param_config(param):
     '''Takes in a `camunda:inputOutputParameter`. If curious, look in the bpmn xml.
     '''
-    text = param['#text']
+    name = param['@name']
+    text = param['#text'].replace('\xa0', '')
+    lines = text.split('\n')
+    assert len(lines) > 0, "Must annotate variables with assignment value."
 
-    name_text = param['@name']
-    param_type = name_text[:name_text.find("___")]
-    assert param_type in PARAM_TYPES, f"Valid param types: {PARAM_TYPES}. Got {param_type}."
-    name = name_text[len(param_type) + len("___"):]
+    split_first_line = lines[0].split(': ')
+    if len(split_first_line):
+        value, param_type = split_first_line[0], split_first_line[1]
+    else:
+        value, param_type = split_first_line[0], DEFAULT_PARAM_TYPE
 
-    default_value = ""
-    if DEFAULT_TOKEN in text:
-        default_value = text.split(DEFAULT_TOKEN)[1]
-        text = text[:text.find(DEFAULT_TOKEN)]
-        if '___' not in text:
-            return {
-                'name': name,
-                'value': "",
-                'type': text,
-                'default_value': default_value
-            }
+    if len(lines) > 1:
+        default_value_line = lines[1]
+        assert default_value_line.startswith('default: '), \
+            "second line of param config should specify default value. Syntax: `default: <value>`"
+        default_value = default_value_line[len('default: '):]
+        has_default_value = True
+    else:
+        has_default_value = False
+        default_value = None
 
-    assert param_type == text[:text.find("___")]
-    value = text[len(param_type) + len('___'):]
-
-    return {
+    result = {
         'name': name,
         'value': value,
         'type': param_type,
+        'has_default_value': has_default_value,
         'default_value': default_value,
     }
+    return result
 
 
 class BPMNTask(BPMNComponent):
@@ -84,6 +86,11 @@ class BPMNTask(BPMNComponent):
 
         assert 'host' in self._annotation['service'], \
             "Must annotate Service Task with service host."
+        
+        if 'targetPort' in self._annotation['service']:
+            self._target_port = self._annotation['service']['targetPort']
+        else:
+            self._target_port = self.service_properties.port
 
         if self._is_preexisting:
             assert 'namespace' in self._annotation['service'], \
@@ -119,7 +126,6 @@ class BPMNTask(BPMNComponent):
         if self._is_preexisting:
             envoyfilter_name += '-' + self.workflow_properties.id_hash
 
-        port = self.service_properties.port
         namespace = self._namespace  # namespace in which the k8s objects live.
         traffic_shadow_cluster = ''
         traffic_shadow_path = ''
@@ -139,7 +145,7 @@ class BPMNTask(BPMNComponent):
             'traffic_shadow_path': traffic_shadow_path,
             'closure_transport': self.workflow_properties.use_closure_transport,
             'headers_to_forward': [X_HEADER_TOKEN_POOL_ID.lower()],
-            'upstream_port': self.service_properties.port,
+            'upstream_port': self._target_port,
             'inbound_retries': 0,
         }
         # Error Gateway stuff
@@ -203,7 +209,7 @@ class BPMNTask(BPMNComponent):
                         'match': {
                             'context': 'SIDECAR_INBOUND',
                             'listener': {
-                                'portNumber': port,
+                                'portNumber': self._target_port,
                                 'filterChain': {
                                     'filter': {
                                         'name': 'envoy.http_connection_manager',
@@ -305,18 +311,21 @@ class BPMNTask(BPMNComponent):
 
         # k8s ServiceAccount
         port = self.service_properties.port
+        target_port = self._target_port
         namespace = self._namespace
         assert self.namespace, "new-grad programmer error: namespace should be set by now."
         uri_prefix = f'/{service_name}' if namespace == 'default' \
             else f'/{namespace}/{service_name}'
 
         k8s_objects.append(create_serviceaccount(namespace, self.service_name))
-        k8s_objects.append(create_service(namespace, self.service_name, port))
+        k8s_objects.append(
+            create_service(namespace, self.service_name, port, target_port=target_port)
+        )
         k8s_objects.append(create_deployment(
             namespace,
             self.service_name,
             self.service_properties.container,
-            port,
+            target_port,
             env=[],
             priority_class=self.workflow_properties.priority_class,
         ))
