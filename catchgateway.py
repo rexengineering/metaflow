@@ -11,6 +11,8 @@ import datetime
 from typing import Dict, NoReturn
 from isodate import ISO8601Error
 from quart import request, jsonify, Response
+from quart_cors import cors
+
 from urllib.parse import urlparse
 
 from confluent_kafka import Consumer
@@ -269,6 +271,8 @@ class EventCatchApp(QuartApp):
         super().__init__(__name__, **kws)
         self.manager = EventCatchPoller(FORWARD_URL)
         self.executor = get_executor()
+        self.app = cors(self.app)
+
         self.app.route('/', methods=['GET'])(self.health_check)
         if FUNCTION == FUNCTION_CATCH or (self.manager.timed_manager is None):
             self.app.route('/', methods=['POST'])(self.catch_event)
@@ -369,6 +373,7 @@ class EventCatchApp(QuartApp):
             response = Response(result['result'])
             response.headers['content-type'] = result['content_type']
         response.headers['x-flow-id'] = instance_id
+        response.headers['access-control-allow-origin'] = '*'
 
         end = datetime.datetime.now()
         return response
