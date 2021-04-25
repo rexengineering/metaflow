@@ -32,6 +32,16 @@ def handler(request):
     previous_application = etcd.get(workflow_obj.keys.proc)[0]
     assert not previous_application, "Workflow ID already exists!"
 
+    try:
+        process.to_istio(None)
+    except Exception as exn:
+        logging.exception(
+            "Failed to compile the provided bpmn diagram:",
+            exc_info=exn,
+        )
+        result["wf_id"] = f"Failed to compile provided bpmn diagram: {exn}"
+        return result
+
     etcd.put(workflow_obj.keys.proc, process.to_xml())
     if request.stopped:
         if not etcd.put_if_not_exists(workflow_obj.keys.state, States.STOPPED):

@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-sauce
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: secret-sauce
+  labels:
+    app: secret-sauce
+spec:
+  ports:
+  - name: http
+    port: 5000
+    targetPort: 5000
+  selector:
+    app: secret-sauce
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secret-sauce
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secret-sauce
+  template:
+    metadata:
+      labels:
+        app: secret-sauce
+    spec:
+      serviceAccountName: secret-sauce
+      containers:
+      - image: unavailable-sauce
+        imagePullPolicy: IfNotPresent
+        name: secret-sauce
+        ports:
+        - containerPort: 5000

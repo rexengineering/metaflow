@@ -3,85 +3,87 @@ import re
 from subprocess import run
 
 from flowlib.constants import (
-    HOST_SUFFIX,
     flow_result,
     get_ingress_object_name,
-    get_ingress_labels,
     WorkflowKeys,
+    IngressHostKeys,
 )
-from flowlib.etcd_utils import get_etcd, get_keys_from_prefix
+from flowlib.etcd_utils import get_etcd, get_keys_from_prefix, get_dict_from_prefix
 from flowlib.config import INGRESS_TEMPLATE
 from flowlib.start_event import BPMNStartEvent
+from flowlib.workflow import Workflow
 
 
 def get_current_occupant(hostname: str) -> str:
     '''Returns the id of the Workflow occupying `hostname` if one exists; else returns None
     '''
     etcd = get_etcd()
-    all_wf_ids_with_host = set(
-        key.split('/')[3]
-        for key in get_keys_from_prefix(WorkflowKeys.ROOT)
-        if len(key.split('/')) == 5 and key.split('/')[4] == HOST_SUFFIX.lstrip('/')
+    ingress_keys = IngressHostKeys(hostname)
+    result = etcd.get(ingress_keys.workflow_id)[0]
+    if result:
+        return result.decode()
+    else:
+        return None
+
+
+def get_host_dict(wf_id):
+    response = {}
+    # Now must see if there's a host involved.
+    host_dict = get_dict_from_prefix(
+        IngressHostKeys.ROOT,
+        value_transformer=lambda bstr: bstr.decode('utf-8'),
     )
-    logging.info(f"All wf_ids: {all_wf_ids_with_host}")
+    for host in host_dict.keys():
+        if host_dict[host]['workflow_id'] == wf_id:
+            response[host_dict[host]['component_name']] = host
 
-    for wf_id in all_wf_ids_with_host:
-        wf_host = etcd.get(WorkflowKeys.host_key(wf_id))[0].decode()
-        if wf_host == hostname:
-            return wf_id
-
-    return None
+    return response
 
 
-def get_k8s_ingress_specs(wf_obj, hostname, args):
+def get_k8s_ingress_specs(target_component, hostname, args=None):
+    if args is None:
+        args = {}
     template = INGRESS_TEMPLATE
-    start_event = wf_obj.process.start_event  # type: BPMNStartEvent
-    service_host = start_event.envoy_host
-    port = start_event.service_properties.port
-    assert "cicd.rexhomes.com/deployed-by: rexflow" in INGRESS_TEMPLATE, \
-        "Deployer of REXFlow provided an invalid Ingress Template."
+    service_host = target_component.envoy_host
+    port = target_component.service_properties.port
 
-    label_dict = get_ingress_labels(wf_obj)
-    if '<<wf_id_label>>' not in template:
-        raise RuntimeError(
-            "Invalid config: deployer of rexflow did not supply <<wf_id_label>> template var."
-        )
-    template = template.replace("<<wf_id_label>>", f"{label_dict['key']}: {label_dict['value']}")
+    assert "rexflow.rexhomes.com/wf-id: {" + "wf_id}" in INGRESS_TEMPLATE, \
+        "rexflow deployment provided a bad Ingress Template: Missing wf_id label selector."
+    assert "rexflow.rexhomes.com/component-id: {" + "component_id}" in INGRESS_TEMPLATE, \
+        "rexflow deployment provided a bad Ingress Template: Missing component_id label selector."
 
-    name = get_ingress_object_name(hostname)
-    template = template.replace('<<name>>', name)
-    template = template.replace('<<hostname>>', hostname)
-    template = template.replace('<<service_host>>', service_host)
-    template = template.replace('<<service_port>>', str(port))
-
-    for arg_string in args:
-        placeholder = f'<<{arg_string[arg_string.find("=")]}>>'
-        value = arg_string[arg_string.find("=") + 1:]
-        if placeholder not in template:
-            raise RuntimeError(
-                f"Provided option {placeholder} not found in Ingress Template."
-            )
-        template = template.replace(placeholder, value)
-
-    print(template, flush=True)
-    return template
+    # expose a lot of info in case the user wants to slap a bunch
+    # of lables on their k8s objects.
+    update_args = {
+        'wf_id': target_component.workflow_properties.id,
+        'service_host': service_host,
+        'service_port': port,
+        'hostname': hostname,
+        'component_id': target_component.id,
+        'component_name': target_component.name,
+        'name': get_ingress_object_name(hostname),
+    }
+    update_args.update(args)
+    return template.format(**update_args)
 
 
-def _cleanup_previous_ingress(wf_obj):
-    '''Removes the k8s objects for ingress. wf_obj is provided
+def _cleanup_previous_ingress(target_component):
+    '''Removes the k8s objects for ingress. target_component is provided
     only to determine the label selector for the necessary Ingress objects.
 
     NOTE: This does NOT update the host field of the deployment in Etcd.
     '''
-    logging.info(f"Removing cleaning up ingress resources for {wf_obj.id}.")
+    wf_id = target_component.workflow_properties.id
+    logging.info(
+        f"Cleaning up ingress resources for {target_component.name} in wf {wf_id}.")
 
     # We rely upon the label we inserted in get_k8_ingress_specs. But we still
     # need to know which _type_ of object to remove, so we get that through
     # a regex.
     kind_set = set(re.findall(r"^kind: .+$", INGRESS_TEMPLATE, flags=re.MULTILINE))
     k8s_resource_types = [line[len('kind: '):] for line in kind_set]
-    label_dict = get_ingress_labels(wf_obj)
-    label = f"{label_dict['key']}={label_dict['value']}"
+    label = f"rexflow.rexhomes.com/wf-id={wf_id}"
+    label += f",rexflow.rexhomes.com/component-id={target_component.id}"
     output = ""
     for resource_type in k8s_resource_types:
         kubectl_output = run(
@@ -92,15 +94,18 @@ def _cleanup_previous_ingress(wf_obj):
         if kubectl_output.returncode != 0:
             logging.error(f'Error from Kubernetes:\n{kubectl_output.stderr}')
             raise RuntimeError(
-                f"Failed to cleanup ingress on {wf_obj.id}: {kubectl_output.stderr}"
+                f"Failed to cleanup ingress on {wf_id} {target_component.name}: "
+                f"{kubectl_output.stderr}"
             )
         output += f"{resource_type}: {kubectl_output.stdout}\n"
     return output
 
 
-def _apply_ingress(hostname: str, wf_obj, args):
-    logging.info(f"Applying ingress {hostname} for {wf_obj.id}.")
-    specs = get_k8s_ingress_specs(wf_obj, hostname, args)
+def _apply_ingress(hostname: str, target_component, args):
+    wf_id = target_component.workflow_properties.id
+    logging.info(
+        f"Applying ingress {hostname} for {target_component.name} {wf_id}.")
+    specs = get_k8s_ingress_specs(target_component, hostname, args)
     kubectl_output = run(
         ['kubectl', 'apply', '-n', 'rexflow', '-f', '-'],
         input=specs,
@@ -112,52 +117,65 @@ def _apply_ingress(hostname: str, wf_obj, args):
     if kubectl_output.returncode != 0:
         logging.error(f'Error from Kubernetes:\n{kubectl_output.stderr}')
         raise RuntimeError(
-            f"Failed to setup ingress on {wf_obj.id}: {kubectl_output.stderr}"
+            f"Failed to setup ingress on {target_component.name}: {kubectl_output.stderr}"
         )
 
 
-def delete_ingress(workflow):
+def delete_ingress(host, wf_id, component_name=None, component_id=None):
+    wf_obj = Workflow.from_id(wf_id)
+    if component_id is not None:
+        bpmn_component = wf_obj.process.component_map[component_id]
+        component_name = bpmn_component.name
+    else:
+        assert component_name is not None, "Must specify component_id or component_name"
+        bpmn_component = list(filter(
+            lambda x: x.name == component_name,
+            wf_obj.process.all_components
+        ))[0]
+        component_id = bpmn_component.id
     etcd = get_etcd()
-    if not etcd.delete(workflow.keys.host):
-        msg = f"couldn't remove the host key on wf {workflow.id}"
-        logging.error(msg)
-        return flow_result(-1, msg)
-    kubectl_output = _cleanup_previous_ingress(workflow)
-    return flow_result(0, f"Cleaned up ingress for wf {workflow.id}: {kubectl_output}")
+    host_keys = IngressHostKeys(host)
+    assert etcd.get(host_keys.workflow_id)[0].decode() == wf_id, \
+        "Provided wf_id and host don't match."
+    assert etcd.get(host_keys.component_name)[0].decode() == component_name, \
+        "Provided component name and host don't match."
+
+    etcd.delete(host_keys.workflow_id)
+    etcd.delete(host_keys.component_name)
+    kubectl_output = _cleanup_previous_ingress(bpmn_component)
+    return flow_result(
+        0,
+        f"Cleaned up ingress for wf {wf_id}, {component_name}: {kubectl_output}"
+    )
 
 
-def switch_ingress(hostname, to_wf, from_wf, args):
+def set_ingress(hostname: str, wf_id, component_name=None, component_id=None, args=None):
+    wf_obj = Workflow.from_id(wf_id)
+    if component_id is not None:
+        bpmn_component = wf_obj.process.component_map[component_id]
+        component_name = bpmn_component.name
+    else:
+        assert component_name is not None, "Must specify component_id or component_name"
+        bpmn_component = list(filter(
+            lambda x: x.name == component_name,
+            wf_obj.process.all_components
+        ))[0]
     try:
+        host_keys = IngressHostKeys(hostname)
         etcd = get_etcd()
-        _cleanup_previous_ingress(to_wf)
-        _cleanup_previous_ingress(from_wf)
-        etcd.delete(from_wf.keys.host)
-        _apply_ingress(hostname, to_wf, args)
-        etcd.put(to_wf.keys.host, hostname)
+
+        _cleanup_previous_ingress(bpmn_component)
+        if not etcd.put(host_keys.workflow_id, wf_id):
+            return flow_result(-1, f"Failed to set ingress on {wf_id}")
+
+        if not etcd.put(host_keys.component_name, component_name):
+            return flow_result(-1, f"Failed to set ingress on {component_name}")
+
+        _apply_ingress(hostname, bpmn_component, args)
 
         return flow_result(
             0,
-            f"Successfully migrated ingress {hostname} from {from_wf.id} to {to_wf.id}."
-        )
-    except Exception as exn:
-        msg = f"Failed to migrate ingress {hostname} from {from_wf.id} to {to_wf.id}."
-        logging.exception(msg, exc_info=exn)
-        return flow_result(-1, f"{msg}: {exn}")
-
-
-def set_ingress(hostname: str, wf_obj, args):
-    try:
-        etcd = get_etcd()
-        # TODO: put some sort of check here.
-        _cleanup_previous_ingress(wf_obj)
-        if not etcd.put(wf_obj.keys.host, hostname):
-            return flow_result(-1, f"Failed to set ingress on {wf_obj.id}")
-
-        _apply_ingress(hostname, wf_obj, args)
-
-        return flow_result(
-            0,
-            f"Successfully pointed ingress {hostname} to {wf_obj.id}."
+            f"Successfully pointed ingress {hostname} to {wf_id} {component_name}."
         )
     except Exception as exn:
         msg = f"Failed to assign ingress {hostname} to {wf_obj.id}."

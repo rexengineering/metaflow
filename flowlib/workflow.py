@@ -299,25 +299,24 @@ class WorkflowInstance:
             logging.error('Failed to transition from STOPPED -> STARTING.')
 
         # get headers
-        headers = json.loads(etcd.get(self.keys.headers)[0].decode())
+        headers = json.loads(etcd.get(self.keys.input_headers)[0].decode())
 
-        # next, get the json
-        payload = json.loads(etcd.get(self.keys.payload)[0].decode())
-        headers_to_send = {
-            'X-Flow-Id': self.id,
-            'X-Rexflow-Wf-Id': self.parent.id,
-            'X-Rexflow-Task-Id': headers['X-Rexflow-Task-Id'],
-        }
-
-        for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:
-            if k in headers:
-                headers_to_send[k] = headers[k]
+        # next, get the payload
+        payload = etcd.get(self.keys.input_data)[0]
 
         # now, start the thing again.
+        failed_task_name = etcd.get(self.keys.failed_task)[0].decode()
+        component_list = list(filter(
+            lambda x: x.name == failed_task_name,
+            self.parent.process.all_components
+        ))
+        assert len(component_list) == 1, \
+            f"Should be exactly one task with name {failed_task_name}"
+        component = component_list[0]
         response = requests.post(
-            f"http://{headers['X-Rexflow-Original-Host']}{headers['X-Rexflow-Original-Path']}",
-            json=payload,
-            headers=headers_to_send,
+            component.k8s_url,
+            data=payload,
+            headers=headers,
         )
 
         msg = "Retry Succeeded."

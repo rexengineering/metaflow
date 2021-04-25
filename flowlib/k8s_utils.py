@@ -15,6 +15,7 @@ from .config import (
     KAFKA_SASL_MECHANISM,
     KAFKA_SECURITY_PROTOCOL,
     ETCD_HOSTS,
+    REXFLOW_ROOT_PREFIX,
 )
 
 ETCD_ENV_MAP = {
@@ -34,7 +35,7 @@ def to_base64(file_loc):
 
 def create_deployment(
         namespace, dns_safe_name, container, container_port, env, etcd_access=False,
-        kafka_access=False, use_service_account=True, replicas=1):
+        kafka_access=False, use_service_account=True, replicas=1, priority_class=None):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -72,12 +73,18 @@ def create_deployment(
             },
         },
     }
+    if priority_class is not None:
+        deployment['spec']['template']['spec']['priorityClassName'] = priority_class
     env = env.copy()
 
     if etcd_access:
         env.append({
             "name": "ETCD_HOSTS",
             "value": ETCD_HOSTS,
+        })
+        env.append({
+            "name": "REXFLOW_ROOT_PREFIX",
+            "value": REXFLOW_ROOT_PREFIX,
         })
         env.extend([
             {
@@ -158,7 +165,9 @@ def create_rexflow_ingress_vs(namespace, dns_safe_name, uri_prefix, dest_port, d
     return virtual_service
 
 
-def create_service(namespace, dns_safe_name, target_port):
+def create_service(namespace, dns_safe_name, port, target_port=None):
+    if target_port is None:
+        target_port = port
     service = {
         'apiVersion': 'v1',
         'kind': 'Service',
@@ -173,7 +182,7 @@ def create_service(namespace, dns_safe_name, target_port):
             'ports': [
                 {
                     'name': 'http',
-                    'port': target_port,
+                    'port': port,
                     'targetPort': target_port,
                 }
             ],
