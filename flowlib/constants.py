@@ -176,10 +176,6 @@ class WorkflowInstanceKeys:
         return f'{cls.key_of(iid)}/result'
 
     @classmethod
-    def payload_key(cls, iid):
-        return f'{cls.key_of(iid)}/payload'
-
-    @classmethod
     def headers_key(cls, iid):
         return f'{cls.key_of(iid)}/headers'
 
