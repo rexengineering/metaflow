@@ -33,6 +33,8 @@ from .bpmn_util import (
     raw_proc_to_digraph,
     BPMNComponent,
     WorkflowProperties,
+    ServiceProperties,
+    CallProperties,
     outgoing_sequence_flow_table,
 )
 from .k8s_utils import (
@@ -48,6 +50,11 @@ from .k8s_utils import (
 from .config import (
     DO_MANUAL_INJECTION,
     K8S_SPECS_S3_BUCKET,
+    UI_BRIDGE_IMAGE,
+    UI_BRIDGE_NAME,
+    UI_BRIDGE_PORT,
+    UI_BRIDGE_INIT_PATH,
+    CREATE_DEV_INGRESS,
 )
 
 
@@ -155,19 +162,32 @@ class BPMNProcess:
         # 1. One BPMNComponent object per component on the bpmn diagram
         # 2. One k8s service/deployment or `EnvoyFilter` per component on the bpmn diagram
         # However, for any Workflow with one or more User Tasks, we deploy ONE UI-Bridge.
-        # So that means we're only going to have one BPMNComponent object in our
-        # `self.all_components`, but that object will be referenced one or more times
-        # in `self.component_map`: one reference for each UserTask.
+        # So that means two things:
+        # 1. While we have multiple BPMNUserTask objects, they will all share the same
+        #    ServiceProperties and CallProperties objects.
+        # 2. The k8s specs are generated in this file by the BPMNComponent class, not in
+        #    the .to_kubernetes() method of the BPMNUserTask.
+        # Essentially, the BPMNUserTask object is just used for bookkeeping.
         self.user_task_definitions = [defn for defn in iter_xmldict_for_key(process, 'bpmn:userTask')]
+        if len(self.user_task_definitions):
+            self._ui_bridge_service_properties = ServiceProperties()
+
+            # Important to do it this way, because then the id_hash is appropriately included or not
+            # included in the k8s service name automagically.
+            self._ui_bridge_service_properties.update({
+                'host': UI_BRIDGE_NAME,
+                'container': UI_BRIDGE_IMAGE,
+                'port': UI_BRIDGE_PORT
+            })
+            self._ui_bridge_call_properties = CallProperties()
+            self._ui_bridge_call_properties.update({
+                'path': UI_BRIDGE_INIT_PATH,
+            })
         self.user_tasks = []
-        for defn in iter_xmldict_for_key(process, 'bpmn:userTask'):
-            # Because there's only one UI Bridge deployment per WF Deployment, the to_kubernetes()
-            # method returns the same exact set of k8s specs for every BPMNUserTask object.
-            # Therefore, we only need one of them to deploy. Deploying multiple is idempotent, but
-            # for cleanliness sake, only deploy one of them.
-            should_deploy = len(self.user_tasks) == 0
+        for defn in self.user_task_definitions:
             bpmn_user_task = BPMNUserTask(
-                defn, process, self.properties, self.user_task_definitions, should_deploy=should_deploy
+                defn, process, self.properties, self.user_task_definitions,
+                self._ui_bridge_service_properties, self._ui_bridge_call_properties,
             )
             self.user_tasks.append(bpmn_user_task)
             self.component_map[defn['@id']] = bpmn_user_task
@@ -318,6 +338,63 @@ class BPMNProcess:
             for spec in bpmn_component_specs:
                 add_annotations(spec, get_rexflow_component_annotations(bpmn_component))
             results.extend(bpmn_component_specs)
+
+        if len(self.user_tasks) > 0:
+            logging.info('User tasks detected, adding UI bridge to deployment.')
+            # TODO: Figure out configuration details for the UI bridge and add
+            # to generated K8s specifications.
+            ui_bridge_service_name = self._ui_bridge_service_properties.host
+
+            bridge_config = {}
+            for task in self.user_tasks:
+                task_outbound_edges = set(self.digraph[task.id])
+                task_outbound_components = [
+                    self.component_map[component_id] for component_id in task_outbound_edges
+                ]
+                bridge_config[task.id] = [
+                    {
+                        'next_task_id_header': next_task.id,
+                        'k8s_url': next_task.k8s_url,
+                    }
+                    for next_task in task_outbound_components
+                ]
+
+            ui_bridge_env = [
+                {
+                    'name': 'WORKFLOW_DID',
+                    'value': self.namespace
+                },
+                {
+                    'name': 'WORKFLOW_TIDS',
+                    'value': ':'.join([task.id for task in self.user_tasks]),
+                },
+                {
+                    'name': 'BRIDGE_CONFIG',
+                    'value': json.dumps(bridge_config),
+                }
+            ]
+            results.append(create_deployment(
+                self.namespace,
+                ui_bridge_service_name,
+                UI_BRIDGE_IMAGE,
+                UI_BRIDGE_PORT,
+                ui_bridge_env,
+                etcd_access=True,
+                use_service_account=False
+            ))
+            results.append(create_service(
+                self.namespace,
+                ui_bridge_service_name,
+                UI_BRIDGE_PORT
+            ))
+            if CREATE_DEV_INGRESS:
+                results.append(create_rexflow_ingress_vs(
+                    self.namespace,
+                    ui_bridge_service_name,
+                    f'/{ui_bridge_service_name}-{self.properties.id_hash}',
+                    UI_BRIDGE_PORT,
+                    f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
+                ))
 
         # Now, add the REXFlow labels
         for k8s_spec in results:
