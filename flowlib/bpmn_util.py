@@ -605,12 +605,6 @@ class BPMNComponent:
         return self._global_props
 
     @property
-    def transport_kafka_topic(self) -> str:
-        if not self.workflow_properties.is_reliable_transport:
-            return None
-        return to_valid_k8s_name(f'{self.name}-{self._global_props.id_hash}-incoming')
-
-    @property
     def k8s_url(self) -> str:
         '''Returns the fully-qualified host + path that is understood by the k8s
         kube-dns. For example, returns "http://my-service.my-namespace:my-port"
