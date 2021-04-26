@@ -1,4 +1,4 @@
-from code import app
+from . import app
 from flask import request, make_response, jsonify
 import json
 import logging
@@ -6,13 +6,14 @@ import os
 import requests
 from urllib.parse import urlparse
 
+from flowlib.constants import Headers
+
 
 CONDITIONAL_PATHS = json.loads(os.environ['REXFLOW_XGW_CONDITIONAL_PATHS'])
 DEFAULT_PATH = json.loads(os.environ['REXFLOW_XGW_DEFAULT_PATH'])
 REXFLOW_XGW_FAIL_URL = os.environ['REXFLOW_XGW_FAIL_URL']
 KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
-TRACEID_HEADER = 'x-b3-traceid'
 
 FORWARD_HEADERS = [
     'x-request-id',
@@ -51,7 +52,7 @@ def conditional():
             # TODO: move this hardcoded uri to somwhere configurations live
             response = requests.post(
                 f"{DMN_SERVER_HOST}/dmn/dt",
-                headers=headers, 
+                headers=headers,
                 data=json.dumps(dataz)
             )
 
@@ -105,10 +106,10 @@ def conditional():
             logging.warning("Failed shadowing traffic to Kafka")
 
     resp = make_response({"status": 200, "msg": ""})
-    if TRACEID_HEADER in request.headers:
-        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
-    elif TRACEID_HEADER.lower() in request.headers:
-        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
+    if Headers.TRACEID_HEADER in request.headers:
+        resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
+    elif Headers.TRACEID_HEADER.lower() in request.headers:
+        resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
     return resp
 
 

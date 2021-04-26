@@ -30,7 +30,7 @@ from flowlib.constants import (
     WorkflowInstanceKeys,
     States,
     BStates,
-    TRACEID_HEADER,
+    Headers,
     X_HEADER_TOKEN_POOL_ID,
     flow_result,
     TIMER_DESCRIPTION,
@@ -64,13 +64,13 @@ by the BPMN. This consists of a JSON string formatted as follows:
 ["time_type","timer_spec"]
 
 Where timer_type is timeDate, timeCycle, or timeDuration
-      timer_spec is a ISO 8601-1 specification for the timer apropos for 
+      timer_spec is a ISO 8601-1 specification for the timer apropos for
                  the timer_type
                  timeDate - DateTime (4.3) in GMT/UTC (Zulu)
                  timeDuration - Duration (4.4.2.b)
-                 timeCycle - Recurance (4.5.2)
-                    Infinite recurances are not permitted, hence
-                    R/<duration> or R0/<duration> are invalid. 
+                 timeCycle - Recurrence (4.5.2)
+                    Infinite recurrences are not permitted, hence
+                    R/<duration> or R0/<duration> are invalid.
 
 '''
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, '')
@@ -153,10 +153,10 @@ class EventCatchPoller:
 
     def save_traceid(self, headers, flow_id):
         trace_id = None
-        if TRACEID_HEADER in headers:
-            trace_id = headers[TRACEID_HEADER]
-        elif TRACEID_HEADER.lower() in headers:
-            trace_id = headers[TRACEID_HEADER.lower()]
+        if Headers.TRACEID_HEADER in headers:
+            trace_id = headers[Headers.TRACEID_HEADER]
+        elif Headers.TRACEID_HEADER.lower() in headers:
+            trace_id = headers[Headers.TRACEID_HEADER.lower()]
 
         if trace_id:
             etcd = get_etcd()
@@ -221,9 +221,19 @@ class EventCatchPoller:
         o = urlparse(FORWARD_URL)
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
-        requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=next_headers)
-        next_headers['x-rexflow-failure'] = True
-        self._shadow_to_kafka(data, next_headers)
+        try:
+            response = requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=next_headers)
+            logging.info(response)
+            response.raise_for_status()
+        except Exception as exn:
+            logging.exception(
+                f"Instance: {flow_id}. Failed to notify flowd of error.",
+                exc_info=exn,
+            )
+            return None
+        finally:    
+            next_headers['x-rexflow-failure'] = True
+            self._shadow_to_kafka(data, next_headers)
 
     def __call__(self):
         while True:  # do forever

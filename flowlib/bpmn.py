@@ -26,22 +26,36 @@ from .end_event import BPMNEndEvent
 from .throw_event import BPMNThrowEvent
 from .catch_event import BPMNCatchEvent
 from .constants import WorkflowKeys, to_valid_k8s_name
+from .user_task import BPMNUserTask
 
 from .bpmn_util import (
     iter_xmldict_for_key,
     raw_proc_to_digraph,
-    get_annotations,
     BPMNComponent,
     WorkflowProperties,
+    ServiceProperties,
+    CallProperties,
     outgoing_sequence_flow_table,
 )
 from .k8s_utils import (
     add_labels,
+    create_deployment,
+    create_rexflow_ingress_vs,
+    create_service,
+    create_serviceaccount,
     get_rexflow_labels,
     add_annotations,
     get_rexflow_component_annotations,
 )
-from .config import DO_MANUAL_INJECTION, K8S_SPECS_S3_BUCKET
+from .config import (
+    DO_MANUAL_INJECTION,
+    K8S_SPECS_S3_BUCKET,
+    UI_BRIDGE_IMAGE,
+    UI_BRIDGE_NAME,
+    UI_BRIDGE_PORT,
+    UI_BRIDGE_INIT_PATH,
+    CREATE_DEV_INGRESS,
+)
 
 
 ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
@@ -124,7 +138,6 @@ class BPMNProcess:
             self.component_map[entry_point['@id']] = bpmn_start_event
 
         # Don't forget BPMN End Events!
-        # TODO: Test to make sure it works with multiple End Events.
         self.end_events = []
         for eev in iter_xmldict_for_key(process, 'bpmn:endEvent'):
             end_event = BPMNEndEvent(eev, process, self.properties)
@@ -132,10 +145,6 @@ class BPMNProcess:
             self.component_map[eev['@id']] = end_event
 
         # Throw Events.
-        # For now, to avoid forcing the user of REXFlow to have to annotate each event
-        # as either a Throw or Catch, we will infer based on the following rule:
-        # If there is an incoming edge to the Event in self.to_digraph, then
-        # it's a Throw event. Else, it's a Catch event.
         self.throws = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
             assert 'bpmn:incoming' in event, "Must have incoming edge to Throw Event."
@@ -149,6 +158,42 @@ class BPMNProcess:
             self.catches.append(bpmn_catch)
             self.component_map[event['@id']] = bpmn_catch
 
+        # User tasks are a bit of an odd duck. Normally, we go by the following rules:
+        # 1. One BPMNComponent object per component on the bpmn diagram
+        # 2. One k8s service/deployment or `EnvoyFilter` per component on the bpmn diagram
+        # However, for any Workflow with one or more User Tasks, we deploy ONE UI-Bridge.
+        # So that means two things:
+        # 1. While we have multiple BPMNUserTask objects, they will all share the same
+        #    ServiceProperties and CallProperties objects.
+        # 2. The k8s specs are generated in this file by the BPMNComponent class, not in
+        #    the .to_kubernetes() method of the BPMNUserTask.
+        # Essentially, the BPMNUserTask object is just used for bookkeeping.
+        self.user_task_definitions = [defn for defn in iter_xmldict_for_key(process, 'bpmn:userTask')]
+        if len(self.user_task_definitions):
+            self._ui_bridge_service_properties = ServiceProperties()
+
+            # Important to do it this way, because then the id_hash is appropriately included or not
+            # included in the k8s service name automagically.
+            self._ui_bridge_service_properties.update({
+                'host': UI_BRIDGE_NAME,
+                'container': UI_BRIDGE_IMAGE,
+                'port': UI_BRIDGE_PORT,
+                'hash_used': (self.properties.namespace_shared),  # if in shared ns, use the hash
+                'id_hash': self.properties.id_hash,
+            })
+            self._ui_bridge_call_properties = CallProperties()
+            self._ui_bridge_call_properties.update({
+                'path': UI_BRIDGE_INIT_PATH,
+            })
+        self.user_tasks = []
+        for defn in self.user_task_definitions:
+            bpmn_user_task = BPMNUserTask(
+                defn, process, self.properties, self._ui_bridge_service_properties,
+                self._ui_bridge_call_properties,
+            )
+            self.user_tasks.append(bpmn_user_task)
+            self.component_map[defn['@id']] = bpmn_user_task
+
         self.all_components = []
         self.all_components.extend(self.tasks)
         self.all_components.extend(self.xgateways)
@@ -157,6 +202,7 @@ class BPMNProcess:
         self.all_components.extend(self.catches)
         self.all_components.extend(self.end_events)
         self.all_components.extend(self.start_events)
+        self.all_components.extend(self.user_tasks)
 
         # Check that there are no duplicate service names.
         all_names = set()
@@ -255,7 +301,6 @@ class BPMNProcess:
             logging.info(f"Unable to download s3 object for {key}.")
             return None
 
-    @functools.lru_cache
     def to_istio(self, stream: IOBase = None, id_hash: str = None, **kws):
         if stream is None:
             stream = sys.stdout
@@ -264,6 +309,7 @@ class BPMNProcess:
             stream.write(result)
         return result
 
+    @functools.lru_cache
     def to_istio_helper(self, id_hash, **kws):
         # First, check if the input has been cached in s3. If so, then we retrieve and
         # do NOT recompute. This is critical so that we can update versions of flowd
@@ -285,8 +331,7 @@ class BPMNProcess:
                 }
             )
 
-        for bpmn_component_id in self.component_map.keys():
-            bpmn_component = self.component_map[bpmn_component_id]
+        for bpmn_component in self.all_components:
             bpmn_component_specs = bpmn_component.to_kubernetes(
                 id_hash, self.component_map, self._digraph, self._sequence_flow_table
             )
@@ -295,6 +340,64 @@ class BPMNProcess:
             for spec in bpmn_component_specs:
                 add_annotations(spec, get_rexflow_component_annotations(bpmn_component))
             results.extend(bpmn_component_specs)
+
+        if len(self.user_tasks) > 0:
+            logging.info('User tasks detected, adding UI bridge to deployment.')
+            # TODO: Figure out configuration details for the UI bridge and add
+            # to generated K8s specifications.
+            ui_bridge_service_name = self._ui_bridge_service_properties.host
+
+            bridge_config = {}
+            for task in self.user_tasks:
+                task_outbound_edges = set(self.digraph[task.id])
+                task_outbound_components = [
+                    self.component_map[component_id] for component_id in task_outbound_edges
+                ]
+                bridge_config[task.id] = [
+                    {
+                        'next_task_id_header': next_task.id,
+                        'k8s_url': next_task.k8s_url,
+                        'method': next_task.call_properties.method,
+                    }
+                    for next_task in task_outbound_components
+                ]
+
+            ui_bridge_env = [
+                {
+                    'name': 'WORKFLOW_DID',
+                    'value': self.namespace
+                },
+                {
+                    'name': 'WORKFLOW_TIDS',
+                    'value': ':'.join([task.id for task in self.user_tasks]),
+                },
+                {
+                    'name': 'BRIDGE_CONFIG',
+                    'value': json.dumps(bridge_config),
+                }
+            ]
+            results.append(create_deployment(
+                self.namespace,
+                ui_bridge_service_name,
+                UI_BRIDGE_IMAGE,
+                UI_BRIDGE_PORT,
+                ui_bridge_env,
+                etcd_access=True,
+                use_service_account=False
+            ))
+            results.append(create_service(
+                self.namespace,
+                ui_bridge_service_name,
+                UI_BRIDGE_PORT
+            ))
+            if CREATE_DEV_INGRESS:
+                results.append(create_rexflow_ingress_vs(
+                    self.namespace,
+                    ui_bridge_service_name,
+                    f'/{ui_bridge_service_name}-{self.properties.id_hash}',
+                    UI_BRIDGE_PORT,
+                    f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
+                ))
 
         # Now, add the REXFlow labels
         for k8s_spec in results:
@@ -324,7 +427,11 @@ class BPMNProcess:
                 ': IfNotPresent',
             ).replace(f'docker.io/istio/proxyv2:{ISTIO_VERSION}', REX_ISTIO_PROXY_IMAGE)
             self._save_specs_to_s3(result, keys_obj.specs)
-            return result
         else:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
-            return None
+
+        return result
+
+    @property
+    def xmldict(self) -> OrderedDict:
+        return self._process

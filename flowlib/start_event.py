@@ -22,6 +22,8 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     CREATE_DEV_INGRESS,
+    FLOWD_HOST,
+    FLOWD_PORT,
 )
 
 
@@ -116,6 +118,14 @@ class BPMNStartEvent(BPMNComponent):
                 "name": "KAFKA_GROUP_ID",
                 "value": self.service_name,
             },
+            {
+                "name": "REXFLOW_FLOWD_HOST",
+                "value": FLOWD_HOST,
+            },
+            {
+                "name": "REXFLOW_FLOWD_PORT",
+                "value": FLOWD_PORT,
+            }
         ]
         if self._global_props.traffic_shadow_svc:
             deployment_env_config.append({

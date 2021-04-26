@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 import argparse
+import importlib
 from typing import Union
 from grpc.experimental import aio
 
@@ -23,14 +24,29 @@ async def serve(host: str, port: Union[str, int]):
     logging.info('Terminated flowd.')
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog='flowd', description='REX Flow daemon.')
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog='flowd', description='REX Flow daemon.'
+    )
     parser.add_argument('--level', default='INFO', help='set logging level')
-    namespace = parser.parse_args()
+    parser.add_argument(
+        '-c', '--config', nargs=1, help='configuration module name', type=str
+    )
+    return parser
+
+
+def build_app():
+    config = None
+    namespace = build_parser().parse_args()
+    if namespace.config:
+        config = importlib.import_module(namespace.config[0]).__dict__
     logging.basicConfig(format=get_log_format('flowd'),
                         level=getattr(logging, namespace.level, logging.INFO))
     loop = asyncio.get_event_loop()
     loop.create_task(serve('[::]', 9001))
+    return FlowApp(bind='0.0.0.0:9002', config=config)
+
+
+if __name__ == '__main__':
     # The following must run in the main thread.
-    app = FlowApp(bind='0.0.0.0:9002')
-    app.run()
+    build_app().run()

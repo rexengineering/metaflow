@@ -5,6 +5,8 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 from collections import OrderedDict, namedtuple
 from typing import List, Mapping
 
+import yaml
+
 from .bpmn_util import (
     WorkflowProperties,
     BPMNComponent,
@@ -81,18 +83,27 @@ class BPMNTask(BPMNComponent):
         super().__init__(task, process, global_props)
         self._task = task
 
-        assert 'service' in self._annotation, \
-            "Must annotate Service Task with service information."
+        self._target_port = self.service_properties.port
+        if self._annotation is not None:
+            # First priority: check for properties set in an annotation.
+            assert 'service' in self._annotation, \
+                "Must annotate Service Task with service information."
+            assert 'host' in self._annotation['service'], \
+                "Must annotate Service Task with service host."
+            if 'targetPort' in self._annotation['service']:
+                self._target_port = self._annotation['service']['targetPort']
+        elif 'bpmn:extensionElements' in task:
+            # Second priority: check for Camunda extensions.
+            extensions = task['bpmn:extensionElements']
+            if 'camunda:connector' in extensions:
+                hostname = extensions['camunda:connector']['camunda:connectorId']
+                self._service_properties._host = hostname
+                self._service_properties._container_name = hostname
+        elif 'bpmn:documentation' in task and task['bpmn:documentation'].startswith('rexflow:'):
+            # Third priority: check for annotations in the documentation.
+            self.update_annotations(yaml.safe_load(task['bpmn:documentation']))
 
-        assert 'host' in self._annotation['service'], \
-            "Must annotate Service Task with service host."
-        
-        if 'targetPort' in self._annotation['service']:
-            self._target_port = self._annotation['service']['targetPort']
-        else:
-            self._target_port = self.service_properties.port
-
-        if self._is_preexisting:
+        if self._is_preexisting and self._annotation is not None:
             assert 'namespace' in self._annotation['service'], \
                 "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']
@@ -102,7 +113,7 @@ class BPMNTask(BPMNComponent):
                 self._health_properties = None
         self._process = process
 
-    def _generate_envoyfilter(self, upstreams: List[Upstream], component_map, edge_map) -> list:
+    def _generate_envoyfilter(self, upstreams: List[Upstream], component_map, edge_map) -> dict:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
         FilterChain. This filter hijacks the response traffic and sends it to the next
         step of the workflow (whether that's a gateway, Event, or another ServiceTask.)
