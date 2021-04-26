@@ -1,0 +1,3 @@
+nameOverride: rexflow-parallel-gateway
+build:
+  from_root: false

@@ -4,9 +4,9 @@ Cluster deployment notes
 Build REXFlow containers
 ------------------------
 
+Run from root of repository.
 ```console
-% docker build -f deploy/Dockerfile.flowd -t flowd .
-% docker build -f deploy/Dockerfile.healthd -t healthd .
+% ./rebuild_rexflow_images
 ```
 
 Deploy REXFlow K8s resources
