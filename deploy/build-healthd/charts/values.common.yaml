@@ -1,4 +1,4 @@
 nameOverride: rexflow-healthd
 
 build:
-  from_root: true
+  build_from: ../..

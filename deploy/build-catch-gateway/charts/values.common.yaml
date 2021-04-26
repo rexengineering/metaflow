@@ -1,4 +1,4 @@
 nameOverride: rexflow-catch-gateway
 
 build:
-   from_root: true
+   build_from: ../..
