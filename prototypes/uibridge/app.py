@@ -47,6 +47,7 @@ assert len(WORKFLOW_TIDS) > 0, 'Bad BRIDGE_CONFIG defined in environment - exiti
 class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
+        self.app.route('/', methods=['GET'])(self.healthcheck)
         self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/task/init', methods=['POST'])(self.init_route)
         self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
@@ -62,6 +63,9 @@ class REXFlowUIBridge(AsyncService):
 
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
         self.app.route('/graphql', methods=['POST'])(self.graphql_server)
+
+    def healthcheck(self):
+        return jsonify(flow_result(0, "Ok."))
 
     async def init_route(self):
         logging.info('Starting init_route()...')
@@ -91,8 +95,9 @@ class REXFlowUIBridge(AsyncService):
             loop = asyncio.get_running_loop()
             headers['X-Rexflow-Task-Id'] = next_task['next_task_id_header']
             logging.info(f'headers={headers}')
-            get = functools.partial(requests.get, url=next_task['k8s_url'], headers=headers, json=json)
-            result = await loop.run_in_executor(my_executor, get)
+            call_method = requests.post if next_task['method'] == 'POST' else requests.get
+            call = functools.partial(call_method, url=next_task['k8s_url'], headers=headers, json=json)
+            result = await loop.run_in_executor(my_executor, call)
             logging.info(f'result={result.ok}')
             logging.info(f'result.headers={result.headers}')
             logging.info(f'result.text={repr(result.text)}')

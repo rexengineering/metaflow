@@ -17,5 +17,6 @@ func main() {
 	log.Println("Starting happiness server...")
 	router := mux.NewRouter()
 	router.HandleFunc("/", RootHandler).Methods("GET")
+	router.HandleFunc("/", RootHandler).Methods("POST")
 	http.ListenAndServe(":80", router)
 }
