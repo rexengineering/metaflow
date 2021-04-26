@@ -16,7 +16,7 @@ from flowlib.config import (
     UI_BRIDGE_INIT_PATH,
     CREATE_DEV_INGRESS,
 )
-from flowlib.bpmn_util import BPMNComponent, WorkflowProperties
+from flowlib.bpmn_util import BPMNComponent, WorkflowProperties, get_annotations
 from flowlib.k8s_utils import (
     create_deployment,
     create_service,
@@ -41,6 +41,12 @@ class BPMNUserTask(BPMNComponent):
             'path': UI_BRIDGE_INIT_PATH
         })
         self._all_user_tasks = all_user_tasks
+        self.field_desc = None
+
+        for annot,text in get_annotations(process, self.id):
+            if 'rexflow' in text and 'fields' in text['rexflow'] and 'desc' in text['rexflow']['fields']:
+                self.field_desc = text['rexflow']['fields']['desc']
+                break
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
                       digraph: OrderedDict, sequence_flow_table: Mapping[str, Any]) -> list:

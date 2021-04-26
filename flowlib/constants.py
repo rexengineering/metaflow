@@ -146,7 +146,6 @@ class WorkflowInstanceKeys:
         self.result         = self.result_key(iid)
         self.state          = self.state_key(iid)
         self.error_code     = self.error_code_key(iid)
-        self.error_key      = self.was_error_key(iid)
         self.error_message  = self.error_message_key(iid)
         self.failed_task    = self.failed_task_key(iid)
         self.input_headers  = self.input_headers_key(iid)
@@ -177,16 +176,8 @@ class WorkflowInstanceKeys:
         return f'{cls.key_of(iid)}/result'
 
     @classmethod
-    def payload_key(cls, iid):
-        return f'{cls.key_of(iid)}/payload'
-
-    @classmethod
     def headers_key(cls, iid):
         return f'{cls.key_of(iid)}/headers'
-
-    @classmethod
-    def was_error_key(cls, iid):
-        return f'{cls.key_of(iid)}/was_error'
 
     @classmethod
     def parent_key(cls, iid):

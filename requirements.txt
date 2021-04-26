@@ -19,3 +19,4 @@ grpcio-tools
 pudb
 pylint
 flake8
+Quart-CORS

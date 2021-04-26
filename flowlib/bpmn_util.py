@@ -82,7 +82,7 @@ def get_annotations(process: OrderedDict, source_ref=None):
         if targets is None or annotation['@id'] in targets:
             text = annotation['bpmn:text']
             if text.startswith('rexflow:'):
-                yield yaml.safe_load(text.replace('\xa0', ''))
+                yield (annotation,yaml.safe_load(text.replace('\xa0', '')))
 
 
 def parse_events(process: OrderedDict):
@@ -448,7 +448,7 @@ class BPMNComponent:
                  workflow_properties: WorkflowProperties):
         self.id = spec['@id']
 
-        annotations = [a for a in list(get_annotations(process, self.id)) if 'rexflow' in a]
+        annotations = [a for _,a in list(get_annotations(process, self.id)) if 'rexflow' in a]
         assert len(annotations) <= 1, "Can only provide one REXFlow annotation per BPMN Component."
         if len(annotations):
             self._annotation = annotations[0]['rexflow']
