@@ -16,20 +16,22 @@ def handler(request: flow_pb2.StopRequest):
 
     for update_spec in updates:
         if update_spec['action'] == 'expose_ingress':
-            result[f'expose_{update_spec["host"]}'] = set_ingress(
-                update_spec['host'],
-                update_spec['wf_id'],
-                component_name=update_spec.get('component_name'),
-                component_id=update_spec.get('component_id'),
-                args=update_spec.get('args'),
-            )
+            raise ValueError("Ingress currently not supported by REXFlow. Returning soon....")
+            # result[f'expose_{update_spec["host"]}'] = set_ingress(
+            #     update_spec['host'],
+            #     update_spec['wf_id'],
+            #     component_name=update_spec.get('component_name'),
+            #     component_id=update_spec.get('component_id'),
+            #     args=update_spec.get('args'),
+            # )
         elif update_spec['action'] == 'clear_ingress':
-            result[f'clear_{update_spec["host"]}'] = delete_ingress(
-                update_spec['host'],
-                update_spec['wf_id'],
-                update_spec.get('component_name'),
-                update_spec.get('component_id'),
-            )
+            raise ValueError("Ingress currently not supported by REXFlow. Returning soon....")
+            # result[f'clear_{update_spec["host"]}'] = delete_ingress(
+            #     update_spec['host'],
+            #     update_spec['wf_id'],
+            #     update_spec.get('component_name'),
+            #     update_spec.get('component_id'),
+            # )
         elif update_spec['action'] == 'subscribe_to_topic':
             raise NotImplementedError("Lazy Developer Error!")
         elif update_spec['action'] == 'unsubscribe_from_topic':
