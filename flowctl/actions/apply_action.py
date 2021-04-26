@@ -49,7 +49,12 @@ def process_specification(spec_file):
     '''
     process = definition['bpmn:process']
     if process and 'bpmn:userTask' in process.keys():
-        for task in process['bpmn:userTask']:
+        # if there is one userTask element, then an OrderedDict is returned by
+        # process['bpmn:userTask'], otherwise it is a list of OrderedDict.
+        tasks = process['bpmn:userTask']
+        if not isinstance(tasks,list):
+            tasks = [tasks]
+        for task in tasks:
             for annot,text in bpmn_util.get_annotations(process, task['@id']):
                 if 'rexflow' in text and 'fields' in text['rexflow'] and 'file' in text['rexflow']['fields']:
                     ''' Load the field description JSON from the provided file. If the file name
