@@ -177,7 +177,9 @@ class BPMNProcess:
             self._ui_bridge_service_properties.update({
                 'host': UI_BRIDGE_NAME,
                 'container': UI_BRIDGE_IMAGE,
-                'port': UI_BRIDGE_PORT
+                'port': UI_BRIDGE_PORT,
+                'hash_used': (self.properties.namespace_shared),  # if in shared ns, use the hash
+                'id_hash': self.properties.id_hash,
             })
             self._ui_bridge_call_properties = CallProperties()
             self._ui_bridge_call_properties.update({
@@ -186,8 +188,8 @@ class BPMNProcess:
         self.user_tasks = []
         for defn in self.user_task_definitions:
             bpmn_user_task = BPMNUserTask(
-                defn, process, self.properties, self.user_task_definitions,
-                self._ui_bridge_service_properties, self._ui_bridge_call_properties,
+                defn, process, self.properties, self._ui_bridge_service_properties,
+                self._ui_bridge_call_properties,
             )
             self.user_tasks.append(bpmn_user_task)
             self.component_map[defn['@id']] = bpmn_user_task
@@ -355,6 +357,7 @@ class BPMNProcess:
                     {
                         'next_task_id_header': next_task.id,
                         'k8s_url': next_task.k8s_url,
+                        'method': next_task.call_properties.method,
                     }
                     for next_task in task_outbound_components
                 ]
