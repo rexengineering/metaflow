@@ -193,7 +193,7 @@ class BPMNParallelGateway(BPMNComponent):
         k8s_objects.append(create_deployment(
             self._namespace,
             dns_safe_name,
-            'parallel-gateway:1.0.0',
+            config.PGW_IMAGE,
             port,
             env_config,
         ))

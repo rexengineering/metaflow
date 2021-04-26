@@ -23,7 +23,7 @@ help: # Display help
 		}' $(MAKEFILE_LIST) | sort
 
 build: ## Build the docker image
-	docker build -t "parallel-gateway:1.0.0" .
+	docker build -t parallel-gateway .
 
 conda: ## Setup the conda environment
 	conda env update -f environment.yml
