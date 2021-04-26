@@ -7,15 +7,6 @@ import logging
 from collections import OrderedDict
 from typing import Any, Mapping, List
 
-from flowlib.config import (
-    DO_MANUAL_INJECTION,
-    K8S_SPECS_S3_BUCKET,
-    UI_BRIDGE_IMAGE,
-    UI_BRIDGE_NAME,
-    UI_BRIDGE_PORT,
-    UI_BRIDGE_INIT_PATH,
-    CREATE_DEV_INGRESS,
-)
 from flowlib.bpmn_util import (
     BPMNComponent,
     HealthProperties,
@@ -23,11 +14,6 @@ from flowlib.bpmn_util import (
     CallProperties,
     WorkflowProperties,
     get_annotations,
-)
-from flowlib.k8s_utils import (
-    create_deployment,
-    create_service,
-    create_rexflow_ingress_vs,
 )
 
 
