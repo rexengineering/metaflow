@@ -48,7 +48,6 @@ class REXFlowUIBridge(AsyncService):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.app.route('/', methods=['GET'])(self.healthcheck)
-        self.app.route('/ui', methods=['POST'])(self.ui_route)
         self.app.route('/task/init', methods=['POST'])(self.init_route)
         self.schema = load_schema_from_path(os.path.join(BASEDIR, 'schema'))
         self.graphql_schema = make_executable_schema(
@@ -105,22 +104,6 @@ class REXFlowUIBridge(AsyncService):
         except Exception as exn:
             logging.exception('Happy path is sad...', exc_info=exn)
 
-    def ui_route(self):
-        state = self.get_state_from_etcd(request)  # Gets ID from request...
-        command = self.get_command_from_request(request)
-
-        # TODO: allow for more flexible state transitions, including multiple SAVE's
-        # or potentially a CANCEL.
-        if (state, command) == ('initialized', 'forms'):
-            return self.get_forms(request)
-        elif (state, command) == ('forms_sent', 'save'):
-            return self.save_forms(request)
-        elif (state, command) == ('forms_saved', 'validate'):
-            return self.validate_forms(request)
-        elif (state, command) == ('validated', 'complete'):
-            return self.completed(request)
-        return self.handle_error(request)
-
     async def user_task(self):
         iid = request.headers['X-flow-id']
         tid = request.headers['X-rexflow-task-id']
@@ -160,32 +143,6 @@ class REXFlowUIBridge(AsyncService):
         )
         status_code = 200 if success else 400
         return jsonify(result), status_code
-
-    def get_state_from_etcd(self, request):
-        raise NotImplementedError('Lazy developer error!')
-
-    def get_command_from_request(self, request):
-        raise NotImplementedError('Lazy developer error!')
-
-    def get_forms(self, request):
-        raise NotImplementedError('Lazy developer error!')
-
-    def save_forms(self, request):
-        raise NotImplementedError('Lazy developer error!')
-
-    def validate_forms(self, request):
-        raise NotImplementedError('Lazy developer error!')
-
-    def completed(self, request):
-        raise NotImplementedError('Lazy developer error!')
-
-    def handle_error(self, request):
-        return flow_result(-1, 'Error: Invalid command!')
-
-    def get_callback(self, request):
-        '''Can return one of the 4 verbs: Forms/save/validate/complete
-        '''
-        pass
 
     def actual_handler(self, local_request):
         environment = local_request.json()

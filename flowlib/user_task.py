@@ -1,8 +1,6 @@
 '''
 Implements the BPMNUserTask class, which inherits from BPMNComponent.
 '''
-import json
-import logging
 
 from collections import OrderedDict
 from typing import Any, Mapping, List
@@ -30,7 +28,8 @@ class BPMNUserTask(BPMNComponent):
             self._health_properties = health_props
         self.field_desc = None
 
-        for annot, text in get_annotations(process, self.id):
+        # Convention is to use underscore for unused values.
+        for _, text in get_annotations(process, self.id):
             if 'rexflow' in text and 'fields' in text['rexflow'] and 'desc' in text['rexflow']['fields']:
                 self.field_desc = text['rexflow']['fields']['desc']
                 break
