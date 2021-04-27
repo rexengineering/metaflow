@@ -20,14 +20,17 @@ from .graphql_factory import (
 from .prism_api.client import PrismApiClient
 
 class Workflow:
-    def __init__(self, did : str, tids : List[str], flowd_host : str, flowd_port : int):
+    def __init__(self, did : str, tids : List[str], bridge_cfg : dict, flowd_host : str, flowd_port : int):
         self.did = did
+        self.bridge_cfg = bridge_cfg
         self.tasks = {}
         self.etcd = etcd_utils.get_etcd()
         self.running = False
         self.flowd_host = flowd_host
         self.flowd_port = flowd_port
         self.cancel_watch = None
+        self.instance_headers = {}
+        self.instance_data = {}
 
         for tid in tids:
             self.tasks[tid] = WorkflowTask(self,tid)
@@ -47,6 +50,15 @@ class Workflow:
 
     def is_running(self):
         return self.running
+
+    def register_instance_header(self, iid:str, header:str):
+        if iid not in self.instance_headers.keys():
+            self.instance_headers[iid] = []
+        self.instance_headers[iid].append(header)
+        logging.info(f'{iid} header {header}')
+
+    def set_instance_data(self, iid:str, data:str):
+        self.instance_data[iid] = data
 
     def watch_instances(self):
         '''
@@ -113,6 +125,40 @@ class Workflow:
         if tid not in self.tasks.keys():
             return None
         return self.tasks[tid]
+
+    def complete(self, iid : str, tid : str):
+        assert tid in self.bridge_cfg, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
+        for next_task in self.bridge_cfg[tid]: # handle more than one outbound edge
+            next_headers = {        
+                'x-flow-id': str(iid),
+                'x-rexflow-wf-id': str(self.did),
+                'content-type': 'application/json',
+                'x-rexflow-task-id': next_task['next_task_id_header'],
+            }
+
+            if iid in self.instance_headers.keys():
+                for header in self.instance_headers[iid]:
+                    key,val = header.split(':')
+                next_headers[key] = val
+
+            data = None if iid not in self.instance_data.keys() else self.instance_data[iid]
+
+            import requests
+            for _ in range(2):
+                try:
+                    svc_response = requests.get(next_task['k8s_url'], headers=next_headers) #, data=data)
+                    svc_response.raise_for_status()
+                    # try:
+                    #     self.save_traceid(svc_response.headers, iid)
+                    # except Exception as exn:
+                    #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
+                    # self._shadow_to_kafka(data, next_headers)
+                    return svc_response
+                except Exception as exn:
+                    logging.exception(
+                        f"failed making a call to {next_task['k8s_url']} on wf {iid}",
+                        exc_info=exn,
+                    )
 
 
 class WorkflowTask:

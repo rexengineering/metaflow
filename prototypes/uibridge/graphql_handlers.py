@@ -107,6 +107,9 @@ def task_mutation_save(_,info,input):
 @task_mutation.field('complete')
 def task_mutation_complete(_,info,input):
     logging.info(f'task_mutation_complete {input[IID]} {input[TID]}')
+    # notify rexflow to continue the workflow
+    workflow = info.context[WORKFLOW]
+    workflow.complete(input[IID], input[TID])
     return gql.task_complete_payload(input[IID], input[TID], SUCCESS)
 
 def _validate_fields(task:WorkflowTask, fields:List) -> Tuple[bool, List]:

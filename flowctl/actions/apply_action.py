@@ -53,13 +53,14 @@ def process_specification(spec_file):
         # process['bpmn:userTask'], otherwise it is a list of OrderedDict.
         for task in bpmn_util.iter_xmldict_for_key(process, 'bpmn:userTask'):
             for annot,text in bpmn_util.get_annotations(process, task['@id']):
-                if 'rexflow' in text and 'fields' in text['rexflow'] and 'file' in text['rexflow']['fields']:
+                try:
                     ''' Load the field description JSON from the provided file. If the file name
                     starts with anything other than '/', then assume the file is in the same folder
                     as the source BPMN file.'''
                     fspec = text['rexflow']['fields']['file']
                     if not fspec.startswith('/'):
                         fspec = '/'.join([os.path.dirname(spec_file.name),fspec])
+
                     try:
                         with open(fspec, 'r') as fd:
                             logging.info(f'Loading field descriptions from {fspec}')
@@ -68,6 +69,8 @@ def process_specification(spec_file):
                             annot['bpmn:text'] = yaml.dump(text)
                     except FileNotFoundError:
                         logging.error(f'File not found {fspec}')
+                except KeyError:
+                    pass
     return xmltodict.unparse(spec)
 
 def apply_action(namespace: argparse.Namespace, *args, **kws):
