@@ -394,7 +394,7 @@ class BPMNProcess:
                 results.append(create_rexflow_ingress_vs(
                     self.namespace,
                     ui_bridge_service_name,
-                    f'/{ui_bridge_service_name}-{self.properties.id_hash}',
+                    f'/{ui_bridge_service_name}-{self.namespace}',
                     UI_BRIDGE_PORT,
                     f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
                 ))
