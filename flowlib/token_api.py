@@ -9,7 +9,7 @@ PENDING -> RUNNING -+-> COMPLETE
 
 token_create_pool(wf_instance_id : str, size : int) -> str
     Creates a new thread pool, and returns the name of the thread pool. The name is
-    prefixed with wf_instance_id with sufficient characters appended to make it 
+    prefixed with wf_instance_id with sufficient characters appended to make it
     unique among all other thread pools. The pool is initialized with the indicated
     number of tokens.
 
@@ -25,14 +25,14 @@ token_get_token_counts(pool_name : str) -> list[int]
         TokenCounts.RUNNING - the number of tokens in RUNNING state
         TokenCounts.FAILED - the number of tokens in FAILED state
         TokenCounts.COMPLETE - the number of tokens in COMPLETE state
-        TokenCounts.DONE_FLAG - True if TokenCounts.COMPLETE + TokenCounts.FAILED == TokenCounts.SIZE 
+        TokenCounts.DONE_FLAG - True if TokenCounts.COMPLETE + TokenCounts.FAILED == TokenCounts.SIZE
 
 pool_name = token_create_pool( wf_instance_id, 10 ) // create a pool of 10 tokens
 token = token_alloc(pool_name, TokenState.RUNNING)  // pull a token from the pool and set state to RUNNING
 
-The token is passed in the headers of the workflow, and is used by the terminating event. This is 
-usually an end event, but can be any intermediate event or task if it fails to pass control to 
-the next entity in the workflow. In this case, having only the token identifier, it needs to be 
+The token is passed in the headers of the workflow, and is used by the terminating event. This is
+usually an end event, but can be any intermediate event or task if it fails to pass control to
+the next entity in the workflow. In this case, having only the token identifier, it needs to be
 able to report the token as FAILED.
 
 So, the terminating event needs to do two things:
@@ -98,7 +98,7 @@ def token_make_pool_name(wf_inst_id : str) -> str:
 def token_create_pool(wf_instance_id : str, size : int) -> str:
     '''
     Creates a new token pool, and returns the name of the token pool. The name is
-    prefixed with wf_instance_id with sufficient characters appended to make it 
+    prefixed with wf_instance_id with sufficient characters appended to make it
     unique among all other thread pools. The pool is initialized with the indicated
     number of tokens with the PENDING state.
     '''
@@ -125,7 +125,7 @@ def token_get_pool(pool_name : str) -> typing.Dict[str,typing.Any]:
         hive = etcd.get(key)[0]
         return json.loads(hive)
 
-def token_alloc(pool_name : str) -> typing.NoReturn:
+def token_alloc(pool_name : str) -> None:
     key = token_pool_key(pool_name)
     etcd = get_etcd()
     with etcd.lock(key):

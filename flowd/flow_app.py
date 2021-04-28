@@ -19,20 +19,10 @@ from flowlib.constants import (
     BStates,
     flow_result,
     WorkflowInstanceKeys,
-    X_HEADER_FLOW_ID,
-    X_HEADER_WORKFLOW_ID,
-    X_HEADER_TOKEN_POOL_ID,
-    X_HEADER_TASK_ID,
+    Headers,
 )
-
 from flowlib import token_api
-from flowlib.constants import (
-    BStates,
-    WorkflowInstanceKeys,
-    X_HEADER_FLOW_ID,
-    X_HEADER_WORKFLOW_ID,
-    X_HEADER_TOKEN_POOL_ID,
-)
+
 
 TIMEOUT_SECONDS = 10
 
@@ -66,8 +56,8 @@ class FlowApp(QuartApp):
     async def root_route(self):
         # When there is a flow ID in the headers, store the result in etcd and
         # change the state to completed.
-        if X_HEADER_FLOW_ID in request.headers:
-            flow_id = request.headers[X_HEADER_FLOW_ID]
+        if Headers.X_HEADER_FLOW_ID in request.headers:
+            flow_id = request.headers[Headers.X_HEADER_FLOW_ID]
             keys = WorkflowInstanceKeys(flow_id)
             good_states = {BStates.STARTING, BStates.RUNNING}
             if self.etcd.get(keys.state)[0] in good_states:
@@ -84,12 +74,12 @@ class FlowApp(QuartApp):
         # When there is a flow ID in the headers, store the result in etcd and
         # change the state to ERROR.
 
-        if X_HEADER_WORKFLOW_ID not in request.headers or X_HEADER_FLOW_ID not in request.headers:
+        if Headers.X_HEADER_WORKFLOW_ID not in request.headers or Headers.X_HEADER_FLOW_ID not in request.headers:
             return
 
-        flow_id = request.headers[X_HEADER_FLOW_ID]
-        wf_id = request.headers[X_HEADER_WORKFLOW_ID]
-        timer_pool_id = request.headers.get(X_HEADER_TOKEN_POOL_ID)
+        flow_id = request.headers[Headers.X_HEADER_FLOW_ID]
+        wf_id = request.headers[Headers.X_HEADER_WORKFLOW_ID]
+        timer_pool_id = request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID)
         workflow = Workflow.from_id(wf_id)
         keys = WorkflowInstanceKeys(flow_id)
         state_key = keys.state
@@ -151,8 +141,8 @@ class FlowApp(QuartApp):
         if 'input_headers_encoded' in payload:
             hdrs = convert_envoy_hdr_msg_to_dict(payload['input_headers_encoded'])
             self.etcd.put(keys.input_headers, json.dumps(hdrs))
-            if X_HEADER_TASK_ID.lower() in hdrs:
-                task_id = hdrs[X_HEADER_TASK_ID.lower()]
+            if Headers.X_HEADER_TASK_ID.lower() in hdrs:
+                task_id = hdrs[Headers.X_HEADER_TASK_ID.lower()]
                 bpmn_component = workflow.process.component_map[task_id]
                 self.etcd.put(keys.failed_task, bpmn_component.name)
         if 'input_data_encoded' in payload:

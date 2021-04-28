@@ -31,7 +31,6 @@ from flowlib.constants import (
     States,
     BStates,
     Headers,
-    X_HEADER_TOKEN_POOL_ID,
     flow_result,
     TIMER_DESCRIPTION,
 )
@@ -199,7 +198,7 @@ class EventCatchPoller:
             'x-rexflow-task-id': FORWARD_TASK_ID,
         }
         if token_stack:
-            next_headers[X_HEADER_TOKEN_POOL_ID.lower()] = token_stack
+            next_headers[Headers.X_HEADER_TOKEN_POOL_ID.lower()] = token_stack
 
         for _ in range(TOTAL_ATTEMPTS):
             try:
@@ -231,7 +230,7 @@ class EventCatchPoller:
                 exc_info=exn,
             )
             return None
-        finally:    
+        finally:
             next_headers['x-rexflow-failure'] = True
             self._shadow_to_kafka(data, next_headers)
 
@@ -249,7 +248,7 @@ class EventCatchPoller:
                     assert 'x-flow-id' in headers
                     assert 'x-rexflow-wf-id' in headers
                     assert headers['x-rexflow-wf-id'].decode() == WF_ID
-                    token_header = headers.get(X_HEADER_TOKEN_POOL_ID.lower())
+                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower())
                     if token_header:
                         token_header = token_header.decode()
 
@@ -297,10 +296,10 @@ class EventCatchApp(QuartApp):
         else: #if FUNCTION == FUNCTION_CATCH
             self.manager._make_call(
                 data,
-                request.headers['x-flow-id'],
-                request.headers['x-rexflow-wf-id'],
-                request.headers['content-type'],
-                request.headers.get(X_HEADER_TOKEN_POOL_ID)
+                request.headers[Headers.X_HEADER_FLOW_ID.lower()],
+                request.headers[Headers.X_HEADER_WORKFLOW_ID.lower()],
+                request.headers[Headers.CONTENT_TYPE.lower()],
+                request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID)
             )
         return response
 
