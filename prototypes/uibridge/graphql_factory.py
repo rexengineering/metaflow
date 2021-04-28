@@ -7,6 +7,7 @@ from typing import Dict, List
 CONSTRAINT = 'constraint'
 DATA       = 'data'
 DID        = 'did'
+DID_STATUS = 'did_status'
 ENCRYPTED  = 'encrypted'
 FIELD      = 'field'
 FIELDS     = 'fields'
@@ -101,9 +102,10 @@ def workflow_instance_info(iid:str, graphql_uri:str):
         GRAPHQL_URI: graphql_uri,
     }
 
-def get_instances_payload(did:str, iid_list:List, tasks:List[str]):
+def get_instances_payload(did:str, did_status:str, iid_list:List, tasks:List[str]):
     return {
         DID: did,
+        DID_STATUS: did_status,
         IID_LIST: iid_list,
         TASKS: tasks,
     }

@@ -60,6 +60,10 @@ class Workflow:
     def set_instance_data(self, iid:str, data:str):
         self.instance_data[iid] = data
 
+    def get_status(self) -> str:
+        status, _ = self.etcd.get(WorkflowKeys.state_key(self.did))
+        return status.decode('utf-8')
+
     def watch_instances(self):
         '''
         monitor the state keys of the instances belonging to our workflow. If any of them

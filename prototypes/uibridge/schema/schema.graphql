@@ -166,6 +166,7 @@ type WorkflowInstanceInfo {
 
 type GetInstancePayload {
     did: WorkflowDeployemntId!
+    did_status: WorkflowStatus!
     iid_list: [WorkflowInstanceInfo!]!
     tasks: [TaskId!]!
 }
