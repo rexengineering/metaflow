@@ -1,11 +1,12 @@
 import json
 import logging
+import sys
 
 import xmltodict
 
 from flowlib import bpmn, workflow
 from flowlib.etcd_utils import get_etcd
-from flowlib.constants import States, WorkflowKeys
+from flowlib.constants import States, WorkflowKeys, flow_result
 
 
 def handler(request):
@@ -16,7 +17,7 @@ def handler(request):
         A Python dictionary that can be serialized to a JSON object.
     '''
     logger = logging.getLogger()
-    result = dict()
+    result = flow_result(0, "Ok.")
     spec = xmltodict.parse(request.bpmn_xml, encoding='utf-8')
     if logger.level < logging.INFO:
         logging.debug(f'Received following BPMN specification:\n{spec}')
@@ -39,8 +40,10 @@ def handler(request):
             "Failed to compile the provided bpmn diagram:",
             exc_info=exn,
         )
-        result["wf_id"] = f"Failed to compile provided bpmn diagram: {exn}"
-        return result
+
+        exc_info = sys.exc_info()
+        msg = f"Failed to compile provided bpmn diagram: {exc_info[0]} {exc_info[1]}"
+        return flow_result(-1, msg)
 
     etcd.put(workflow_obj.keys.proc, process.to_xml())
     if request.stopped:

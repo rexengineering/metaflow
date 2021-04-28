@@ -17,6 +17,7 @@ service FlowDaemon {
     rpc StartWorkflow (StartRequest) returns (FlowdResult); // flowctl start
     rpc StopWorkflow (StopRequest) returns (FlowdResult); // flowctl stop
     rpc UpdateWorkflow (UpdateRequest) returns (FlowdResult); // flowctl update
+    rpc ValidateWorkflow (ValidateRequest) returns (FlowdResult); // flowctl update
 }
 
 message FlowdResult {
@@ -75,4 +76,9 @@ message StopRequest {
 
 message UpdateRequest {
     string update_spec = 1;
+}
+
+message ValidateRequest {
+    string bpmn_xml = 1;
+    bool include_kubernetes = 2;
 }
