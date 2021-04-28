@@ -1,4 +1,4 @@
-FROM python:3.8-slim AS base
+FROM python:3.8-slim AS catch-base
 WORKDIR /opt/rexflow
 RUN apt-get update && apt-get install -y curl
 COPY requirements.txt .
@@ -7,10 +7,10 @@ COPY flowlib flowlib/
 COPY catchgateway.py .
 EXPOSE 5050/tcp
 
-FROM base AS test
+FROM catch-base AS test
 
 CMD ["echo", "TODO: run quick unit tests here."]
 
-FROM base AS container
+FROM catch-base AS container
 
 CMD ["python", "-m", "catchgateway"]

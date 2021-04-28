@@ -187,7 +187,7 @@ class EventCatchPoller:
         # have WEIRD side effects.
         if self.timed_manager and FUNCTION == FUNCTION_CATCH:
             self.timed_manager.create_timer(flow_id, token_stack, [data, flow_id, wf_id, content_type])
-            return True
+            return jsonify(flow_result(0, ""))
         else:
             return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
 
