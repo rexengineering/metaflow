@@ -26,6 +26,11 @@ def __refine_args__(parser: argparse.ArgumentParser):
         help='workflow deployment ID to run',
     )
     parser.add_argument(
+        '--start_event_id',
+        '-s',
+        help='Choose between one of many start events to run.'
+    )
+    parser.add_argument(
         'args',
         nargs='*',
         type=str,
@@ -39,7 +44,7 @@ def run_action(namespace: argparse.Namespace, *args, **kws):
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         response = flowd.RunWorkflow(flow_pb2.RunRequest(
             workflow_id=namespace.workflow_id, args=namespace.args,
-            stopped=namespace.stopped,
+            stopped=namespace.stopped, start_event_id=namespace.start_event_id
         ))
     status = response.status
     if status < 0:

@@ -1,10 +1,11 @@
+import json
 import logging
 
 import xmltodict
 
 from flowlib import bpmn, workflow
 from flowlib.etcd_utils import get_etcd
-from flowlib.constants import States
+from flowlib.constants import States, WorkflowKeys
 
 
 def handler(request):
@@ -31,10 +32,24 @@ def handler(request):
     previous_application = etcd.get(workflow_obj.keys.proc)[0]
     assert not previous_application, "Workflow ID already exists!"
 
+    try:
+        process.to_istio(None)
+    except Exception as exn:
+        logging.exception(
+            "Failed to compile the provided bpmn diagram:",
+            exc_info=exn,
+        )
+        result["wf_id"] = f"Failed to compile provided bpmn diagram: {exn}"
+        return result
+
     etcd.put(workflow_obj.keys.proc, process.to_xml())
     if request.stopped:
         if not etcd.put_if_not_exists(workflow_obj.keys.state, States.STOPPED):
             logging.error(f'{workflow_obj.keys.state} already defined in etcd!')
     else:
+        # write the fields for any user tasks
+        for user_task in process.user_tasks:
+            if user_task.field_desc:
+                etcd.put(WorkflowKeys.field_key(process.id, user_task.id), json.dumps(user_task.field_desc))
         workflow_obj.start()
     return result

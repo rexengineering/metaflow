@@ -38,8 +38,7 @@ of `flowctl`:
 Third, build and stand up the Flow Daemon and its infrastructure:
 
 ```console
-% docker build -f deploy/Dockerfile.flowd -t flowd .
-% docker build -f deploy/Dockerfile.healthd -t healthd .
+% ./rebuild_rexflow_containers
 % python -m deploy create
 ```
 *NOTE* If you make changes to any code that affects `flowd`, you must re-run the

@@ -3,7 +3,7 @@ from io import StringIO
 import json
 import logging
 import subprocess
-from typing import Union
+from typing import List, Union
 import uuid
 
 from confluent_kafka.admin import AdminClient, NewTopic
@@ -26,6 +26,16 @@ from .config import get_kafka_config
 
 
 KAFKA_CONFIG = get_kafka_config()
+
+
+def get_workflows() -> List['Workflow']:
+    etcd = get_etcd(is_not_none=True)
+    wf_keys = [
+        wf_kv[1].key.decode()
+        for wf_kv in etcd.get_prefix(WorkflowKeys.ROOT, keys_only=True)
+    ]
+    wf_dids = set(wf_key.split('/')[3] for wf_key in wf_keys)
+    return [Workflow.from_id(wf_did) for wf_did in wf_dids]
 
 
 class Workflow:
@@ -55,20 +65,7 @@ class Workflow:
             if not etcd.replace(self.keys.state, States.STOPPED, States.STARTING):
                 raise RuntimeError(f'{self.id} is not in a startable state')
         orchestrator = self.properties.orchestrator
-        if orchestrator == 'docker':
-            docker_compose_input = StringIO()
-            self.process.to_docker(docker_compose_input)
-            ctl_input = docker_compose_input.getvalue()
-            docker_result = subprocess.run(
-                ['docker', 'stack', 'deploy', '--compose-file', '-', self.id_hash],
-                input=ctl_input, capture_output=True, text=True,
-            )
-            if docker_result.stdout:
-                logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
-            if docker_result.returncode != 0:
-                logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(self.keys.state, States.STARTING, States.ERROR)
-        elif orchestrator in {'kubernetes', 'istio'}:
+        if orchestrator in {'kubernetes', 'istio'}:
             kubernetes_input = StringIO()
             try:
                 if orchestrator == 'kubernetes':
@@ -93,7 +90,7 @@ class Workflow:
             raise ValueError(f'Unrecognized orchestrator setting, "{orchestrator}"')
 
     def _create_kafka_topics(self):
-        if KAFKA_CONFIG is None:
+        if KAFKA_CONFIG is None or len(self.process.kafka_topics) == 0:
             return
         kafka_client = AdminClient(KAFKA_CONFIG)
         topic_metadata = kafka_client.list_topics()
@@ -114,7 +111,7 @@ class Workflow:
                     logging.error(f"Failed to create topic {topic}: {e}")
 
     def _delete_kafka_topics(self):
-        if KAFKA_CONFIG is None:
+        if KAFKA_CONFIG is None or len(self.process.kafka_topics) == 0:
             return
         kafka_client = AdminClient(KAFKA_CONFIG)
         topic_metadata = kafka_client.list_topics()
@@ -203,7 +200,7 @@ class WorkflowInstance:
         uid = uuid.uuid1().hex
         return f'{parent_id}-{uid}'
 
-    def start(self, *args):
+    def start(self, start_event_id=None, *args):
         '''Starts the WF and returns the resulting ID. NOTE: Now, WF Id's are
         created by the Start Event.
         '''
@@ -251,7 +248,22 @@ class WorkflowInstance:
                     f"(status code {response.status_code})"
                 )
             return response
-        target = process.entry_point['@id']
+
+        target = None
+        if len(process.entry_points) > 1:
+            start_event_ids = [ep['@id'] for ep in process.entry_points]
+            if start_event_id not in start_event_ids:
+                message = "Must choose between following start events: "
+                message += ', '.join(start_event_ids)
+                message += '. Use --start_event_id'
+                return {
+                    "status": -1,
+                    "message": message
+                }
+            target = start_event_id
+        else:
+            target = process.entry_points[0]['@id']
+
         future = executor_obj.submit(start_wf, target)
 
         etcd = get_etcd(is_not_none=True)
@@ -274,25 +286,24 @@ class WorkflowInstance:
             logging.error('Failed to transition from STOPPED -> STARTING.')
 
         # get headers
-        headers = json.loads(etcd.get(self.keys.headers)[0].decode())
+        headers = json.loads(etcd.get(self.keys.input_headers)[0].decode())
 
-        # next, get the json
-        payload = json.loads(etcd.get(self.keys.payload)[0].decode())
-        headers_to_send = {
-            'X-Flow-Id': self.id,
-            'X-Rexflow-Wf-Id': self.parent.id,
-            'X-Rexflow-Task-Id': headers['X-Rexflow-Task-Id'],
-        }
-
-        for k in ['X-B3-Sampled', 'X-Envoy-Internal', 'X-B3-Spanid']:
-            if k in headers:
-                headers_to_send[k] = headers[k]
+        # next, get the payload
+        payload = etcd.get(self.keys.input_data)[0]
 
         # now, start the thing again.
+        failed_task_name = etcd.get(self.keys.failed_task)[0].decode()
+        component_list = list(filter(
+            lambda x: x.name == failed_task_name,
+            self.parent.process.all_components
+        ))
+        assert len(component_list) == 1, \
+            f"Should be exactly one task with name {failed_task_name}"
+        component = component_list[0]
         response = requests.post(
-            f"http://{headers['X-Rexflow-Original-Host']}{headers['X-Rexflow-Original-Path']}",
-            json=payload,
-            headers=headers_to_send,
+            component.k8s_url,
+            data=payload,
+            headers=headers,
         )
 
         msg = "Retry Succeeded."

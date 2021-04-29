@@ -3,31 +3,26 @@ Removes significant copy-pasta by defining simple utilities to
 create a k8s Service, ServiceAccount, and Deployment.
 '''
 from base64 import b64encode
-import json
-import os
-from subprocess import check_output
 from typing import Mapping
 
-import kubernetes
-import requests
-
-from .bpmn_util import BPMNComponent
 from .config import (
-    ETCD_HOST,
-    ETCD_PORT,
     ETCD_CA_CERT,
     ETCD_CERT_CERT,
     ETCD_CERT_KEY,
-    ETCD_POD_LABEL_SELECTOR,
-    FLOWD_HOST,
-    I_AM_FLOWD,
-    LIST_ETCD_HOSTS_ENDPOINT,
     KAFKA_HOST,
     KAFKA_API_KEY,
     KAFKA_API_SECRET,
     KAFKA_SASL_MECHANISM,
     KAFKA_SECURITY_PROTOCOL,
+    ETCD_HOSTS,
+    REXFLOW_ROOT_PREFIX,
 )
+
+ETCD_ENV_MAP = {
+    'REXFLOW_ETCD_CA_CERT': ETCD_CA_CERT,
+    'REXFLOW_ETCD_CERT_CERT': ETCD_CERT_CERT,
+    'REXFLOW_ETCD_CERT_KEY': ETCD_CERT_KEY,
+}
 
 
 def to_base64(file_loc):
@@ -35,12 +30,12 @@ def to_base64(file_loc):
     Should only be called on small files.
     '''
     with open(file_loc, 'r') as f:
-        return b64encode(f.read())
+        return b64encode(f.read().encode())
 
 
 def create_deployment(
         namespace, dns_safe_name, container, container_port, env, etcd_access=False,
-        kafka_access=False, replicas=1):
+        kafka_access=False, use_service_account=True, replicas=1, priority_class=None):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -62,7 +57,6 @@ def create_deployment(
                     },
                 },
                 'spec': {
-                    'serviceAccountName': dns_safe_name,
                     'containers': [
                         {
                             'image': container,
@@ -79,34 +73,27 @@ def create_deployment(
             },
         },
     }
+    if priority_class is not None:
+        deployment['spec']['template']['spec']['priorityClassName'] = priority_class
     env = env.copy()
 
     if etcd_access:
-        if ETCD_HOST is not None:
-            env.append({
-                "name": "ETCD_HOST",
-                "value": ETCD_HOST,
-            })
-        else:
-            assert ETCD_POD_LABEL_SELECTOR is not None, "Must provide some way to get etcd"
-            env.extend([
-                {
-                    "name": "REXFLOW_ETCD_CA_CERT",
-                    "value": ETCD_CA_CERT,
-                },
-                {
-                    "name": "REXFLOW_ETCD_CERT_CERT",
-                    "value": ETCD_CERT_CERT,
-                },
-                {
-                    "name": "REXFLOW_ETCD_CERT_KEY",
-                    "value": ETCD_CERT_KEY,
-                },
-                {
-                    "name": "REXFLOW_FLOWD_HOST",
-                    "value": FLOWD_HOST,
-                },
-            ])
+        env.append({
+            "name": "ETCD_HOSTS",
+            "value": ETCD_HOSTS,
+        })
+        env.append({
+            "name": "REXFLOW_ROOT_PREFIX",
+            "value": REXFLOW_ROOT_PREFIX,
+        })
+        env.extend([
+            {
+                "name": env_name,
+                "value": ETCD_ENV_MAP[env_name],
+            }
+            for env_name in ETCD_ENV_MAP.keys()
+            if ETCD_ENV_MAP[env_name] is not None
+        ])
     if kafka_access:
         env_data = [
             ('REXFLOW_KAFKA_HOST', KAFKA_HOST),
@@ -120,7 +107,11 @@ def create_deployment(
                 continue
             env.append({"name": env_var, "value": value})
 
-    deployment['spec']['template']['spec']['containers'][0]['env'] = env
+    spec = deployment['spec']['template']['spec']
+    spec['containers'][0]['env'] = env
+    if use_service_account:
+        spec['serviceAccountName'] = dns_safe_name
+
     return deployment
 
 
@@ -174,7 +165,9 @@ def create_rexflow_ingress_vs(namespace, dns_safe_name, uri_prefix, dest_port, d
     return virtual_service
 
 
-def create_service(namespace, dns_safe_name, target_port):
+def create_service(namespace, dns_safe_name, port, target_port=None):
+    if target_port is None:
+        target_port = port
     service = {
         'apiVersion': 'v1',
         'kind': 'Service',
@@ -189,7 +182,7 @@ def create_service(namespace, dns_safe_name, target_port):
             'ports': [
                 {
                     'name': 'http',
-                    'port': target_port,
+                    'port': port,
                     'targetPort': target_port,
                 }
             ],
@@ -280,40 +273,9 @@ def get_rexflow_labels(wf_id):
     }
 
 
-def get_rexflow_component_annotations(bpmn_component: BPMNComponent):
+def get_rexflow_component_annotations(bpmn_component):
     return {
         "rexflow.rexhomes.com/bpmn-component-id": bpmn_component.id,
         "rexflow.rexhomes.com/bpmn-component-name": bpmn_component.name,
         "rexflow.rexhomes.com/wf-id": bpmn_component.workflow_properties.id,
     }
-
-
-def get_etcd_endpoints():
-    '''Returns up-to-date hosts for the k8s deployment.
-    '''
-    if I_AM_FLOWD:
-        if ETCD_POD_LABEL_SELECTOR is not None:
-            # Read the etcd rexflow pods and back out their hosts from the pod info.
-            pods = json.loads(check_output([
-                "kubectl", "get", "po", "--all-namespaces", "-o", "json",
-                "-l", ETCD_POD_LABEL_SELECTOR,
-            ]).decode())
-            endpoints = []
-            for pod in pods['items']:
-                for port in pod['spec']['containers'][0]['ports']:
-                    if port['name'] == 'clientport':
-                        endpoints.append({
-                            'host': pod['status']['podIP'],
-                            'port': port['hostPort'],
-                        })
-            return endpoints
-        else:
-            assert ETCD_HOST is not None, \
-                "Must either provide ETCD Host or ETCD Pod Selector."
-            return [{
-                'host': ETCD_HOST,
-                'port': ETCD_PORT,
-            }]
-    else:
-        # Ask Flowd for the data.
-        return requests.get(LIST_ETCD_HOSTS_ENDPOINT).json()['etcd_hosts']

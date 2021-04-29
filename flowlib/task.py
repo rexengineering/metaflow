@@ -5,7 +5,14 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 from collections import OrderedDict, namedtuple
 from typing import List, Mapping
 
-from .bpmn_util import WorkflowProperties, BPMNComponent, get_edge_transport
+import yaml
+
+from .bpmn_util import (
+    WorkflowProperties,
+    BPMNComponent,
+    get_edge_transport,
+    iter_xmldict_for_key,
+)
 
 from .k8s_utils import (
     create_deployment,
@@ -15,11 +22,58 @@ from .k8s_utils import (
 )
 from .config import CREATE_DEV_INGRESS
 from .reliable_wf_utils import create_kafka_transport
+from .constants import Headers
 
 Upstream = namedtuple(
     'Upstream',
     ['full_hostname', 'port', 'path', 'method', 'total_attempts', 'task_id']
 )
+
+DEFAULT_TOKEN = '___DEFAULT___'
+
+PARAM_TYPES = [
+    'JSON_OBJECT',
+    'STRING',
+    'DOUBLE',
+    'BOOLEAN',
+    'INTEGER',
+    'JSON_ARRAY',
+]
+DEFAULT_PARAM_TYPE = 'JSON_OBJECT'
+
+
+def form_param_config(param):
+    '''Takes in a `camunda:inputOutputParameter`. If curious, look in the bpmn xml.
+    '''
+    name = param['@name']
+    text = param['#text'].replace('\xa0', '')
+    lines = text.split('\n')
+    assert len(lines) > 0, "Must annotate variables with assignment value."
+
+    split_first_line = lines[0].split(': ')
+    if len(split_first_line):
+        value, param_type = split_first_line[0], split_first_line[1]
+    else:
+        value, param_type = split_first_line[0], DEFAULT_PARAM_TYPE
+
+    if len(lines) > 1:
+        default_value_line = lines[1]
+        assert default_value_line.startswith('default: '), \
+            "second line of param config should specify default value. Syntax: `default: <value>`"
+        default_value = default_value_line[len('default: '):]
+        has_default_value = True
+    else:
+        has_default_value = False
+        default_value = None
+
+    result = {
+        'name': name,
+        'value': value,
+        'type': param_type,
+        'has_default_value': has_default_value,
+        'default_value': default_value,
+    }
+    return result
 
 
 class BPMNTask(BPMNComponent):
@@ -29,13 +83,27 @@ class BPMNTask(BPMNComponent):
         super().__init__(task, process, global_props)
         self._task = task
 
-        assert 'service' in self._annotation, \
-            "Must annotate Service Task with service information."
+        self._target_port = self.service_properties.port
+        if self._annotation is not None:
+            # First priority: check for properties set in an annotation.
+            assert 'service' in self._annotation, \
+                "Must annotate Service Task with service information."
+            assert 'host' in self._annotation['service'], \
+                "Must annotate Service Task with service host."
+            if 'targetPort' in self._annotation['service']:
+                self._target_port = self._annotation['service']['targetPort']
+        elif 'bpmn:extensionElements' in task:
+            # Second priority: check for Camunda extensions.
+            extensions = task['bpmn:extensionElements']
+            if 'camunda:connector' in extensions:
+                hostname = extensions['camunda:connector']['camunda:connectorId']
+                self._service_properties._host = hostname
+                self._service_properties._container_name = hostname
+        elif 'bpmn:documentation' in task and task['bpmn:documentation'].startswith('rexflow:'):
+            # Third priority: check for annotations in the documentation.
+            self.update_annotations(yaml.safe_load(task['bpmn:documentation']))
 
-        assert 'host' in self._annotation['service'], \
-            "Must annotate Service Task with service host."
-
-        if self._is_preexisting:
+        if self._is_preexisting and self._annotation is not None:
             assert 'namespace' in self._annotation['service'], \
                 "Must provide namespace of preexisting service."
             self._namespace = self._annotation['service']['namespace']
@@ -43,8 +111,9 @@ class BPMNTask(BPMNComponent):
                 # Can't make guarantee about where the service implementor put
                 # their health endpoint, so (for now) require it to be specified.
                 self._health_properties = None
+        self._process = process
 
-    def _generate_envoyfilter(self, upstreams: List[Upstream]) -> list:
+    def _generate_envoyfilter(self, upstreams: List[Upstream], component_map, edge_map) -> dict:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
         FilterChain. This filter hijacks the response traffic and sends it to the next
         step of the workflow (whether that's a gateway, Event, or another ServiceTask.)
@@ -68,7 +137,6 @@ class BPMNTask(BPMNComponent):
         if self._is_preexisting:
             envoyfilter_name += '-' + self.workflow_properties.id_hash
 
-        port = self.service_properties.port
         namespace = self._namespace  # namespace in which the k8s objects live.
         traffic_shadow_cluster = ''
         traffic_shadow_path = ''
@@ -86,7 +154,57 @@ class BPMNTask(BPMNComponent):
             'task_id': self.id,
             'traffic_shadow_cluster': traffic_shadow_cluster,
             'traffic_shadow_path': traffic_shadow_path,
+            'closure_transport': self.workflow_properties.use_closure_transport,
+            'headers_to_forward': [Headers.X_HEADER_TOKEN_POOL_ID.lower()],
+            'upstream_port': self._target_port,
+            'inbound_retries': 0,
         }
+        # Error Gateway stuff
+        self.error_gateways = []
+        for boundary_event in iter_xmldict_for_key(self._process, 'bpmn:boundaryEvent'):
+            if 'bpmn:errorEventDefinition' not in boundary_event:
+                continue
+            if boundary_event['@attachedToRef'] == self.id:
+                self.error_gateways.append(boundary_event)
+        if len(self.error_gateways):
+            assert len(self.error_gateways) == 1, \
+                "Multiple error gateways for one task is unimplemented."
+            boundary_event = self.error_gateways[0]
+            outgoing_edge_list = edge_map[boundary_event['@id']]
+            bavs_config['error_upstreams'] = []
+            for edge in outgoing_edge_list:
+                error_target = component_map[edge['@targetRef']]
+                bavs_config['error_upstreams'].append(
+                    self._make_forward(Upstream(
+                        error_target.envoy_host,
+                        error_target.service_properties.port,
+                        error_target.call_properties.path,
+                        error_target.call_properties.method,
+                        error_target.call_properties.total_attempts,
+                        error_target.id,
+                    ))
+                )
+
+        # Smart Transport stuff
+        if self.workflow_properties.use_closure_transport \
+                    and 'bpmn:extensionElements' in self._task \
+                    and 'camunda:inputOutput' in self._task['bpmn:extensionElements']:
+            params = self._task['bpmn:extensionElements']['camunda:inputOutput']
+            bavs_config['input_params'] = [
+                form_param_config(param)
+                for param in iter_xmldict_for_key(params, 'camunda:inputParameter')
+            ]
+            input_param_names = [param['name'] for param in bavs_config['input_params']]
+            if '.' in input_param_names:
+                assert len(input_param_names) == 1, "Can only have one top-level input param."
+            bavs_config['output_params'] = [
+                form_param_config(param)
+                for param in iter_xmldict_for_key(params, 'camunda:outputParameter')
+            ]
+            output_param_values = [param['value'] for param in bavs_config['output_params']]
+            if '.' in output_param_values:
+                assert len(output_param_values) == 1, "Can only have one top-level output param."
+
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',
             'kind': 'EnvoyFilter',
@@ -102,7 +220,7 @@ class BPMNTask(BPMNComponent):
                         'match': {
                             'context': 'SIDECAR_INBOUND',
                             'listener': {
-                                'portNumber': port,
+                                'portNumber': self._target_port,
                                 'filterChain': {
                                     'filter': {
                                         'name': 'envoy.http_connection_manager',
@@ -191,7 +309,7 @@ class BPMNTask(BPMNComponent):
                     )
                 )
 
-        k8s_objects.append(self._generate_envoyfilter(upstreams))
+        k8s_objects.append(self._generate_envoyfilter(upstreams, component_map, edge_map))
         if not self._is_preexisting:
             k8s_objects.extend(self._generate_microservice())
         return k8s_objects
@@ -204,19 +322,23 @@ class BPMNTask(BPMNComponent):
 
         # k8s ServiceAccount
         port = self.service_properties.port
+        target_port = self._target_port
         namespace = self._namespace
         assert self.namespace, "new-grad programmer error: namespace should be set by now."
         uri_prefix = f'/{service_name}' if namespace == 'default' \
             else f'/{namespace}/{service_name}'
 
         k8s_objects.append(create_serviceaccount(namespace, self.service_name))
-        k8s_objects.append(create_service(namespace, self.service_name, port))
+        k8s_objects.append(
+            create_service(namespace, self.service_name, port, target_port=target_port)
+        )
         k8s_objects.append(create_deployment(
             namespace,
             self.service_name,
             self.service_properties.container,
-            port,
+            target_port,
             env=[],
+            priority_class=self.workflow_properties.priority_class,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(

@@ -34,6 +34,6 @@ def handler(request):
         result[workflow_id] = dict(result=-1, message=message)
     else:
         instance = workflow.WorkflowInstance(parent=wf_deployment)
-        result = instance.start()
+        result = instance.start(start_event_id=request.start_event_id)
 
     return result

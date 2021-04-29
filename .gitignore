@@ -54,3 +54,4 @@ Thumbs.db
 
 build/
 rexflow.egg-info/
+.env

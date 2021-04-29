@@ -8,17 +8,21 @@ See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
 
+DEFAULT_REXFLOW_ROOT_PREFIX = "/rexflow"
+REXFLOW_ROOT_PREFIX = os.getenv('REXFLOW_ROOT_PREFIX', DEFAULT_REXFLOW_ROOT_PREFIX)
 
 # Flowd Endpoints
-DEFAULT_FLOWD_HOST = 'flowd.rexflow:9002'
-FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", DEFAULT_FLOWD_HOST)
-FLOWD_URL = f"http://{FLOWD_HOST}"
+DEFAULT_FLOWD_HOST = 'localhost'
+DEFAULT_FLOWD_PORT = 9002
+FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", os.getenv('FLOWD_HOST', DEFAULT_FLOWD_HOST))
+FLOWD_PORT = os.getenv('REXFLOW_FLOWD_PORT', os.getenv('FLOWD_PORT', DEFAULT_FLOWD_PORT))
+FLOWD_URL = f"http://{FLOWD_HOST}:{FLOWD_PORT}"
 
 INSTANCE_FAIL_ENDPOINT_PATH = "/instancefail"
 INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
 
-LIST_ETCD_HOSTS_ENDPOINT_PATH = '/etcd_hosts'
-LIST_ETCD_HOSTS_ENDPOINT = f"{FLOWD_URL}{LIST_ETCD_HOSTS_ENDPOINT_PATH}"
+WF_MAP_ENDPOINT_PATH = '/wf_map'
+WF_MAP_ENDPOINT = f'{FLOWD_URL}{WF_MAP_ENDPOINT_PATH}'
 
 
 # Gateway Configuration
@@ -32,27 +36,33 @@ DMN_SERVER_HOST = os.getenv("REXFLOW_DMN_SERVER_HOST", DEFAULT_DMN_SERVER_HOST)
 
 
 # REXFlow Docker Image Configuration
-DEFAULT_REXFLOW_VERSION = '1.0.0'
+DEFAULT_REXFLOW_VERSION = 'latest'
 REXFLOW_VERSION = os.getenv('REXFLOW_VERSION', DEFAULT_REXFLOW_VERSION)
 
-DEFAULT_THROW_IMAGE = 'throw-gateway:1.0.0'
+DEFAULT_THROW_IMAGE = 'throw-gateway:latest'
 THROW_IMAGE = os.getenv('REXFLOW_THROW_IMAGE', DEFAULT_THROW_IMAGE)
 if ':' not in THROW_IMAGE:
     THROW_IMAGE += f":{REXFLOW_VERSION}"
 DEFAULT_THROW_LISTEN_PORT = '5000'
 THROW_LISTEN_PORT = int(os.getenv("REXFLOW_THROW_SERVICE_PORT", DEFAULT_THROW_LISTEN_PORT))
 
-DEFAULT_CATCH_IMAGE = 'catch-gateway:1.0.0'
+DEFAULT_CATCH_IMAGE = 'catch-gateway:latest'
 CATCH_IMAGE = os.getenv('REXFLOW_CATCH_IMAGE', DEFAULT_CATCH_IMAGE)
 if ':' not in CATCH_IMAGE:
     CATCH_IMAGE += f":{REXFLOW_VERSION}"
 DEFAULT_CATCH_LISTEN_PORT = '5000'
 CATCH_LISTEN_PORT = int(os.getenv("REXFLOW_CATCH_SERVICE_PORT", DEFAULT_CATCH_LISTEN_PORT))
 
-DEFAULT_XGW_IMAGE = 'exclusive-gateway:1.0.0'
+DEFAULT_XGW_IMAGE = 'exclusive-gateway:latest'
 XGW_IMAGE = os.getenv("REXFLOW_XGW_IMAGE", DEFAULT_XGW_IMAGE)
 if ':' not in XGW_IMAGE:
     XGW_IMAGE += f':{REXFLOW_VERSION}'
+
+DEFAULT_PGW_IMAGE = 'parallel-gateway:latest'
+PGW_IMAGE = os.getenv("REXFLOW_PGW_IMAGE", DEFAULT_PGW_IMAGE)
+if ':' not in PGW_IMAGE:
+    PGW_IMAGE += f':{REXFLOW_VERSION}'
+
 
 DEFAULT_XGW_LISTEN_PORT = '5000'
 XGW_LISTEN_PORT = int(os.getenv("REXFLOW_XGW_LISTEN_PORT", DEFAULT_XGW_LISTEN_PORT))
@@ -68,15 +78,15 @@ DEFAULT_DO_MANUAL_INJECTION = "True"
 DO_MANUAL_INJECTION = (
     os.getenv("REXFLOW_DO_MANUAL_INJECTION", DEFAULT_DO_MANUAL_INJECTION) == "True"
 )
-I_AM_FLOWD = True if os.getenv("I_AM_FLOWD") == "True" else False
 
 
 # ETCD Configuration
-ETCD_HOST = os.getenv("ETCD_HOST")  # optional, can get from pods instead
-ETCD_PORT = os.getenv("ETCD_PORT")  # optional, can get from pods instead
-# Allows REXFlow to get dynamically-changing etcd hosts by kubectl describing
-# some pods according to a label.
-ETCD_POD_LABEL_SELECTOR = os.getenv("REXFLOW_ETCD_POD_LABEL_SELECTOR")
+DEFAULT_ETCD_HOST='localhost'
+DEFAULT_ETCD_PORT=2379
+ETCD_HOST = os.getenv("ETCD_HOST", DEFAULT_ETCD_HOST)  # optional, can get from pods instead
+ETCD_PORT = os.getenv("ETCD_PORT", DEFAULT_ETCD_PORT)  # optional, can get from pods instead
+
+ETCD_HOSTS = os.getenv("ETCD_HOSTS", f'{ETCD_HOST}:{ETCD_PORT}')
 
 # Can either provide certs/paths as environment variables or as files, in which
 # case the env var is the path to the file. If both are provided, then the
@@ -116,4 +126,60 @@ def get_kafka_config():
         key: kafka_env_map[key] for key in kafka_env_map.keys() if kafka_env_map[key] is not None
     }
 
-INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE")
+DEFAULT_INGRESS = """
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {name}
+  labels:
+    cicd.rexhomes.com/deployed-by: rexflow
+    rexflow.rexhomes.com/wf-id: {wf_id}
+    rexflow.rexhomes.com/component-name: {component_name}
+    rexflow.rexhomes.com/component-id: {component_id}
+spec:
+  rules:
+  - host: {hostname}
+    http:
+      paths:
+      - backend:
+          serviceName: forward-to-istio
+          servicePort: use-annotation
+        path: /
+        pathType: ImplementationSpecific
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {name}
+  labels:
+    cicd.rexhomes.com/deployed-by: rexflow
+    rexflow.rexhomes.com/wf-id: {wf_id}
+    rexflow.rexhomes.com/component-name: {component_name}
+    rexflow.rexhomes.com/component-id: {component_id}
+spec:
+  gateways:
+  - {ingress_type}
+  hosts:
+  - {hostname}
+  http:
+  - route:
+    - destination:
+        host: {service_host}
+        port:
+          number: {service_port}
+"""
+
+INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE", DEFAULT_INGRESS)
+
+# This configuration is pertinent when running the UI bridge.
+DEFAULT_UI_BRIDGE_NAME = 'ui-bridge'
+UI_BRIDGE_NAME = os.getenv('REXFLOW_UI_BRIDGE_NAME', DEFAULT_UI_BRIDGE_NAME)
+
+DEFAULT_UI_BRIDGE_IMAGE = f'{DEFAULT_UI_BRIDGE_NAME}:latest'
+UI_BRIDGE_IMAGE = os.getenv('REXFLOW_UI_BRIDGE_IMAGE', DEFAULT_UI_BRIDGE_IMAGE)
+
+DEFAULT_UI_BRIDGE_PORT=5051
+UI_BRIDGE_PORT = int(os.getenv('REXFLOW_UI_BRIDGE_PORT', DEFAULT_UI_BRIDGE_PORT))
+
+DEFAULT_UI_BRIDGE_INIT_PATH = 'task/init'
+UI_BRIDGE_INIT_PATH = os.getenv('REXFLOW_UI_BRIDGE_INIT_PATH', DEFAULT_UI_BRIDGE_INIT_PATH)

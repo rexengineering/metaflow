@@ -1,13 +1,13 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
-from typing import Any, Mapping, List
+from typing import Any, Generator, Mapping, List, Set, Union
 import yaml
 from hashlib import sha1, sha256
 import re
-
-
-K8S_MAX_NAMELENGTH = 63
+import json
+from flowlib.constants import BPMN_TIMER_EVENT_DEFINITION, TIMER_DESCRIPTION, to_valid_k8s_name
+from flowlib.timer_util import TimedEventManager
 
 
 def get_edge_transport(edge, default_transport):
@@ -20,45 +20,12 @@ def get_edge_transport(edge, default_transport):
         transport = 'rpc'
     return transport
 
-def to_valid_k8s_name(name):
-    '''
-    Takes in a name and massages it until it complies to the k8s name regex, which is:
-        [a-z0-9]([-a-z0-9]*[a-z0-9])?
-    Raises an AssertionError if we fail to make the name comply.
-    '''
-    name = name.lower()
-
-    # Replace space-like chars with a '-'
-    name = re.sub('[. _\n]', '-', name)
-
-    # Remove invalid characters
-    name = re.sub('[^0-9a-z-]', '', name)
-
-    # Remove repeated dashes
-    name = re.sub('-[-]+', '-', name)
-
-    # Trim leading and trailing dashes
-    name = name.rstrip('-').lstrip('-')
-
-    # K8s names limited to 63 or fewer characters. We could truncate to 63, but doing so could
-    # lead to conflicts if the caller of this function was relying on some UID at the end of
-    # the name. Therefore, we add another hash.
-    if len(name) > K8S_MAX_NAMELENGTH:
-        token = f'-{sha256(name.encode()).hexdigest()[:8]}'
-        name = name[:(K8S_MAX_NAMELENGTH - len(token))] + token
-
-    assert len(name) > 0, "Must provide at least one valid character [a-b0-9A-B]."
-    assert re.fullmatch('[a-z0-9]([-a-z0-9]*[a-z0-9])?', name), \
-        f"NewGradProgrammerError: Was unable to make name {name} k8s-compatible."
-    assert len(name) <= 63, "NewGradProgrammerError: k8s names must be <63 char long."
-    return name
-
 
 def calculate_id_hash(wf_id: str) -> str:
     return sha1(wf_id.encode()).hexdigest()[:8]
 
 
-def iter_xmldict_for_key(odict: OrderedDict, key: str):
+def iter_xmldict_for_key(odict: OrderedDict, key: str) -> Generator[OrderedDict, None, None]:
     '''Generator for iterating through an OrderedDict returned from xmltodict for a given key.
     '''
     value = odict.get(key)
@@ -115,7 +82,7 @@ def get_annotations(process: OrderedDict, source_ref=None):
         if targets is None or annotation['@id'] in targets:
             text = annotation['bpmn:text']
             if text.startswith('rexflow:'):
-                yield yaml.safe_load(text.replace('\xa0', ''))
+                yield (annotation,yaml.safe_load(text.replace('\xa0', '')))
 
 
 def parse_events(process: OrderedDict):
@@ -320,9 +287,13 @@ class WorkflowProperties:
         self._traffic_shadow_svc = None
         self._xgw_expression_type = 'feel'
         self._deployment_timeout = 120
+        self._use_closure_transport = False
+        self._priority_class = None
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
+            elif 'rexflow_global_properties' in annotations:
+                self.update(annotations['rexflow_global_properties'])
 
     @property
     def id(self):
@@ -370,7 +341,22 @@ class WorkflowProperties:
     def deployment_timeout(self):
         return self._deployment_timeout
 
+    @property
+    def use_closure_transport(self):
+        return self._use_closure_transport
+
+    @property
+    def priority_class(self):
+        return self._priority_class
+
     def update(self, annotations):
+        if 'priority_class' in annotations:
+            self._priority_class = annotations['priority_class']
+
+        if 'use_closure_transport' in annotations:
+            self._use_closure_transport = annotations['use_closure_transport']
+            assert type(self._use_closure_transport) == bool
+
         if 'orchestrator' in annotations:
             assert annotations['orchestrator'] == 'istio'
             self._orchestrator = annotations['orchestrator']
@@ -404,7 +390,7 @@ class WorkflowProperties:
 
         if 'id_hash' in annotations:
             self._id_hash = annotations['id_hash']
-    
+
         if 'deployment_timeout' in annotations:
             self._deployment_timeout = annotations['deployment_timeout']
 
@@ -462,7 +448,7 @@ class BPMNComponent:
                  workflow_properties: WorkflowProperties):
         self.id = spec['@id']
 
-        annotations = [a for a in list(get_annotations(process, self.id)) if 'rexflow' in a]
+        annotations = [a for _,a in list(get_annotations(process, self.id)) if 'rexflow' in a]
         assert len(annotations) <= 1, "Can only provide one REXFlow annotation per BPMN Component."
         if len(annotations):
             self._annotation = annotations[0]['rexflow']
@@ -486,9 +472,24 @@ class BPMNComponent:
         self._global_props = workflow_properties
         self._proc = process
         self._kafka_topics = []
+        self._timer_description = []
+        self._timer_aspects = None
 
         if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
+
+        if BPMN_TIMER_EVENT_DEFINITION in spec:
+            for key in ['timeDate', 'timeDuration', 'timeCycle']:
+                tag = f'bpmn:{key}'
+                if tag in spec[BPMN_TIMER_EVENT_DEFINITION]:
+                    # run a validation against the spec so we can fail the apply rather than on run
+                    # this will raise if there's anything seriously wrong. The finer points - like
+                    # ranges and such - are verified by the individual component types.
+                    self._timer_description = [key, spec[BPMN_TIMER_EVENT_DEFINITION][tag]['#text']]
+                    self._timer_aspects = TimedEventManager.validate_spec(key, self._timer_description[1])
+                    break
+            assert self._timer_description, "timerEventDefinition has invalid timer type"
+
 
         service_update = {
             'hash_used': (self._global_props.namespace_shared and not self._is_preexisting),
@@ -502,16 +503,28 @@ class BPMNComponent:
             {'retry': {'total_attempts': self._global_props._retry_total_attempts}}
         )
 
-        if self._annotation is not None:
-            if 'call' in self._annotation:
-                self._call_properties.update(self._annotation['call'])
-            if 'health' in self._annotation:
-                self._health_properties.update(self._annotation['health'])
-            if 'service' in self._annotation:
-                self._service_properties.update(self._annotation['service'])
+        self.update_annotations()
+
+    def update_annotations(self, annotation=None):
+        if annotation is None:
+            annotation = self._annotation
+        elif self._annotation is None:
+            self._annotation = annotation
+        if annotation is not None:
+            if 'call' in annotation:
+                self._call_properties.update(annotation['call'])
+            if 'health' in annotation:
+                self._health_properties.update(annotation['health'])
+            if 'service' in annotation:
+                self._service_properties.update(annotation['service'])
+
+    def init_env_config(self):
+        if self._timer_description:
+            return [{'name': TIMER_DESCRIPTION, 'value': json.dumps(self._timer_description)}]
+        return []
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
-                      digraph: OrderedDict, sequence_flow_table: Mapping[str, Any]) -> list:
+                      digraph: Mapping[str, Set[str]], sequence_flow_table: Mapping[str, Any]) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -599,12 +612,6 @@ class BPMNComponent:
         return self._global_props
 
     @property
-    def transport_kafka_topic(self) -> str:
-        if not self.workflow_properties.is_reliable_transport:
-            return None
-        return to_valid_k8s_name(f'{self.name}-{self._global_props.id_hash}-incoming')
-
-    @property
     def k8s_url(self) -> str:
         '''Returns the fully-qualified host + path that is understood by the k8s
         kube-dns. For example, returns "http://my-service.my-namespace:my-port"
@@ -636,7 +643,7 @@ class BPMNComponent:
     def annotation(self) -> dict:
         '''Returns the python dictionary representation of the rexflow annotation on the
         BPMN diagram for this BPMNComponent.'''
-        return self._annotation
+        return self._annotation if self._annotation else dict()
 
     @property
     def path(self) -> str:

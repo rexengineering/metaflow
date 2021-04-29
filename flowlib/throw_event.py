@@ -91,7 +91,8 @@ class BPMNThrowEvent(BPMNComponent):
         # 1. Tell the container which queue to publish to.
         # 2. Tell the container which (if any) service to forward its input to.
 
-        env_config = [
+        env_config = self.init_env_config() + \
+        [
             {
                 "name": "KAFKA_TOPIC",  # Topic to publish to, NOT Reliable Transport topic
                 "value": self._kafka_topic,
@@ -124,6 +125,7 @@ class BPMNThrowEvent(BPMNComponent):
             THROW_LISTEN_PORT,
             env_config,
             kafka_access=True,
+            priority_class=self.workflow_properties.priority_class,
         ))
 
         return k8s_objects

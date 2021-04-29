@@ -19,24 +19,26 @@ from .k8s_utils import (
 from .bpmn_util import (
     BPMNComponent,
     HealthProperties,
-    to_valid_k8s_name,
 )
 
+from .constants import to_valid_k8s_name
+
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     INSTANCE_FAIL_ENDPOINT,
+    REXFLOW_ROOT_PREFIX,
 )
 
 DEFAULT_TOTAL_ATTEMPTS = '2'
 
 
 def create_reliable_wf_catcher(
-        service_name, namespace, wf_id, kafka_topic, forward_url, task_id, dest_service_name):
+        service_name, namespace, wf_id, kafka_topic, forward_url, task_id, dest_service_name,
+        priority_class):
     k8s_objects = []
     env_config = [
         {
@@ -82,6 +84,7 @@ def create_reliable_wf_catcher(
         env_config,
         kafka_access=True,
         etcd_access=True,
+        priority_class=priority_class,
     )
     deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
         service_name=dest_service_name,  # Want to be on same node as service we call
@@ -92,7 +95,8 @@ def create_reliable_wf_catcher(
     return k8s_objects
 
 
-def create_reliable_wf_thrower(service_name, namespace, kafka_topic, source_service_name):
+def create_reliable_wf_thrower(
+    service_name, namespace, kafka_topic, source_service_name, priority_class):
     k8s_objects = []
     env_config = [
         {
@@ -122,6 +126,7 @@ def create_reliable_wf_thrower(service_name, namespace, kafka_topic, source_serv
         THROW_LISTEN_PORT,
         env_config,
         kafka_access=True,
+        priority_class=priority_class,
     )
     deployment['spec']['template']['spec']['affinity'] = create_deployment_affinity(
         service_name=source_service_name,  # schedule thrower on same node as source service
@@ -158,11 +163,16 @@ def create_kafka_transport(
        f'reliable-transport_{from_component.name}_to_{to_component.name}_{worklow_id}'
     where workflow_id is the ID of the parent workflow.
     '''
-    throw_service_name = to_valid_k8s_name(f'throw-{from_component.name}-to-{to_component.name}')
-    catch_service_name = to_valid_k8s_name(f'catch-{from_component.name}-to-{to_component.name}')
+    id_hash = from_component.workflow_properties.id_hash
+    throw_service_name = to_valid_k8s_name(
+        f'throw-{from_component.name}-to-{to_component.name}-{id_hash}'
+    )
+    catch_service_name = to_valid_k8s_name(
+        f'catch-{from_component.name}-to-{to_component.name}-{id_hash}'
+    )
 
-    # Take my word for it, this will match the 
-    kafka_topic_name = f'rexflow-transport_{from_component.workflow_properties.id}_'
+    kafka_topic_name = to_valid_k8s_name(REXFLOW_ROOT_PREFIX)
+    kafka_topic_name += f'-transport_{from_component.workflow_properties.id}_'
     kafka_topic_name += f'{from_component.name}_to_{to_component.name}'
 
     wf_id = from_component.workflow_properties.id
@@ -173,7 +183,10 @@ def create_kafka_transport(
     assert namespace == to_component.workflow_properties.namespace, \
         "Global namespace should match within same wf."
 
-    k8s_specs = []
+    k8s_specs = from_component.init_env_config()
+    priority_class = from_component.workflow_properties.priority_class
+    assert priority_class == to_component.workflow_properties.priority_class, \
+        "Currently, priorityClass is a BPMN-level property."
 
     k8s_specs.extend(create_reliable_wf_catcher(
         catch_service_name,
@@ -183,6 +196,7 @@ def create_kafka_transport(
         to_component.k8s_url,
         to_component.id,
         to_component.service_name,
+        priority_class,
     ))
 
     k8s_specs.extend(create_reliable_wf_thrower(
@@ -190,6 +204,7 @@ def create_kafka_transport(
         namespace,
         kafka_topic_name,
         from_component.service_name,
+        priority_class,
     ))
 
     # Mark the kafka topic so it gets created

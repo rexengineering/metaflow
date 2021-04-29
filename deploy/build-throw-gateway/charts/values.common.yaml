@@ -1,0 +1,4 @@
+nameOverride: rexflow-throw-gateway
+
+build:
+  build_from: ../..

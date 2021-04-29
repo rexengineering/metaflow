@@ -3,6 +3,7 @@ Implements the BPMNCatchEvent object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict
+from flowlib.timer_util import TimedEventManager
 from typing import Mapping
 import os
 
@@ -23,24 +24,32 @@ from .config import (
     INSTANCE_FAIL_ENDPOINT,
 )
 from .reliable_wf_utils import create_kafka_transport
+from .constants import BPMN_INTERMEDIATE_CATCH_EVENT
 
 CATCH_GATEWAY_SVC_PREFIX = "catch"
 
 
 class BPMNCatchEvent(BPMNComponent):
+    MAX_RECURRANCE = 1024
     '''Wrapper for BPMN service event metadata.
     '''
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
+        self._kafka_topic = None
 
-        assert 'kafka_topic' in self._annotation, \
-            "Must annotate Catch Event with `kafka_topic` name."
+        # if this is a timed catch event, verify that the timer aspects are valid
+        if self._timer_aspects:
+            if self._timer_aspects.timer_type == TimedEventManager.TIME_CYCLE:
+                assert self._timer_aspects.recurrance > 0, f'Unbounded recurrance is not allowed for timed catch events'
+                assert self._timer_aspects.recurrance <= self.MAX_RECURRANCE, f'Recurrance must be between 1 and {self.MAX_RECURRANCE}, inclusive'
+        else:
+            assert self._annotation and 'service' not in self._annotation, \
+                "Service Properties auto-inferred for Catch Gateways."
+            assert self._annotation and 'kafka_topic' in self._annotation, \
+                "Must annotate Catch/Start Event with `kafka_topic` name or provide timer definition."
 
-        self._kafka_topic = self._annotation['kafka_topic']
-        self.kafka_topics.append(self._kafka_topic)
-
-        assert 'service' not in self._annotation, \
-            "Service Properties auto-inferred for Catch Gateways."
+            self._kafka_topic = self._annotation['kafka_topic']
+            self.kafka_topics.append(self._kafka_topic)
 
         self._service_properties.update({
             "host": self.name,
@@ -49,7 +58,8 @@ class BPMNCatchEvent(BPMNComponent):
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict, edge_map: OrderedDict) -> list:
-        assert KAFKA_HOST is not None, "Kafka Installation required for Catch Events."
+        assert self._timer_aspects is not None or KAFKA_HOST is not None, \
+            "Kafka Installation required for Catch Events."
 
         k8s_objects = []
         total_attempts = None
@@ -83,11 +93,8 @@ class BPMNCatchEvent(BPMNComponent):
         # check of the service name and error on invalid spec.
         port = self.service_properties.port
 
-        env_config = [
-            {
-                "name": "KAFKA_TOPIC",  # Topic which starts the wf, NOT reliable transport topic
-                "value": self._kafka_topic,
-            },
+        env_config = self.init_env_config() + \
+        [
             {
                 "name": "KAFKA_GROUP_ID",
                 "value": service_name,
@@ -113,6 +120,11 @@ class BPMNCatchEvent(BPMNComponent):
                 "value": INSTANCE_FAIL_ENDPOINT,
             },
         ]
+        if self._kafka_topic is not None:
+            env_config.append({
+                "name": "KAFKA_TOPIC",  # Topic which starts the wf, NOT reliable transport topic
+                "value": self._kafka_topic,
+            })
 
         k8s_objects.append(create_serviceaccount(self._namespace, service_name))
         k8s_objects.append(create_service(self._namespace, service_name, port))
@@ -124,5 +136,6 @@ class BPMNCatchEvent(BPMNComponent):
             env_config,
             kafka_access=True,
             etcd_access=True,
+            priority_class=self.workflow_properties.priority_class,
         ))
         return k8s_objects

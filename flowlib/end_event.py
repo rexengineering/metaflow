@@ -4,7 +4,6 @@ as COMPLETED.
 '''
 
 from collections import OrderedDict
-import os
 from typing import Mapping
 
 from .bpmn_util import BPMNComponent
@@ -15,15 +14,10 @@ from .k8s_utils import (
     create_serviceaccount,
 )
 
-from .reliable_wf_utils import create_reliable_wf_catcher
-
 from .config import (
-    ETCD_HOST,
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,
-    CATCH_IMAGE,
-    CATCH_LISTEN_PORT,
 )
 
 
@@ -60,7 +54,8 @@ class BPMNEndEvent(BPMNComponent):
         forward_set = list(digraph.get(self.id, set()))
         assert len(forward_set) == 0, "Can't have outgoing edge from End Event."
 
-        deployment_env_config = [
+        deployment_env_config = self.init_env_config() + \
+        [
             {
                 "name": "REXFLOW_THROW_END_FUNCTION",
                 "value": "END",
@@ -99,5 +94,6 @@ class BPMNEndEvent(BPMNComponent):
             deployment_env_config,
             etcd_access=True,
             kafka_access=(self._kafka_topic is not None),
+            priority_class=self.workflow_properties.priority_class,
         ))
         return k8s_objects

@@ -1,0 +1,4 @@
+nameOverride: rexflow-flowd
+
+build:
+  build_from: ../..

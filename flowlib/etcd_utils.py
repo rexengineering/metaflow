@@ -1,11 +1,13 @@
 import logging
 import os
 import re
+import time
 
 import etcd3
 from etcd3.exceptions import ConnectionFailedError
 
 from .config import (
+    ETCD_HOSTS,
     ETCD_CA_CERT,
     ETCD_CERT_CERT,
     ETCD_CERT_KEY,
@@ -13,7 +15,6 @@ from .config import (
     ETCD_CERT_CERT_PATH,
     ETCD_CERT_KEY_PATH,
 )
-from .k8s_utils import get_etcd_endpoints
 
 _etcd = None
 
@@ -30,6 +31,18 @@ def _process_etcd_opt(data, filename, outfilename=None):
         return outfilename
     else:
         return None
+
+
+def _get_etcd_endpoints():
+    result = []
+    for endpoint in ETCD_HOSTS.split(','):
+        endpoint_dict = {}
+        if ':' in endpoint:
+            endpoint_dict['host'], endpoint_dict['port'] = endpoint.split(':')
+        else:
+            endpoint_dict['host'] = endpoint
+        result.append(endpoint_dict)
+    return result
 
 
 def init_etcd(*args, **kws):
@@ -53,23 +66,30 @@ def init_etcd(*args, **kws):
         # TODO: add option for ADVERTISE_CILENT_URLS in config.py. On hold because
         # not necessary for initial REX-internal release.
         # Try each endpoint and see if it works...
-        for endpoint in get_etcd_endpoints():
+        for endpoint in _get_etcd_endpoints():
             # endopint is a dict with keys "host" and "port"
             if endpoint['host'] is not None:
                 etcd_opts['host'] = endpoint['host']
             if endpoint['port'] is not None:
                 etcd_opts['port'] = endpoint['port']
-            try:
-                etcd_opts.update(kws)
-                result = etcd3.client(*args, **etcd_opts)
-                result.get('😏')  # crash if bad configuration
-                break
-            except Exception as exn:
-                result = None
-                logging.exception(
-                    f"Unsuccessful connecting to etcd on endpoint {endpoint}.",
-                    exc_info=exn,
-                )
+            success = False
+            # etcd might not be ready to receive connections just yet
+            # so employ a retry mechanism here to make sure the endpoint\
+            # really isn't there.
+            for _ in range(3):
+                try:
+                    etcd_opts.update(kws)
+                    result = etcd3.client(*args, **etcd_opts)
+                    result.get('😏')  # crash if bad configuration
+                    success = True
+                    break #out of retry loop
+                except Exception:
+                    time.sleep(0.5)
+            if success:
+                break # out of endpoint loop
+            result = None
+            logging.info(f"Unsuccessful connecting to etcd on endpoint {endpoint}.")
+
         assert result is not None, "Unable to connect to etcd."
         _etcd = result
     elif args or kws:
