@@ -15,6 +15,7 @@ GRAPHQL_URI= 'graphqlUri'
 ID         = 'id'
 IID        = 'iid'
 IID_LIST   = 'iid_list'
+IID_STATUS = 'iid_status'
 PASSED     = 'passed'
 RESULT     = 'result'
 RESULTS    = 'results'
@@ -96,9 +97,10 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         TASKS: tasks,
     }
 
-def workflow_instance_info(iid:str, graphql_uri:str):
+def workflow_instance_info(iid:str, status:str, graphql_uri:str):
     return {
         IID: iid,
+        IID_STATUS: status,
         GRAPHQL_URI: graphql_uri,
     }
 

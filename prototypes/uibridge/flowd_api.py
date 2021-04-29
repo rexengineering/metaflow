@@ -119,8 +119,14 @@ class Workflow:
     def get_instance_graphql_uri(self, iid:str) -> str:
         uri, _ = self.etcd.get(WorkflowInstanceKeys.ui_server_uri_key(iid))
         if uri:
-            uri = uri.decode('utf-8')
+            return uri.decode('utf-8')
         return uri      # will be None or the URI
+
+    def get_instance_status(self, iid:str) -> str:
+        status, _ = self.etcd.get(WorkflowInstanceKeys.state_key(iid))
+        if status:
+            return status.decode('utf-8')
+        return ''
 
     def get_task_ids(self):
         return self.tasks.keys()

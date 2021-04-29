@@ -161,6 +161,7 @@ type CreateInstancePayload {
 
 type WorkflowInstanceInfo {
     iid: WorkflowInstanceId!
+    iid_status: WorkflowStatus!
     graphqlUri: String
 }
 
