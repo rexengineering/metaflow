@@ -4,7 +4,6 @@ as COMPLETED.
 '''
 
 from collections import OrderedDict
-import os
 from typing import Mapping
 
 from .bpmn_util import BPMNComponent
@@ -15,14 +14,10 @@ from .k8s_utils import (
     create_serviceaccount,
 )
 
-from .reliable_wf_utils import create_reliable_wf_catcher
-
 from .config import (
     KAFKA_HOST,
     THROW_IMAGE,
     THROW_LISTEN_PORT,
-    CATCH_IMAGE,
-    CATCH_LISTEN_PORT,
 )
 
 
