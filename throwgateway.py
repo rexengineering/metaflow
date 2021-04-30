@@ -20,7 +20,6 @@ from flowlib.constants import (
     BStates,
     Headers,
     flow_result,
-    X_HEADER_TOKEN_POOL_ID,
 )
 from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT
 from flowlib import token_api
@@ -48,7 +47,7 @@ if KAFKA_CONFIG is not None:
 def send_to_stream(data, flow_id, wf_id, content_type):
     headers = {
         Headers.FLOWID_HEADER: flow_id,
-        Headers.WFID_HEADER: wf_id,
+        Headers.X_HEADER_WORKFLOW_ID: wf_id,
         'content-type': content_type,
     }
     kafka.produce(
@@ -74,7 +73,7 @@ def _shadow_to_kafka(data, headers):
 def make_call_(data):
     headers = {
         Headers.FLOWID_HEADER: request.headers[Headers.FLOWID_HEADER],
-        Headers.WFID_HEADER: request.headers[Headers.WFID_HEADER],
+        Headers.X_HEADER_WORKFLOW_ID: request.headers[Headers.X_HEADER_WORKFLOW_ID],
         'content-type': request.headers['content-type'],
         'x-rexflow-task-id': FORWARD_TASK_ID,
     }
@@ -183,16 +182,16 @@ class EventThrowApp(QuartApp):
             send_to_stream(
                 data,
                 request.headers[Headers.FLOWID_HEADER],
-                request.headers[Headers.WFID_HEADER],
+                request.headers[Headers.X_HEADER_WORKFLOW_ID],
                 request.headers['content-type'],
             )
         if FUNCTION == 'END':
             complete_instance(
                 request.headers[Headers.FLOWID_HEADER],
-                request.headers[Headers.WFID_HEADER],
+                request.headers[Headers.X_HEADER_WORKFLOW_ID],
                 data,
                 request.headers['content-type'],
-                request.headers.get(X_HEADER_TOKEN_POOL_ID),
+                request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID),
             )
         if FORWARD_URL:
             make_call_(data)

@@ -31,7 +31,6 @@ from flowlib.constants import (
     States,
     BStates,
     Headers,
-    X_HEADER_TOKEN_POOL_ID,
     flow_result,
     TIMER_DESCRIPTION,
 )
@@ -74,7 +73,6 @@ Where timer_type is timeDate, timeCycle, or timeDuration
 
 '''
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, '')
-TIMED_START_EVENT = TIMED_EVENT_DESCRIPTION and FUNCTION == FUNCTION_START
 
 kafka = None
 KAFKA_CONFIG = get_kafka_config()
@@ -87,7 +85,6 @@ if KAFKA_CONFIG is not None and KAFKA_TOPIC is not None:
     kafka = Consumer(config)
     kafka.subscribe([KAFKA_TOPIC])
 
-
 class EventCatchPoller:
     def __init__(self, forward_url: str):
         self.forward_url = forward_url
@@ -96,12 +93,8 @@ class EventCatchPoller:
         self.executor = get_executor()
         self.timed_manager = None
         if TIMED_EVENT_DESCRIPTION:
-            if FUNCTION == FUNCTION_CATCH:
-                logging.info(f'Timed event {TIMED_EVENT_DESCRIPTION}')
-                self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, self.make_call_impl, use_tokens = True)
-            else: #if FUNCTION == FUNCTION_START:
-                logging.info(f'Timed start event {TIMED_EVENT_DESCRIPTION}')
-                self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, self.create_instance, use_tokens = False)
+            logging.info(f'Timed event {TIMED_EVENT_DESCRIPTION}')
+            self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, self.make_call_impl) #, use_tokens = True)
 
     def start(self):
         assert self.future is None
@@ -131,9 +124,6 @@ class EventCatchPoller:
         else:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error(f'Failed to transition {keys.state} from STARTING -> ERROR.')
-
-    def create_timed_instance(self, incoming_data, content_type) -> NoReturn:
-        self.timed_manager.create_timer(WF_ID, None, [incoming_data, content_type])
 
     def create_instance(self, incoming_data, content_type) -> Dict[str, object]:
         instance_id = workflow.WorkflowInstance.new_instance_id(str(WF_ID))
@@ -185,7 +175,7 @@ class EventCatchPoller:
         # Note: Python is crap; so don't set `{}` as a default argument to a function. Because a dict is
         # an object, it only gets instantiated once, which means repeated calls to the same function could
         # have WEIRD side effects.
-        if self.timed_manager and FUNCTION == FUNCTION_CATCH:
+        if self.timed_manager: # and FUNCTION == FUNCTION_CATCH:
             self.timed_manager.create_timer(flow_id, token_stack, [data, flow_id, wf_id, content_type])
             return jsonify(flow_result(0, ""))
         else:
@@ -199,7 +189,7 @@ class EventCatchPoller:
             'x-rexflow-task-id': FORWARD_TASK_ID,
         }
         if token_stack:
-            next_headers[X_HEADER_TOKEN_POOL_ID.lower()] = token_stack
+            next_headers[Headers.X_HEADER_TOKEN_POOL_ID.lower()] = token_stack
 
         for _ in range(TOTAL_ATTEMPTS):
             try:
@@ -231,7 +221,7 @@ class EventCatchPoller:
                 exc_info=exn,
             )
             return None
-        finally:    
+        finally:
             next_headers['x-rexflow-failure'] = True
             self._shadow_to_kafka(data, next_headers)
 
@@ -249,7 +239,7 @@ class EventCatchPoller:
                     assert 'x-flow-id' in headers
                     assert 'x-rexflow-wf-id' in headers
                     assert headers['x-rexflow-wf-id'].decode() == WF_ID
-                    token_header = headers.get(X_HEADER_TOKEN_POOL_ID.lower())
+                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower())
                     if token_header:
                         token_header = token_header.decode()
 
@@ -274,15 +264,10 @@ class EventCatchApp(QuartApp):
         self.app = cors(self.app)
 
         self.app.route('/', methods=['GET'])(self.health_check)
-        if FUNCTION == FUNCTION_CATCH or (self.manager.timed_manager is None):
-            self.app.route('/', methods=['POST'])(self.catch_event)
-            if FUNCTION == FUNCTION_START and API_WRAPPER_ENABLED:
-                    self.app.route('/wrapper', methods=['POST'])(self.synchronous_wrapper)
-        if TIMED_START_EVENT:
-            # start running timed start events immediately, instead of
-            # waiting for a flowctl run.
-            logging.info("Starting timed instance")
-            self.manager.create_timed_instance('[]','application/json')
+        self.app.route('/', methods=['POST'])(self.catch_event)
+        if FUNCTION == FUNCTION_START and API_WRAPPER_ENABLED:
+                self.app.route('/wrapper', methods=['POST'])(self.synchronous_wrapper)
+        if TIMED_EVENT_DESCRIPTION:
             self.app.route('/timer', methods=['GET','POST'])(self.timer_query)
 
     def health_check(self):
@@ -297,10 +282,10 @@ class EventCatchApp(QuartApp):
         else: #if FUNCTION == FUNCTION_CATCH
             self.manager._make_call(
                 data,
-                request.headers['x-flow-id'],
-                request.headers['x-rexflow-wf-id'],
-                request.headers['content-type'],
-                request.headers.get(X_HEADER_TOKEN_POOL_ID)
+                request.headers[Headers.X_HEADER_FLOW_ID.lower()],
+                request.headers[Headers.X_HEADER_WORKFLOW_ID.lower()],
+                request.headers[Headers.CONTENT_TYPE.lower()],
+                request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID)
             )
         return response
 
@@ -329,11 +314,6 @@ class EventCatchApp(QuartApp):
                 # the following raises if the current timer is not finished
                 self.manager.timed_manager.reset(results)
                 logging.info(f'Timer reset to {req["timer_type"]}, {req["timer_spec"]}')
-                if TIMED_START_EVENT:
-                    # start running timed start events immediately, instead of
-                    # waiting for a flowctl run.
-                    logging.info('Starting timed instance')
-                    self.manager.create_timed_instance('[]','application/json')
                 response = flow_result(0, 'Ok')
             except (ISO8601Error,Exception) as ex:
                 response = flow_result(-1, str(ex))

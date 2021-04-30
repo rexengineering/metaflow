@@ -25,6 +25,9 @@ class Flow(flow_pb2_grpc.FlowDaemon):
 
     def StopWorkflow(self, request, context):
         return handler_dispatch('stop', request, context)
-    
+
     def UpdateWorkflow(self, request, context):
         return handler_dispatch('update', request, context)
+
+    def ValidateWorkflow(self, request, context):
+        return handler_dispatch('validate', request, context)

@@ -6,15 +6,15 @@ ISO 8601 formats are supported by the standard python library
 persistance - whenever a timed event is created, it is persisted in a database
               and all events are read in on startup as a recovery method.
 
-              Restored events that have passed their maturity time are processed 
-              according to workflow options. Cycle timers will have their next 
+              Restored events that have passed their maturity time are processed
+              according to workflow options. Cycle timers will have their next
               timer scheduled accordingly.
 
 events are stored in the and etcd workflow hive.
 /rexflow/workflows/<workflow_id>/timed_events/<instance_id>
-The value is a JSON'd list of 
+The value is a JSON'd list of
 
-    { 
+    {
         'type' : 'timerDate',                           # timeDate / timeCycle / timeDuration
         'spec' : 'P10D',                                # ISO 8610 code apropos to type
         'max_rep' : '10',                               # number of repetitions - 0 for infinite
@@ -32,13 +32,6 @@ import threading
 import time
 import typing
 
-from flowlib.etcd_utils import (
-    get_etcd,
-)
-from flowlib.constants import (
-    WorkflowKeys,
-    X_HEADER_TOKEN_POOL_ID,
-)
 from flowlib import token_api
 
 class WrappedTimer:
@@ -47,27 +40,22 @@ class WrappedTimer:
     class wraps a threading.Timer object so that we can receive a notification
     once the timer matures.
     '''
-    def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], data : list, context : object):
+    def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context : typing.Any):
         self._interval = interval
         self._done_action = done_action
         self._action = action
         self._context = context
-        self._timer = threading.Timer(interval, self.do_action, data)
+        self._timer = threading.Timer(interval, self.do_action, context.values)
         logging.info(f'{time.time()} Timer created with duration {interval}')
-    
+
     def do_action(self, *args):
-        largs = list(args)
         token_stack = self._context.token_stack
         if self._context.token_pool_id is not None:
             # need to pass the token_pool_id as an x header
-            if token_stack is None:
-                token_stack = self._context.token_pool_id
-            else:
-                token_stack = f'{token_stack},{self._context.token_pool_id}'
+            token_stack = self._context.token_pool_id if token_stack is None else f'{token_stack},{self._context.token_pool_id}'
             token_api.token_alloc(self._context.token_pool_id)
-            largs.insert(0,token_stack)
 
-        self._action(*largs)
+        self._action(token_stack,*args)
 
         self.done()
 
@@ -95,7 +83,6 @@ class TimedEventManager:
         info = json.loads(timer_description_json) #[timer_type, timer_spec]
         self.callback = callback
         self.aspects =  TimedEventManager.validate_spec(info[0], info[1].upper() )
-        self.use_tokens = use_tokens
         self.token_pool_id = None
         self.completed = True
 
@@ -108,17 +95,18 @@ class TimedEventManager:
             self.interval = 0
             self.recurrance = 0
 
-    def reset(self, aspects : ValidationResults) -> typing.NoReturn:
+    def reset(self, aspects : ValidationResults) -> None:
         '''
         Reset the timer manager to the provided timer type and specification.
         This can only happen if the current configuration has already run its
-        course. 
+        course.
         '''
         assert self.completed, 'Cannot reset - timer still active'
         self.aspects = aspects
 
     @classmethod
     def validate_spec(cls, timer_type : str, spec : str) -> ValidationResults:
+        logging.info(f'Validating {timer_type} {spec}')
         # the spec contains the ISO 8601 value apropos to type
         results = cls.ValidationResults(timer_type, spec)
 
@@ -128,7 +116,7 @@ class TimedEventManager:
         #
         # The number of seconds in 100 years is 3,155,695,200 seconds
         # which is way under the upper bound of an int in python 3, so
-        # we're safe converting all fixed and relative times into 
+        # we're safe converting all fixed and relative times into
         # seconds.
         if timer_type == 'timeDate':
             # spec needs to be an ISO 8601 date/time to execute
@@ -138,7 +126,7 @@ class TimedEventManager:
             logging.info(f'timeDate timing event created - executing on {datetime.datetime.fromtimestamp(results.start_date)}')
 
         elif timer_type == 'timeDuration':
-            # spec needs to be an ISO 8601 period 
+            # spec needs to be an ISO 8601 period
             # e.g. P10D
             assert spec.startswith('P'), 'Duration timed events must with P'
             results.interval = int(isodate.parse_duration(spec).total_seconds())
@@ -203,7 +191,7 @@ class TimedEventManager:
         - element that starts with 'R' is a RECURRANCE (4.5.2)
         - otherwise the element is parsed as a DATETIME (4.3)
 
-        Return a tuple of a pattern of encounterd data elements, e.g.
+        Return a tuple of a pattern of encountered data elements, e.g.
         'RP' for a recurrence/period, and a list of result objects,
         e.g. ['RP',[3,103420]]
         '''
@@ -218,7 +206,7 @@ class TimedEventManager:
                 # RECURRANCE
                 cat += 'R'
                 val = int(elem[1::]) if len(elem) > 1 else 0
-            else: 
+            else:
                 # DATETIME
                 cat += 'D'
                 val = int(isodate.parse_datetime(elem).timestamp())
@@ -228,19 +216,19 @@ class TimedEventManager:
 
     def create_timer(self, wf_inst_id : str, token_stack : str, args : list):
         '''
-        The parms passed to us *must* be passed to the callback when firing the 
+        The parms passed to us *must* be passed to the callback when firing the
         timer. Here, we take the timer parameters when the manager was created
         and determine the appropriate duration(s) for the timers to be created.
 
-        timeDate - This is a fixed point in time. Policy is that if the date 
+        timeDate - This is a fixed point in time. Policy is that if the date
                    has already passed, then fire the event immediately. This
-                   might be changed ITMF by a globl workflow policy, with 
+                   might be changed ITMF by a globl workflow policy, with
                    local overrides.
-        
+
         timeDuration - Simplest. Just wait the indicated number of seconds
                    before firing the event.
 
-        timeCycle - Most confusing. Fire the event once ever so often, in 
+        timeCycle - Most confusing. Fire the event once ever so often, in
                    equal durations, up to a maximum number of times. This
                    is confusing in the rexflow implementation as to what the
                    behavior should be. For now, the event will be fired
@@ -251,39 +239,37 @@ class TimedEventManager:
 
         time_now = int(time.time())
         if context.start_date is None:
-            context.start_date = time_now + 10
+            context.start_date = time_now
         elif context.start_date < time_now:
             logging.info(f'Specified launch time has passed - event will fire immediatly')
-            context.start_date = time_now + 10
+            context.start_date = time_now
         if context.end_date is not None:
             exec_time = time_now + self.aspects.interval
             assert exec_time <= context.end_date, "Execution terminated - execution time exceeds specified end time."
         if self.aspects.timer_type == self.TIME_CYCLE:
-            if self.use_tokens:
-                # cycle types need a token pool for remote collectors/end events to keep track of the number
-                # of recurrences seen.
-                context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
-                logging.info(f'Created token pool {context.token_pool_id}')
+            # cycle types need a token pool for remote collectors/end events to keep track of the number
+            # of recurrences seen.
+            context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
+            logging.info(f'Created token pool {context.token_pool_id}')
 
         self.completed = False
         duration = context.start_date - time_now + self.aspects.interval
-        timer = WrappedTimer(duration, self.timer_done_action, self.timer_action, context.values, context)
+        timer = WrappedTimer(duration, self.timer_done_action, self.timer_action, context)
         timer.start()
 
         if self.aspects.timer_type == self.TIME_CYCLE:
             context.recurrance = context.recurrance - 1
-        # self.events[timer.key] = timer
 
     def timer_action(self, *data):
         '''
-        Called when a timer fires. This calls the callback provided when the 
+        Called when a timer fires. This calls the callback provided when the
         timer was enqueued.
 
         Note that the callback is expected to handle any problems with communicating
         with other services, POST's, GET's, whatever so we just make the call here.
         '''
         logging.info(f'timer_action - calling back with {data}')
-        try:   
+        try:
             resp = self.callback(*data)
             logging.info(f'Timer callback returned {resp}')
         except Exception as ex:
@@ -292,20 +278,20 @@ class TimedEventManager:
     def timer_done_action(self, context):
         '''
         Called after a timer has fired. In this implementation, this could be
-        combined with timer_action, but keep it separate to give us more 
+        combined with timer_action, but keep it separate to give us more
         flexibility should we want separate done actions evoked for different
         scenarios.
 
         If we're not running a cycle timer, then we're done. If we are running
         a cycle timer and there are no more recurrences then we're done.
-        Otherwise, calculate the maturity time for the next cycle and enqueue 
+        Otherwise, calculate the maturity time for the next cycle and enqueue
         that timer.
         '''
         if self.aspects.timer_type == self.TIME_CYCLE and context.recurrance > 0:
             if context.end_date is not None:
                 exec_time = int(time.time()) + self.aspects.interval
                 assert exec_time <= context.end_date, "Recursion terminated - execution time exceeds specified end time."
-            timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context.values, context)
+            timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context)
             timer.start()
             context.recurrance = context.recurrance - 1
         else:

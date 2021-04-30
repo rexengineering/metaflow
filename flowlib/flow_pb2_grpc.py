@@ -54,6 +54,11 @@ class FlowDaemonStub(object):
                 request_serializer=flow__pb2.UpdateRequest.SerializeToString,
                 response_deserializer=flow__pb2.FlowdResult.FromString,
                 )
+        self.ValidateWorkflow = channel.unary_unary(
+                '/FlowDaemon/ValidateWorkflow',
+                request_serializer=flow__pb2.ValidateRequest.SerializeToString,
+                response_deserializer=flow__pb2.FlowdResult.FromString,
+                )
 
 
 class FlowDaemonServicer(object):
@@ -115,6 +120,13 @@ class FlowDaemonServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ValidateWorkflow(self, request, context):
+        """flowctl update
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_FlowDaemonServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -156,6 +168,11 @@ def add_FlowDaemonServicer_to_server(servicer, server):
             'UpdateWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateWorkflow,
                     request_deserializer=flow__pb2.UpdateRequest.FromString,
+                    response_serializer=flow__pb2.FlowdResult.SerializeToString,
+            ),
+            'ValidateWorkflow': grpc.unary_unary_rpc_method_handler(
+                    servicer.ValidateWorkflow,
+                    request_deserializer=flow__pb2.ValidateRequest.FromString,
                     response_serializer=flow__pb2.FlowdResult.SerializeToString,
             ),
     }
@@ -300,6 +317,23 @@ class FlowDaemon(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/FlowDaemon/UpdateWorkflow',
             flow__pb2.UpdateRequest.SerializeToString,
+            flow__pb2.FlowdResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ValidateWorkflow(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/FlowDaemon/ValidateWorkflow',
+            flow__pb2.ValidateRequest.SerializeToString,
             flow__pb2.FlowdResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
