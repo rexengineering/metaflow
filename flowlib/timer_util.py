@@ -40,27 +40,22 @@ class WrappedTimer:
     class wraps a threading.Timer object so that we can receive a notification
     once the timer matures.
     '''
-    def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], data : list, context : typing.Any):
+    def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context : typing.Any):
         self._interval = interval
         self._done_action = done_action
         self._action = action
         self._context = context
-        self._timer = threading.Timer(interval, self.do_action, data)
+        self._timer = threading.Timer(interval, self.do_action, context.values)
         logging.info(f'{time.time()} Timer created with duration {interval}')
 
     def do_action(self, *args):
-        largs = list(args)
         token_stack = self._context.token_stack
         if self._context.token_pool_id is not None:
             # need to pass the token_pool_id as an x header
-            if token_stack is None:
-                token_stack = self._context.token_pool_id
-            else:
-                token_stack = f'{token_stack},{self._context.token_pool_id}'
+            token_stack = self._context.token_pool_id if token_stack is None else f'{token_stack},{self._context.token_pool_id}'
             token_api.token_alloc(self._context.token_pool_id)
-            largs.insert(0, token_stack)
 
-        self._action(*largs)
+        self._action(token_stack,*args)
 
         self.done()
 
@@ -88,7 +83,6 @@ class TimedEventManager:
         info = json.loads(timer_description_json) #[timer_type, timer_spec]
         self.callback = callback
         self.aspects =  TimedEventManager.validate_spec(info[0], info[1].upper() )
-        self.use_tokens = use_tokens
         self.token_pool_id = None
         self.completed = True
 
@@ -112,6 +106,7 @@ class TimedEventManager:
 
     @classmethod
     def validate_spec(cls, timer_type : str, spec : str) -> ValidationResults:
+        logging.info(f'Validating {timer_type} {spec}')
         # the spec contains the ISO 8601 value apropos to type
         results = cls.ValidationResults(timer_type, spec)
 
@@ -244,28 +239,26 @@ class TimedEventManager:
 
         time_now = int(time.time())
         if context.start_date is None:
-            context.start_date = time_now + 10
+            context.start_date = time_now
         elif context.start_date < time_now:
             logging.info(f'Specified launch time has passed - event will fire immediatly')
-            context.start_date = time_now + 10
+            context.start_date = time_now
         if context.end_date is not None:
             exec_time = time_now + self.aspects.interval
             assert exec_time <= context.end_date, "Execution terminated - execution time exceeds specified end time."
         if self.aspects.timer_type == self.TIME_CYCLE:
-            if self.use_tokens:
-                # cycle types need a token pool for remote collectors/end events to keep track of the number
-                # of recurrences seen.
-                context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
-                logging.info(f'Created token pool {context.token_pool_id}')
+            # cycle types need a token pool for remote collectors/end events to keep track of the number
+            # of recurrences seen.
+            context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
+            logging.info(f'Created token pool {context.token_pool_id}')
 
         self.completed = False
         duration = context.start_date - time_now + self.aspects.interval
-        timer = WrappedTimer(duration, self.timer_done_action, self.timer_action, context.values, context)
+        timer = WrappedTimer(duration, self.timer_done_action, self.timer_action, context)
         timer.start()
 
         if self.aspects.timer_type == self.TIME_CYCLE:
             context.recurrance = context.recurrance - 1
-        # self.events[timer.key] = timer
 
     def timer_action(self, *data):
         '''
@@ -298,7 +291,7 @@ class TimedEventManager:
             if context.end_date is not None:
                 exec_time = int(time.time()) + self.aspects.interval
                 assert exec_time <= context.end_date, "Recursion terminated - execution time exceeds specified end time."
-            timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context.values, context)
+            timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context)
             timer.start()
             context.recurrance = context.recurrance - 1
         else:
