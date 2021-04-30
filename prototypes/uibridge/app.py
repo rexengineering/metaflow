@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ from .prism_api.client import PrismApiClient
 
 from flowlib import executor
 from flowlib import executor, user_task
-from flowlib.constants import X_HEADER_TOKEN_POOL_ID, flow_result
+from flowlib.constants import Headers, flow_result
 from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
 
@@ -75,11 +76,22 @@ class REXFlowUIBridge(AsyncService):
         '''
         logging.info('Starting init_route()...')
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
-        iid = request.headers['X-Flow-Id']
+        iid = request.headers[Headers.X_HEADER_FLOW_ID]
+        tid = request.headers[Headers.X_HEADER_TASK_ID]
+
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
-        if X_HEADER_TOKEN_POOL_ID in request.headers.keys():
-            self.workflow.register_instance_header(iid, f'{X_HEADER_TOKEN_POOL_ID}:{request.headers[X_HEADER_TOKEN_POOL_ID]}')
+        if Headers.X_HEADER_TOKEN_POOL_ID in request.headers.keys():
+            self.workflow.register_instance_header(iid, f'{Headers.X_HEADER_TOKEN_POOL_ID}:{request.headers[Headers.X_HEADER_TOKEN_POOL_ID]}')
         self.workflow.set_instance_data(iid, request.get_json())
+        ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
+
+        # upstream cycle timer events can call this access point multiple times for the 
+        # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
+        # specific interaction
+        # rid = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
+
+        response = PrismApiClient.start_task(ui_srv_url, iid, tid)
+        logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
 
         # import asyncio
         # json = await request.get_json()
