@@ -88,10 +88,10 @@ class REXFlowUIBridge(AsyncService):
         # upstream cycle timer events can call this access point multiple times for the 
         # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
         # specific interaction
-        # rid = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
+        #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
 
-        response = PrismApiClient.start_task(ui_srv_url, iid, tid)
-        logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
+        response = await PrismApiClient.start_task(ui_srv_url, iid, tid)
+        logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response.status}')
 
         # import asyncio
         # json = await request.get_json()
