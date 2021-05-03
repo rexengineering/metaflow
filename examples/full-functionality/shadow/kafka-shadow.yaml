@@ -49,6 +49,6 @@ spec:
         env:
         - name: KAFKA_TOPIC
           value: rexflow-all-traffic
-        - name: KAFKA_HOST
+        - name: REXFLOW_KAFKA_HOST
           value: "my-cluster-kafka-bootstrap.kafka:9092"
 
