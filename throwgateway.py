@@ -18,7 +18,7 @@ from flowlib.etcd_utils import (
 from flowlib.constants import (
     WorkflowInstanceKeys,
     BStates,
-    TRACEID_HEADER,
+    Headers,
     flow_result,
     X_HEADER_TOKEN_POOL_ID,
 )
@@ -47,8 +47,8 @@ if KAFKA_CONFIG is not None:
 
 def send_to_stream(data, flow_id, wf_id, content_type):
     headers = {
-        'x-flow-id': flow_id,
-        'x-rexflow-wf-id': wf_id,
+        Headers.FLOWID_HEADER: flow_id,
+        Headers.WFID_HEADER: wf_id,
         'content-type': content_type,
     }
     kafka.produce(
@@ -73,15 +73,15 @@ def _shadow_to_kafka(data, headers):
 
 def make_call_(data):
     headers = {
-        'x-flow-id': request.headers['x-flow-id'],
-        'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
+        Headers.FLOWID_HEADER: request.headers[Headers.FLOWID_HEADER],
+        Headers.WFID_HEADER: request.headers[Headers.WFID_HEADER],
         'content-type': request.headers['content-type'],
         'x-rexflow-task-id': FORWARD_TASK_ID,
     }
-    if TRACEID_HEADER in request.headers:
-        headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
-    elif TRACEID_HEADER.lower in request.headers:
-        headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
+    if Headers.TRACEID_HEADER in request.headers:
+        headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
+    elif Headers.TRACEID_HEADER.lower in request.headers:
+        headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
 
     success = False
     for _ in range(TOTAL_ATTEMPTS):
@@ -93,7 +93,7 @@ def make_call_(data):
             break
         except Exception:
             logging.error(
-                f"failed making a call to {FORWARD_URL} on wf {request.headers['x-flow-id']}"
+                f"failed making a call to {FORWARD_URL} on wf {request.headers[Headers.FLOWID_HEADER]}"
             )
 
     if not success:
@@ -168,7 +168,6 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
         assert False, "somehow it was already completed?"
     return 'Great shot kid, that was one in a million!'
 
-
 class EventThrowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
@@ -183,26 +182,26 @@ class EventThrowApp(QuartApp):
         if kafka is not None:
             send_to_stream(
                 data,
-                request.headers['x-flow-id'],
-                request.headers['x-rexflow-wf-id'],
+                request.headers[Headers.FLOWID_HEADER],
+                request.headers[Headers.WFID_HEADER],
                 request.headers['content-type'],
             )
-        if FORWARD_URL:
-            make_call_(data)
         if FUNCTION == 'END':
             complete_instance(
-                request.headers['x-flow-id'],
-                request.headers['x-rexflow-wf-id'],
+                request.headers[Headers.FLOWID_HEADER],
+                request.headers[Headers.WFID_HEADER],
                 data,
                 request.headers['content-type'],
                 request.headers.get(X_HEADER_TOKEN_POOL_ID),
             )
+        if FORWARD_URL:
+            make_call_(data)
         resp = await make_response(flow_result(0, ""))
 
-        if TRACEID_HEADER in request.headers:
-            resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
-        elif TRACEID_HEADER.lower in request.headers:
-            resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
+        if Headers.TRACEID_HEADER in request.headers:
+            resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
+        elif Headers.TRACEID_HEADER.lower in request.headers:
+            resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
 
         return resp
 

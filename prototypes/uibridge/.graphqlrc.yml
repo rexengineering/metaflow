@@ -1,0 +1,3 @@
+# Borrowed from the GraphQL VSCode extension documentation...
+schema: "schema.graphql"
+documents: "prototypes/**/*.{graphql}"

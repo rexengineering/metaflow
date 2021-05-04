@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import time
 
 import etcd3
 from etcd3.exceptions import ConnectionFailedError
@@ -71,17 +72,24 @@ def init_etcd(*args, **kws):
                 etcd_opts['host'] = endpoint['host']
             if endpoint['port'] is not None:
                 etcd_opts['port'] = endpoint['port']
-            try:
-                etcd_opts.update(kws)
-                result = etcd3.client(*args, **etcd_opts)
-                result.get('😏')  # crash if bad configuration
-                break
-            except Exception as exn:
-                result = None
-                logging.exception(
-                    f"Unsuccessful connecting to etcd on endpoint {endpoint}.",
-                    exc_info=exn,
-                )
+            success = False
+            # etcd might not be ready to receive connections just yet
+            # so employ a retry mechanism here to make sure the endpoint\
+            # really isn't there.
+            for _ in range(3):
+                try:
+                    etcd_opts.update(kws)
+                    result = etcd3.client(*args, **etcd_opts)
+                    result.get('😏')  # crash if bad configuration
+                    success = True
+                    break #out of retry loop
+                except Exception:
+                    time.sleep(0.5)
+            if success:
+                break # out of endpoint loop
+            result = None
+            logging.info(f"Unsuccessful connecting to etcd on endpoint {endpoint}.")
+
         assert result is not None, "Unable to connect to etcd."
         _etcd = result
     elif args or kws:
