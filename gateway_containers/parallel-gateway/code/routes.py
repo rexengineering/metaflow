@@ -2,18 +2,14 @@
 
 import json
 import os
-import random
 import requests
-
-from sys import stderr
-from time import sleep
 
 from flask import request, make_response, jsonify
 
-from code import app
+from . import app
 
+from flowlib.constants import Headers
 
-TRACEID_HEADER = 'x-b3-traceid'
 
 FORWARD_HEADERS = [
     'x-request-id',
@@ -98,10 +94,10 @@ def parallel():
 
     resp = make_response({"status": 200, "msg": ""})
 
-    if TRACEID_HEADER in request.headers:
-        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER]
-    elif TRACEID_HEADER.lower() in request.headers:
-        resp.headers[TRACEID_HEADER] = request.headers[TRACEID_HEADER.lower()]
+    if Headers.TRACEID_HEADER in request.headers:
+        resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
+    elif Headers.TRACEID_HEADER.lower() in request.headers:
+        resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
 
     return resp
 

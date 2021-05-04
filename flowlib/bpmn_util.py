@@ -1,7 +1,7 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
-from typing import Any, Mapping, List
+from typing import Any, Generator, Mapping, List, Set, Union
 import yaml
 from hashlib import sha1, sha256
 import re
@@ -25,7 +25,7 @@ def calculate_id_hash(wf_id: str) -> str:
     return sha1(wf_id.encode()).hexdigest()[:8]
 
 
-def iter_xmldict_for_key(odict: OrderedDict, key: str):
+def iter_xmldict_for_key(odict: OrderedDict, key: str) -> Generator[OrderedDict, None, None]:
     '''Generator for iterating through an OrderedDict returned from xmltodict for a given key.
     '''
     value = odict.get(key)
@@ -82,7 +82,7 @@ def get_annotations(process: OrderedDict, source_ref=None):
         if targets is None or annotation['@id'] in targets:
             text = annotation['bpmn:text']
             if text.startswith('rexflow:'):
-                yield yaml.safe_load(text.replace('\xa0', ''))
+                yield (annotation,yaml.safe_load(text.replace('\xa0', '')))
 
 
 def parse_events(process: OrderedDict):
@@ -390,7 +390,7 @@ class WorkflowProperties:
 
         if 'id_hash' in annotations:
             self._id_hash = annotations['id_hash']
-    
+
         if 'deployment_timeout' in annotations:
             self._deployment_timeout = annotations['deployment_timeout']
 
@@ -448,7 +448,7 @@ class BPMNComponent:
                  workflow_properties: WorkflowProperties):
         self.id = spec['@id']
 
-        annotations = [a for a in list(get_annotations(process, self.id)) if 'rexflow' in a]
+        annotations = [a for _,a in list(get_annotations(process, self.id)) if 'rexflow' in a]
         assert len(annotations) <= 1, "Can only provide one REXFlow annotation per BPMN Component."
         if len(annotations):
             self._annotation = annotations[0]['rexflow']
@@ -503,13 +503,20 @@ class BPMNComponent:
             {'retry': {'total_attempts': self._global_props._retry_total_attempts}}
         )
 
-        if self._annotation is not None:
-            if 'call' in self._annotation:
-                self._call_properties.update(self._annotation['call'])
-            if 'health' in self._annotation:
-                self._health_properties.update(self._annotation['health'])
-            if 'service' in self._annotation:
-                self._service_properties.update(self._annotation['service'])
+        self.update_annotations()
+
+    def update_annotations(self, annotation=None):
+        if annotation is None:
+            annotation = self._annotation
+        elif self._annotation is None:
+            self._annotation = annotation
+        if annotation is not None:
+            if 'call' in annotation:
+                self._call_properties.update(annotation['call'])
+            if 'health' in annotation:
+                self._health_properties.update(annotation['health'])
+            if 'service' in annotation:
+                self._service_properties.update(annotation['service'])
 
     def init_env_config(self):
         if self._timer_description:
@@ -517,7 +524,7 @@ class BPMNComponent:
         return []
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
-                      digraph: OrderedDict, sequence_flow_table: Mapping[str, Any]) -> list:
+                      digraph: Mapping[str, Set[str]], sequence_flow_table: Mapping[str, Any]) -> list:
         '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
@@ -636,7 +643,7 @@ class BPMNComponent:
     def annotation(self) -> dict:
         '''Returns the python dictionary representation of the rexflow annotation on the
         BPMN diagram for this BPMNComponent.'''
-        return self._annotation
+        return self._annotation if self._annotation else dict()
 
     @property
     def path(self) -> str:

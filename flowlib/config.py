@@ -12,12 +12,18 @@ DEFAULT_REXFLOW_ROOT_PREFIX = "/rexflow"
 REXFLOW_ROOT_PREFIX = os.getenv('REXFLOW_ROOT_PREFIX', DEFAULT_REXFLOW_ROOT_PREFIX)
 
 # Flowd Endpoints
-DEFAULT_FLOWD_HOST = 'flowd.rexflow:9002'
-FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", DEFAULT_FLOWD_HOST)
-FLOWD_URL = f"http://{FLOWD_HOST}"
+DEFAULT_FLOWD_HOST = 'localhost'
+DEFAULT_FLOWD_PORT = 9002
+FLOWD_HOST = os.getenv("REXFLOW_FLOWD_HOST", os.getenv('FLOWD_HOST', DEFAULT_FLOWD_HOST))
+FLOWD_PORT = os.getenv('REXFLOW_FLOWD_PORT', os.getenv('FLOWD_PORT', DEFAULT_FLOWD_PORT))
+FLOWD_URL = f"http://{FLOWD_HOST}:{FLOWD_PORT}"
 
 INSTANCE_FAIL_ENDPOINT_PATH = "/instancefail"
 INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
+
+WF_MAP_ENDPOINT_PATH = '/wf_map'
+WF_MAP_ENDPOINT = f'{FLOWD_URL}{WF_MAP_ENDPOINT_PATH}'
+
 
 # Gateway Configuration
 PGATEWAY_SVC_PREFIX = "pgateway"
@@ -75,12 +81,12 @@ DO_MANUAL_INJECTION = (
 
 
 # ETCD Configuration
-_default_etcd_host = "localhost"
-_etcd_host = os.getenv("ETCD_HOST", _default_etcd_host)
-_default_etcd_port = '2379'
-_etcd_port = os.getenv("ETCD_PORT", _default_etcd_port)  # optional, can get from pods instead
+DEFAULT_ETCD_HOST='localhost'
+DEFAULT_ETCD_PORT=2379
+ETCD_HOST = os.getenv("ETCD_HOST", DEFAULT_ETCD_HOST)  # optional, can get from pods instead
+ETCD_PORT = os.getenv("ETCD_PORT", DEFAULT_ETCD_PORT)  # optional, can get from pods instead
 
-ETCD_HOSTS = os.getenv("ETCD_HOSTS", f'{_etcd_host}:{_etcd_port}')
+ETCD_HOSTS = os.getenv("ETCD_HOSTS", f'{ETCD_HOST}:{ETCD_PORT}')
 
 # Can either provide certs/paths as environment variables or as files, in which
 # case the env var is the path to the file. If both are provided, then the
@@ -164,3 +170,16 @@ spec:
 """
 
 INGRESS_TEMPLATE = os.getenv("REXFLOW_INGRESS_TEMPLATE", DEFAULT_INGRESS)
+
+# This configuration is pertinent when running the UI bridge.
+DEFAULT_UI_BRIDGE_NAME = 'ui-bridge'
+UI_BRIDGE_NAME = os.getenv('REXFLOW_UI_BRIDGE_NAME', DEFAULT_UI_BRIDGE_NAME)
+
+DEFAULT_UI_BRIDGE_IMAGE = f'{DEFAULT_UI_BRIDGE_NAME}:latest'
+UI_BRIDGE_IMAGE = os.getenv('REXFLOW_UI_BRIDGE_IMAGE', DEFAULT_UI_BRIDGE_IMAGE)
+
+DEFAULT_UI_BRIDGE_PORT=5051
+UI_BRIDGE_PORT = int(os.getenv('REXFLOW_UI_BRIDGE_PORT', DEFAULT_UI_BRIDGE_PORT))
+
+DEFAULT_UI_BRIDGE_INIT_PATH = 'task/init'
+UI_BRIDGE_INIT_PATH = os.getenv('REXFLOW_UI_BRIDGE_INIT_PATH', DEFAULT_UI_BRIDGE_INIT_PATH)

@@ -3,19 +3,12 @@ Removes significant copy-pasta by defining simple utilities to
 create a k8s Service, ServiceAccount, and Deployment.
 '''
 from base64 import b64encode
-import json
-import os
-from subprocess import check_output
 from typing import Mapping
-
-import kubernetes
-import requests
 
 from .config import (
     ETCD_CA_CERT,
     ETCD_CERT_CERT,
     ETCD_CERT_KEY,
-    FLOWD_HOST,
     KAFKA_HOST,
     KAFKA_API_KEY,
     KAFKA_API_SECRET,
@@ -37,12 +30,12 @@ def to_base64(file_loc):
     Should only be called on small files.
     '''
     with open(file_loc, 'r') as f:
-        return b64encode(f.read())
+        return b64encode(f.read().encode())
 
 
 def create_deployment(
         namespace, dns_safe_name, container, container_port, env, etcd_access=False,
-        kafka_access=False, replicas=1, priority_class=None):
+        kafka_access=False, use_service_account=True, replicas=1, priority_class=None):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -64,7 +57,6 @@ def create_deployment(
                     },
                 },
                 'spec': {
-                    'serviceAccountName': dns_safe_name,
                     'containers': [
                         {
                             'image': container,
@@ -115,7 +107,11 @@ def create_deployment(
                 continue
             env.append({"name": env_var, "value": value})
 
-    deployment['spec']['template']['spec']['containers'][0]['env'] = env
+    spec = deployment['spec']['template']['spec']
+    spec['containers'][0]['env'] = env
+    if use_service_account:
+        spec['serviceAccountName'] = dns_safe_name
+
     return deployment
 
 
