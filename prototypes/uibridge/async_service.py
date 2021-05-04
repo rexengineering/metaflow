@@ -44,7 +44,7 @@ class AsyncService(QuartApp):
 
     def get_instance_etcd_key(self, local_request) -> str:
         wf_instance = local_request.headers[Headers.FLOWID_HEADER]
-        task_id = getattr(self.config, 'task_id', local_request.headers[Headers.WFID_HEADER])
+        task_id = getattr(self.config, 'task_id', local_request.headers[Headers.X_HEADER_WORKFLOW_ID])
         # TODO: Move this format string to constants.  Add support for
         # populating this key at workflow run time.
         return f'/rexflow/instances/{wf_instance}/user_tasks/{task_id}/'

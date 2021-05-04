@@ -13,4 +13,4 @@ CMD ["echo", "TODO: run quick unit tests here."]
 
 FROM base AS container
 
-CMD ["python", "-m", "catchgateway"]
+CMD ["python", "-m", "throwgateway"]
