@@ -6,8 +6,6 @@ import os
 import requests
 from urllib.parse import urlparse
 
-from flowlib.constants import Headers
-
 
 CONDITIONAL_PATHS = json.loads(os.environ['REXFLOW_XGW_CONDITIONAL_PATHS'])
 DEFAULT_PATH = json.loads(os.environ['REXFLOW_XGW_DEFAULT_PATH'])
@@ -106,10 +104,10 @@ def conditional():
             logging.warning("Failed shadowing traffic to Kafka")
 
     resp = make_response({"status": 200, "msg": ""})
-    if Headers.TRACEID_HEADER in request.headers:
-        resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
-    elif Headers.TRACEID_HEADER.lower() in request.headers:
-        resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
+    if 'X-B3-Traceid' in request.headers:
+        resp.headers['X-B3-Traceid'] = request.headers['X-B3-Traceid']
+    elif 'x-b3-traceid' in request.headers:
+        resp.headers['X-B3-Traceid'] = request.headers['x-b3-trace-id']
     return resp
 
 

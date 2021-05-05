@@ -164,6 +164,8 @@ class EventCatchPoller:
         if not KAFKA_SHADOW_URL:
             return
         o = urlparse(FORWARD_URL)
+        # TODO: REXFLOW-188 Move kafka shadowing to a utility, make everything use that utility,
+        # and get rid of these hardcoded headers.
         headers['x-rexflow-original-host'] = o.netloc
         headers['x-rexflow-original-path'] = o.path
         try:
@@ -172,7 +174,7 @@ class EventCatchPoller:
             logging.warning("Failed shadowing traffic to Kafka")
 
     def _make_call(self, data : str, flow_id : str, wf_id : str, content_type : str, token_stack : str = None):
-        # Note: Python is crap; so don't set `{}` as a default argument to a function. Because a dict is
+        # Note: Python is fun; so don't set `{}` as a default argument to a function. Because a dict is
         # an object, it only gets instantiated once, which means repeated calls to the same function could
         # have WEIRD side effects.
         if self.timed_manager: # and FUNCTION == FUNCTION_CATCH:
@@ -183,10 +185,10 @@ class EventCatchPoller:
 
     def make_call_impl(self, token_stack : str, data : str, flow_id : str, wf_id : str, content_type : str):
         next_headers = {
-            'x-flow-id': str(flow_id),
-            'x-rexflow-wf-id': str(wf_id),
-            'content-type': content_type,
-            'x-rexflow-task-id': FORWARD_TASK_ID,
+            Headers.X_HEADER_FLOW_ID: str(flow_id),
+            Headers.X_HEADER_WORKFLOW_ID: str(wf_id),
+            Headers.CONTENT_TYPE: content_type,
+            Headers.X_HEADER_TASK_ID: FORWARD_TASK_ID,
         }
         if token_stack:
             next_headers[Headers.X_HEADER_TOKEN_POOL_ID.lower()] = token_stack
@@ -209,6 +211,8 @@ class EventCatchPoller:
 
         # Notify Flowd that we failed.
         o = urlparse(FORWARD_URL)
+
+        # Same TODO: See REXFLOW-188
         next_headers['x-rexflow-original-host'] = o.netloc
         next_headers['x-rexflow-original-path'] = o.path
         try:
@@ -236,17 +240,17 @@ class EventCatchPoller:
                 data = msg.value()
                 headers = dict(msg.headers())
                 if FUNCTION == FUNCTION_CATCH:
-                    assert 'x-flow-id' in headers
-                    assert 'x-rexflow-wf-id' in headers
-                    assert headers['x-rexflow-wf-id'].decode() == WF_ID
+                    assert Headers.X_HEADER_FLOW_ID in headers
+                    assert Headers.X_HEADER_WORKFLOW_ID in headers
+                    assert headers[Headers.X_HEADER_WORKFLOW_ID].decode() == WF_ID
                     token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower())
                     if token_header:
                         token_header = token_header.decode()
 
                     self._make_call(
                         data.decode(),
-                        flow_id=headers['x-flow-id'].decode(),
-                        wf_id=headers['x-rexflow-wf-id'].decode(),
+                        flow_id=headers[Headers.X_HEADER_FLOW_ID].decode(),
+                        wf_id=headers[Headers.X_HEADER_WORKFLOW_ID].decode(),
                         content_type=headers['content-type'].decode(),
                         token_stack=token_header
                     )
@@ -351,8 +355,8 @@ class EventCatchApp(QuartApp):
             response = Response("WF Instance Timed Out.", 500)
         else:
             response = Response(result['result'])
-            response.headers['content-type'] = result['content_type']
-        response.headers['x-flow-id'] = instance_id
+            response.headers[Headers.CONTENT_TYPE] = result['content_type']
+        response.headers[Headers.X_HEADER_FLOW_ID] = instance_id
         response.headers['access-control-allow-origin'] = '*'
 
         end = datetime.datetime.now()

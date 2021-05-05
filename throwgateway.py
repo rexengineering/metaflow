@@ -59,6 +59,7 @@ def send_to_stream(data, flow_id, wf_id, content_type):
 
 
 def _shadow_to_kafka(data, headers):
+    # TODO: REXFLOW-188
     if not KAFKA_SHADOW_URL:
         return
     o = urlparse(FORWARD_URL)
@@ -74,14 +75,15 @@ def make_call_(data):
     headers = {
         Headers.FLOWID_HEADER: request.headers[Headers.FLOWID_HEADER],
         Headers.X_HEADER_WORKFLOW_ID: request.headers[Headers.X_HEADER_WORKFLOW_ID],
-        'content-type': request.headers['content-type'],
-        'x-rexflow-task-id': FORWARD_TASK_ID,
+        Headers.CONTENT_TYPE: request.headers['content-type'],
+        Headers.X_HEADER_TASK_ID: FORWARD_TASK_ID,
     }
     if Headers.TRACEID_HEADER in request.headers:
         headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
     elif Headers.TRACEID_HEADER.lower in request.headers:
         headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
 
+    # TODO: REXFLOW-188
     success = False
     for _ in range(TOTAL_ATTEMPTS):
         try:
@@ -95,6 +97,7 @@ def make_call_(data):
                 f"failed making a call to {FORWARD_URL} on wf {request.headers[Headers.FLOWID_HEADER]}"
             )
 
+    # TODO: REXFLOW-188
     if not success:
         # Notify Flowd that we failed.
         o = urlparse(FORWARD_URL)
