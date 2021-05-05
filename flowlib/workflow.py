@@ -65,20 +65,7 @@ class Workflow:
             if not etcd.replace(self.keys.state, States.STOPPED, States.STARTING):
                 raise RuntimeError(f'{self.id} is not in a startable state')
         orchestrator = self.properties.orchestrator
-        if orchestrator == 'docker':
-            docker_compose_input = StringIO()
-            self.process.to_docker(docker_compose_input)
-            ctl_input = docker_compose_input.getvalue()
-            docker_result = subprocess.run(
-                ['docker', 'stack', 'deploy', '--compose-file', '-', self.id_hash],
-                input=ctl_input, capture_output=True, text=True,
-            )
-            if docker_result.stdout:
-                logging.info(f'Got following output from Docker:\n{docker_result.stdout}')
-            if docker_result.returncode != 0:
-                logging.error(f'Error from Docker:\n{docker_result.stderr}')
-                etcd.replace(self.keys.state, States.STARTING, States.ERROR)
-        elif orchestrator in {'kubernetes', 'istio'}:
+        if orchestrator in {'kubernetes', 'istio'}:
             kubernetes_input = StringIO()
             try:
                 if orchestrator == 'kubernetes':

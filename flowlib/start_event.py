@@ -4,7 +4,6 @@ Implements BPMNStartEvent object, which for now is just a pass-through to Flowd.
 
 from collections import OrderedDict
 from typing import Mapping
-import os
 
 from .bpmn_util import BPMNComponent, get_edge_transport
 from .constants import to_valid_k8s_name

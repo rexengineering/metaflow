@@ -22,7 +22,7 @@ from .k8s_utils import (
 )
 from .config import CREATE_DEV_INGRESS
 from .reliable_wf_utils import create_kafka_transport
-from .constants import X_HEADER_TOKEN_POOL_ID
+from .constants import Headers
 
 Upstream = namedtuple(
     'Upstream',
@@ -155,7 +155,7 @@ class BPMNTask(BPMNComponent):
             'traffic_shadow_cluster': traffic_shadow_cluster,
             'traffic_shadow_path': traffic_shadow_path,
             'closure_transport': self.workflow_properties.use_closure_transport,
-            'headers_to_forward': [X_HEADER_TOKEN_POOL_ID.lower()],
+            'headers_to_forward': [Headers.X_HEADER_TOKEN_POOL_ID.lower()],
             'upstream_port': self._target_port,
             'inbound_retries': 0,
         }

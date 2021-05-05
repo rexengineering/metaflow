@@ -14,12 +14,6 @@ BPMN_TIMER_EVENT_DEFINITION = 'bpmn:timerEventDefinition'
 
 TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
 
-# TODO: Move these to the Headers namespace.
-X_HEADER_FLOW_ID = 'X-Flow-Id'
-X_HEADER_WORKFLOW_ID = 'X-Rexflow-Wf-Id'
-X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
-X_HEADER_TASK_ID = 'X-Rexflow-Task-Id'
-
 K8S_MAX_NAMELENGTH = 63
 
 
@@ -85,7 +79,11 @@ class Headers:
     '''
     FLOWID_HEADER = 'X-Flow-Id'
     TRACEID_HEADER = 'X-B3-Traceid'
-    WFID_HEADER = 'X-Rexflow-Wf-Id'
+    X_HEADER_FLOW_ID = 'X-Flow-Id'
+    X_HEADER_WORKFLOW_ID = 'X-Rexflow-Wf-Id'
+    X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
+    X_HEADER_TASK_ID = 'X-Rexflow-Task-Id'
+    CONTENT_TYPE = 'Content-Type'
 
 
 class WorkflowKeys:
