@@ -3,7 +3,7 @@ import logging
 
 from flowlib import flow_pb2
 
-from . import handle_apply, handle_delete, handle_probe, handle_ps, handle_run, handle_start, handle_stop, handle_update  # noqa
+from . import handle_apply, handle_delete, handle_probe, handle_ps, handle_run, handle_start, handle_stop, handle_update, handle_validate  # noqa
 
 
 def handler_dispatch(command, request, context):
