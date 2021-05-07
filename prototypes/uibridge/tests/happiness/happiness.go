@@ -11,6 +11,7 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 	w.Write([]byte(`{"status": 0, "message": "Ok."}`))
+	log.Println(r)
 }
 
 func main() {

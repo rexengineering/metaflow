@@ -2,13 +2,13 @@ from flowlib.constants import WorkflowInstanceKeys
 import json
 import logging
 import typing
-from . import graphql_factory as gql
-from .graphql_factory import (
+from . import graphql_wrappers as gql
+from .graphql_wrappers import (
     DID,
     FAILURE,
     FIELDS,
     GRAPHQL_URI,
-    ID,
+    DATA_ID,
     IID,
     PASSED,
     RESULTS,
@@ -32,6 +32,7 @@ task_mutation = ObjectType("TaskMutation")
 @query.field('getInstances')
 def mutation_get_instance(_,info, input=None):
     workflow = info.context[WORKFLOW]
+    status = workflow.get_status()
     if input and input[IID]:
         iid_list = [input[IID]]
     else:
@@ -40,8 +41,9 @@ def mutation_get_instance(_,info, input=None):
     iid_info = []
     for iid in iid_list:
         uri = workflow.get_instance_graphql_uri(iid)
-        iid_info.append(gql.workflow_instance_info(iid, uri))
-    return gql.get_instances_payload(workflow.did, iid_info, workflow.get_task_ids())
+        status = workflow.get_instance_status(iid)
+        iid_info.append(gql.workflow_instance_info(iid, status, uri))
+    return gql.get_instances_payload(workflow.did, status, iid_info, workflow.get_task_ids())
 
 # Workflow Mutations
 
@@ -50,7 +52,7 @@ def mutation_create_instance(_,info,input):
     workflow = info.context[WORKFLOW]
     #data: {"id": "process-0p1yoqw-aa16211c-9f5251689f1811eba4489a05f2a68bd3", "message": "Ok", "status": 0}
     data = workflow.create_instance(input[GRAPHQL_URI])
-    return gql.create_instance_payload(workflow.did, data[ID], SUCCESS, workflow.get_task_ids())
+    return gql.create_instance_payload(workflow.did, data['id'], SUCCESS, workflow.get_task_ids())
 
 # Task Mutations
 
@@ -78,6 +80,7 @@ def task_mutation_form(_, info, input):
     if task:
         form = task.get_form(iid)
         status = SUCCESS
+        logging.info(form)
     return gql.task_form_payload(iid, input[TID], status, form)
 
 @task_mutation.field('validate')
@@ -107,6 +110,9 @@ def task_mutation_save(_,info,input):
 @task_mutation.field('complete')
 def task_mutation_complete(_,info,input):
     logging.info(f'task_mutation_complete {input[IID]} {input[TID]}')
+    # notify rexflow to continue the workflow
+    workflow = info.context[WORKFLOW]
+    workflow.complete(input[IID], input[TID])
     return gql.task_complete_payload(input[IID], input[TID], SUCCESS)
 
 def _validate_fields(task:WorkflowTask, fields:List) -> Tuple[bool, List]:
@@ -119,7 +125,7 @@ def _validate_fields(task:WorkflowTask, fields:List) -> Tuple[bool, List]:
         # the validator(s) provided by field.validators to determine the result. For
         # now balk and all validators pass.
         try:
-            field_id = in_field[ID]
+            field_id = in_field[DATA_ID]
             task_field = task.field(field_id)
             results = []
             field_passed = True # assume all validators on this field pass

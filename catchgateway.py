@@ -120,10 +120,10 @@ class EventCatchPoller:
         )
         if first_task_response is not None:
             if not etcd.replace(keys.state, States.STARTING, BStates.RUNNING):
-                logging.error('Failed to transition {keys.state} from STARTING -> RUNNING.')
+                logging.error(f'Failed to transition {keys.state} from STARTING -> RUNNING.')
         else:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
-                logging.error('Failed to transition {keys.state} from STARTING -> ERROR.')
+                logging.error(f'Failed to transition {keys.state} from STARTING -> ERROR.')
 
     def create_instance(self, incoming_data, content_type) -> Dict[str, object]:
         instance_id = workflow.WorkflowInstance.new_instance_id(str(WF_ID))
@@ -179,7 +179,7 @@ class EventCatchPoller:
         # have WEIRD side effects.
         if self.timed_manager: # and FUNCTION == FUNCTION_CATCH:
             self.timed_manager.create_timer(flow_id, token_stack, [data, flow_id, wf_id, content_type])
-            return True
+            return jsonify(flow_result(0, ""))
         else:
             return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
 

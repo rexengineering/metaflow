@@ -12,22 +12,25 @@ from etcd3.events import DeleteEvent, PutEvent
 from flowlib import flow_pb2, etcd_utils
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States
-from .graphql_factory import (
+from .graphql_wrappers import (
     ENCRYPTED,
-    ID,
+    DATA_ID,
     DATA,
 )
 from .prism_api.client import PrismApiClient
 
 class Workflow:
-    def __init__(self, did : str, tids : List[str], flowd_host : str, flowd_port : int):
+    def __init__(self, did : str, tids : List[str], bridge_cfg : dict, flowd_host : str, flowd_port : int):
         self.did = did
+        self.bridge_cfg = bridge_cfg
         self.tasks = {}
         self.etcd = etcd_utils.get_etcd()
         self.running = False
         self.flowd_host = flowd_host
         self.flowd_port = flowd_port
         self.cancel_watch = None
+        self.instance_headers = {}
+        self.instance_data = {}
 
         for tid in tids:
             self.tasks[tid] = WorkflowTask(self,tid)
@@ -47,6 +50,19 @@ class Workflow:
 
     def is_running(self):
         return self.running
+
+    def register_instance_header(self, iid:str, header:str):
+        if iid not in self.instance_headers.keys():
+            self.instance_headers[iid] = []
+        self.instance_headers[iid].append(header)
+        logging.info(f'{iid} header {header}')
+
+    def set_instance_data(self, iid:str, data:str):
+        self.instance_data[iid] = data
+
+    def get_status(self) -> str:
+        status, _ = self.etcd.get(WorkflowKeys.state_key(self.did))
+        return status.decode('utf-8')
 
     def watch_instances(self):
         '''
@@ -87,7 +103,7 @@ class Workflow:
             ))
             data = json.loads(response.data)
             if graphql_uri:
-                iid = data[ID]
+                iid = data['id']
                 self.etcd.put(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
             return data
 
@@ -103,8 +119,14 @@ class Workflow:
     def get_instance_graphql_uri(self, iid:str) -> str:
         uri, _ = self.etcd.get(WorkflowInstanceKeys.ui_server_uri_key(iid))
         if uri:
-            uri = uri.decode('utf-8')
+            return uri.decode('utf-8')
         return uri      # will be None or the URI
+
+    def get_instance_status(self, iid:str) -> str:
+        status, _ = self.etcd.get(WorkflowInstanceKeys.state_key(iid))
+        if status:
+            return status.decode('utf-8')
+        return ''
 
     def get_task_ids(self):
         return self.tasks.keys()
@@ -113,6 +135,40 @@ class Workflow:
         if tid not in self.tasks.keys():
             return None
         return self.tasks[tid]
+
+    def complete(self, iid : str, tid : str):
+        assert tid in self.bridge_cfg, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
+        for next_task in self.bridge_cfg[tid]: # handle more than one outbound edge
+            next_headers = {        
+                'x-flow-id': str(iid),
+                'x-rexflow-wf-id': str(self.did),
+                'content-type': 'application/json',
+                'x-rexflow-task-id': next_task['next_task_id_header'],
+            }
+
+            if iid in self.instance_headers.keys():
+                for header in self.instance_headers[iid]:
+                    key,val = header.split(':')
+                next_headers[key] = val
+
+            data = None if iid not in self.instance_data.keys() else self.instance_data[iid]
+
+            import requests
+            for _ in range(2):
+                try:
+                    svc_response = requests.get(next_task['k8s_url'], headers=next_headers) #, data=data)
+                    svc_response.raise_for_status()
+                    # try:
+                    #     self.save_traceid(svc_response.headers, iid)
+                    # except Exception as exn:
+                    #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
+                    # self._shadow_to_kafka(data, next_headers)
+                    return svc_response
+                except Exception as exn:
+                    logging.exception(
+                        f"failed making a call to {next_task['k8s_url']} on wf {iid}",
+                        exc_info=exn,
+                    )
 
 
 class WorkflowTask:
@@ -138,6 +194,7 @@ class WorkflowTask:
             tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
             form, _ = self.wf.etcd.get(tid_key)
             self.wf.etcd.put(key,form)
+            logging.info(f'Form for {key} did not exist - {form}')
         return list(self._normalize_fields(form).values())
 
     def update(self, iid:str, in_fields:list):
@@ -145,12 +202,13 @@ class WorkflowTask:
         tmp = self.get_form(iid)
         flds = {}
         for f in tmp:
-            flds[f[ID]] = f
+            flds[f[DATA_ID]] = f
         for f in in_fields:
-            flds[f[ID]][DATA] = f[DATA]
+            flds[f[DATA_ID]][DATA] = f[DATA]
         key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
         val = json.dumps(list(flds.values()))
         self.wf.etcd.put(key, val)
+        logging.info(f'Form {key} updated {val}')
         return flds
 
     def _normalize_fields(self, form:str) -> Dict[str, Any]:
@@ -161,7 +219,7 @@ class WorkflowTask:
         field_list = json.loads(form.decode('utf-8'))
         for field in field_list:
             field[ENCRYPTED] = bool(field[ENCRYPTED])
-            fields[field[ID]] = field
+            fields[field[DATA_ID]] = field
         return fields
 
     def fields(self, iid:str = None) -> List[Any]:

@@ -16,6 +16,7 @@ TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
 
 K8S_MAX_NAMELENGTH = 63
 
+TEST_MODE_URI = 'http://gndn.net/' # goes nowhere, does nothing
 
 def to_valid_k8s_name(name):
     '''

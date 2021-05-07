@@ -1,21 +1,23 @@
 '''
-Handles objects received from and sent to graphql queries and mutations
+Concenience methods to create objects received from and sent to graphql queries and mutations
 '''
 import typing
 from typing import Dict, List
 
 CONSTRAINT = 'constraint'
 DATA       = 'data'
+DATA_ID    = 'dataId'
 DID        = 'did'
 DID_STATUS = 'did_status'
 ENCRYPTED  = 'encrypted'
 FIELD      = 'field'
 FIELDS     = 'fields'
 GRAPHQL_URI= 'graphqlUri'
-ID         = 'id'
 IID        = 'iid'
 IID_LIST   = 'iid_list'
 IID_STATUS = 'iid_status'
+LABEL      = 'label'
+ORDER      = 'order'
 PASSED     = 'passed'
 RESULT     = 'result'
 RESULTS    = 'results'
@@ -43,9 +45,9 @@ def validator_result(validator:Dict[str,str], passed:bool, result:str):
         RESULT: result,
     }
 
-def field_validation_result(field:str, passed:bool, results:List):
+def field_validation_result(data_id:str, passed:bool, results:List):
     return {
-        FIELD: field,
+        DATA_ID: data_id,
         PASSED: passed,
         RESULTS: results,
     }
@@ -61,9 +63,9 @@ def task_mutations_form_input(iid:str, tid:str):
         TID:tid,
     }
 
-def task_field_input(id:str, type:str, data:str, encrypted:bool):
+def task_field_input(data_id:str, type:str, data:str, encrypted:bool):
     return {
-        ID: id,
+        DATA_ID: data_id,
         TYPE: type,
         DATA: data,
         ENCRYPTED: encrypted,
@@ -97,10 +99,10 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         TASKS: tasks,
     }
 
-def workflow_instance_info(iid:str, status:str, graphql_uri:str):
+def workflow_instance_info(iid:str, iid_status:str, graphql_uri:str):
     return {
         IID: iid,
-        IID_STATUS: status,
+        IID_STATUS: iid_status,
         GRAPHQL_URI: graphql_uri,
     }
 
@@ -110,6 +112,23 @@ def get_instances_payload(did:str, did_status:str, iid_list:List, tasks:List[str
         DID_STATUS: did_status,
         IID_LIST: iid_list,
         TASKS: tasks,
+    }
+
+def field_validator(type:str, constraint:str):
+    return {
+        TYPE: type,
+        CONSTRAINT: constraint,
+    }
+
+def task_field_data(data_id:str, type:str, order:int, label:str, data:str, encrypted:bool, validators:List):
+    return {
+        DATA_ID: data_id,
+        TYPE: type,
+        ORDER: order,
+        LABEL: label,
+        DATA: data,
+        ENCRYPTED: encrypted,
+        VALIDATORS: validators,
     }
 
 def task_form_payload(iid:str, tid:str, status:str, fields:List):

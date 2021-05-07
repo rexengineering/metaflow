@@ -1,7 +1,11 @@
+import asyncio
+import functools
+import hashlib
 import json
 import logging
 import os
 import os.path
+import requests
 
 from quart import jsonify, request
 from ariadne import load_schema_from_path, make_executable_schema
@@ -12,7 +16,7 @@ from .prism_api.client import PrismApiClient
 
 from flowlib import executor
 from flowlib import executor, user_task
-from flowlib.constants import flow_result
+from flowlib.constants import Headers, flow_result, TEST_MODE_URI
 from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
 
@@ -36,7 +40,7 @@ else:
 logging.info(f'FLOWD address is {flowd_host}:{flowd_port}')
 
 # the Workflow object (created in init_route)
-WORKFLOW_DID = os.environ.get('WORKFLOW_DID','tde-15839350')
+WORKFLOW_DID = os.environ.get('WORKFLOW_DID')
 assert WORKFLOW_DID is not None, 'WORKFLOW_DID not defined in environment - exiting'
 
 BRIDGE_CONFIG = json.loads(os.environ.get('BRIDGE_CONFIG', '{}'))
@@ -57,7 +61,7 @@ class REXFlowUIBridge(AsyncService):
             graphql_handlers.task_mutation,
         )
 
-        self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, flowd_host, flowd_port)
+        self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, BRIDGE_CONFIG, flowd_host, flowd_port)
         self.workflow.start()
 
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
@@ -67,14 +71,29 @@ class REXFlowUIBridge(AsyncService):
         return jsonify(flow_result(0, "Ok."))
 
     async def init_route(self):
+        '''
+        entry point for when the bridge gets called by the rexflow. 
+        '''
         logging.info('Starting init_route()...')
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
+        iid = request.headers[Headers.X_HEADER_FLOW_ID]
+        tid = request.headers[Headers.X_HEADER_TASK_ID]
+
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
-        import asyncio
-        json = await request.get_json()
-        loop = asyncio.get_running_loop()
-        loop.create_task(self._happy_path(request.headers, json))
-        logging.info('Completing init_route() for happy path...')
+        if Headers.X_HEADER_TOKEN_POOL_ID in request.headers.keys():
+            self.workflow.register_instance_header(iid, f'{Headers.X_HEADER_TOKEN_POOL_ID}:{request.headers[Headers.X_HEADER_TOKEN_POOL_ID]}')
+        self.workflow.set_instance_data(iid, request.get_json())
+        ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
+
+        # upstream cycle timer events can call this access point multiple times for the 
+        # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
+        # specific interaction
+        #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
+        logging.info(f'{ui_srv_url} {TEST_MODE_URI}')
+        if ui_srv_url and ui_srv_url != TEST_MODE_URI:
+            response = await PrismApiClient.start_task(ui_srv_url, iid, tid)
+            logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response.status}')
+
         return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
 
     async def _happy_path(self, headers, json):
@@ -104,29 +123,30 @@ class REXFlowUIBridge(AsyncService):
         except Exception as exn:
             logging.exception('Happy path is sad...', exc_info=exn)
 
-    async def user_task(self):
-        iid = request.headers['X-flow-id']
-        tid = request.headers['X-rexflow-task-id']
-        endpoint = self.workflow.get_instance_graphql_uri(iid)
-        if not endpoint or not iid.startswith(self.workflow.did):
-            return {'status':400, 'message': f'{iid} is not a registered with this server.'}
+    async def complete(self, tid:str, iid:str):
+        assert tid in BRIDGE_CONFIG, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
+        for next_task in BRIDGE_CONFIG[tid]: # handle more than one outbound edge
+            next_headers = {        
+                'x-flow-id': str(tid),
+                'x-rexflow-wf-id': str(WORKFLOW_DID),
+                'content-type': 'application/json',
+                'x-rexflow-task-id': next_task['next_task_id_header'],
+            }
 
-        # make a graphql call to the endpoint contained in endpoint
-        # with the iid and tid to indicate that the user task identified by
-        # tid has started and awaiting UI interaction
-        result = await PrismApiClient.start_task(endpoint, iid, tid)
-        return {'status': 200, 'message': json.dumps(result)}
-
-    async def complete(self):
-        iid = request.headers['X-flow-id']
-        endpoint = self.workflow.get_instance_graphql_uri(iid)
-        if not endpoint or not iid.startswith(self.workflow.did):
-            return {'status':400, 'message': f'{iid} is not a registered with this server.'}
-
-        # make a graphql call to the endpoint contained in endpoint
-        # with the iid to indicate that the workflow instance has completed
-        result = await PrismApiClient.complete_workflow(endpoint, iid)
-        return {'status': 200, 'message': json.dumps(result)}
+            try:
+                await asyncio.sleep(10)
+                my_executor = executor.get_executor()
+                loop = asyncio.get_running_loop()
+                logging.info(f'headers={next_headers}')
+                call_method = requests.post if next_task['method'] == 'POST' else requests.get
+                call = functools.partial(call_method, url=next_task['k8s_url'], headers=next_headers, json=json)
+                result = await loop.run_in_executor(my_executor, call)
+                logging.info(f'result={result.ok}')
+                logging.info(f'result.headers={result.headers}')
+                logging.info(f'result.text={repr(result.text)}')
+                result.raise_for_status()
+            except Exception as exn:
+                logging.exception('Happy path is sad...', exc_info=exn)
 
     def graphql_playground(self):
         return PLAYGROUND_HTML, 200

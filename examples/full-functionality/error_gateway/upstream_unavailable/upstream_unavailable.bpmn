@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<<<<<<< HEAD:examples/full-functionality/error_gateway/upstream_unavailable/upstream_unavailable.bpmn
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_0d4zc4f" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.6.0">
   <bpmn:process id="Underpants" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1" name="Start">
-=======
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_0d4zc4f" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
-  <bpmn:process id="Underpants" isExecutable="true">
-    <bpmn:startEvent id="StartEvent_1" name="start-underpants">
->>>>>>> develop:examples/istio/istio-underpants-timed.bpmn
       <bpmn:outgoing>SequenceFlow_190n0mt</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="SequenceFlow_190n0mt" sourceRef="StartEvent_1" targetRef="Task_1dqvybv" />
@@ -39,7 +33,6 @@
       <bpmn:outgoing>Flow_0t7gu09</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="SequenceFlow_0wlepjp" sourceRef="Task_1nyu98k" targetRef="Task_1mrtiy4" />
-<<<<<<< HEAD:examples/full-functionality/error_gateway/upstream_unavailable/upstream_unavailable.bpmn
     <bpmn:textAnnotation id="TextAnnotation_0awc0mf">
       <bpmn:text>rexflow_global_properties:
     id: h-pants
@@ -47,15 +40,6 @@
     namespace: default
     namespace_shared: true</bpmn:text>
     </bpmn:textAnnotation>
-=======
-    <bpmn:sequenceFlow id="Flow_0t7gu09" sourceRef="Task_1nyu98k" targetRef="Event_0825rw4" />
-    <bpmn:intermediateCatchEvent id="Event_0825rw4">
-      <bpmn:incoming>Flow_0t7gu09</bpmn:incoming>
-      <bpmn:timerEventDefinition id="TimerEventDefinition_0370jag">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1M</bpmn:timeDuration>
-      </bpmn:timerEventDefinition>
-    </bpmn:intermediateCatchEvent>
->>>>>>> develop:examples/istio/istio-underpants-timed.bpmn
     <bpmn:textAnnotation id="TextAnnotation_1vjflrc">
       <bpmn:text>rexflow:
     service:
@@ -68,12 +52,8 @@
     preexisting: true
     service:
         host: secret-sauce
-<<<<<<< HEAD:examples/full-functionality/error_gateway/upstream_unavailable/upstream_unavailable.bpmn
         port: 5000
         namespace: default</bpmn:text>
-=======
-        port: 5000</bpmn:text>
->>>>>>> develop:examples/istio/istio-underpants-timed.bpmn
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1i25pe6" sourceRef="Task_1nyu98k" targetRef="TextAnnotation_04roe2e" />
     <bpmn:textAnnotation id="TextAnnotation_18mql5m">
@@ -116,7 +96,6 @@
         <dc:Bounds x="270" y="197" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0n790cu_di" bpmnElement="Task_1nyu98k">
-<<<<<<< HEAD:examples/full-functionality/error_gateway/upstream_unavailable/upstream_unavailable.bpmn
         <dc:Bounds x="430" y="257" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0awc0mf_di" bpmnElement="TextAnnotation_0awc0mf">
@@ -142,42 +121,6 @@
       <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
         <di:waypoint x="663" y="257" />
         <di:waypoint x="686" y="215" />
-=======
-        <dc:Bounds x="430" y="197" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1vjflrc_di" bpmnElement="TextAnnotation_1vjflrc">
-        <dc:Bounds x="340" y="80" width="120" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_04roe2e_di" bpmnElement="TextAnnotation_04roe2e">
-        <dc:Bounds x="470" y="73" width="136" height="81" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
-        <dc:Bounds x="640" y="87" width="128" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ServiceTask_0hj12ju_di" bpmnElement="Task_1mrtiy4">
-        <dc:Bounds x="690" y="197" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
-        <dc:Bounds x="842" y="219" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="821" y="262" width="78" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0btveyq_di" bpmnElement="Event_0825rw4">
-        <dc:Bounds x="592" y="219" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
-        <di:waypoint x="348" y="197" />
-        <di:waypoint x="382" y="148" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_1i25pe6_di" bpmnElement="Association_1i25pe6">
-        <di:waypoint x="497" y="197" />
-        <di:waypoint x="515" y="154" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
-        <di:waypoint x="728" y="197" />
-        <di:waypoint x="715" y="155" />
->>>>>>> develop:examples/istio/istio-underpants-timed.bpmn
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
