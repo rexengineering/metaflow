@@ -53,5 +53,5 @@ Thumbs.db
 *~
 
 build/
-rexflow.egg-info/
+*.egg-info/
 .env
