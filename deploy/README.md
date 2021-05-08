@@ -6,7 +6,7 @@ Build REXFlow containers
 
 Run from root of repository.
 ```console
-% ./rebuild_rexflow_images
+% ./tools/rebuild_rexflow_images.sh
 ```
 
 Deploy REXFlow K8s resources

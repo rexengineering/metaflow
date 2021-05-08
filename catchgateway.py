@@ -94,7 +94,7 @@ class EventCatchPoller:
         self.timed_manager = None
         if TIMED_EVENT_DESCRIPTION:
             logging.info(f'Timed event {TIMED_EVENT_DESCRIPTION}')
-            self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, self.make_call_impl) #, use_tokens = True)
+            self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, self.make_call_impl)
 
     def start(self):
         assert self.future is None
@@ -177,7 +177,7 @@ class EventCatchPoller:
         # Note: Python is fun; so don't set `{}` as a default argument to a function. Because a dict is
         # an object, it only gets instantiated once, which means repeated calls to the same function could
         # have WEIRD side effects.
-        if self.timed_manager: # and FUNCTION == FUNCTION_CATCH:
+        if self.timed_manager:
             self.timed_manager.create_timer(flow_id, token_stack, [data, flow_id, wf_id, content_type])
             return jsonify(flow_result(0, ""))
         else:

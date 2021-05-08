@@ -72,7 +72,7 @@ class REXFlowUIBridge(AsyncService):
 
     async def init_route(self):
         '''
-        entry point for when the bridge gets called by the rexflow. 
+        entry point for when the bridge gets called by the rexflow.
         '''
         logging.info('Starting init_route()...')
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
@@ -85,7 +85,7 @@ class REXFlowUIBridge(AsyncService):
         self.workflow.set_instance_data(iid, request.get_json())
         ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
 
-        # upstream cycle timer events can call this access point multiple times for the 
+        # upstream cycle timer events can call this access point multiple times for the
         # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
         # specific interaction
         #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
@@ -126,11 +126,12 @@ class REXFlowUIBridge(AsyncService):
     async def complete(self, tid:str, iid:str):
         assert tid in BRIDGE_CONFIG, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
         for next_task in BRIDGE_CONFIG[tid]: # handle more than one outbound edge
-            next_headers = {        
-                'x-flow-id': str(tid),
-                'x-rexflow-wf-id': str(WORKFLOW_DID),
-                'content-type': 'application/json',
-                'x-rexflow-task-id': next_task['next_task_id_header'],
+            # See REXFLOW-191.
+            next_headers = {
+                Headers.X_HEADER_FLOW_ID.lower(): str(tid),  # TODO: [REXFLOW-193] Shouldn't this be the instance ID (iid)?
+                Headers.X_HEADER_WORKFLOW_ID.lower(): str(WORKFLOW_DID),
+                Headers.CONTENT_TYPE.lower(): 'application/json',
+                Headers.X_HEADER_TASK_ID.lower(): next_task['next_task_id_header'],
             }
 
             try:

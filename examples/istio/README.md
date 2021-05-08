@@ -38,7 +38,7 @@ of `flowctl`:
 Third, build and stand up the Flow Daemon and its infrastructure:
 
 ```console
-% ./rebuild_rexflow_containers
+% ./tools/rebuild_rexflow_containers.sh
 % python -m deploy create
 ```
 *NOTE* If you make changes to any code that affects `flowd`, you must re-run the

@@ -139,7 +139,8 @@ class Workflow:
     def complete(self, iid : str, tid : str):
         assert tid in self.bridge_cfg, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
         for next_task in self.bridge_cfg[tid]: # handle more than one outbound edge
-            next_headers = {        
+            # TODO: [REXFLOW-191] Either remove this duplicated code from app or here.
+            next_headers = {
                 'x-flow-id': str(iid),
                 'x-rexflow-wf-id': str(self.did),
                 'content-type': 'application/json',
