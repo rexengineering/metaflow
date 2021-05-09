@@ -1,17 +1,19 @@
 import asyncio
 import copy
+import functools
 import json
 import logging
 import os
 import re
+import requests
 import threading
 from typing import Any, Dict, List, NoReturn, Tuple
 
 from etcd3.events import DeleteEvent, PutEvent
 
-from flowlib import flow_pb2, etcd_utils
+from flowlib import flow_pb2, etcd_utils, executor
 from flowlib.flowd_utils import get_flowd_connection
-from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI
 from .graphql_wrappers import (
     ENCRYPTED,
     DATA_ID,
@@ -79,9 +81,9 @@ class Workflow:
                 if isinstance(event, PutEvent):
                     if value in (States.COMPLETED, States.ERROR):
                         '''notify any graphql_uri that this instance is done'''
-                        endpoint = self.get_instance_graphql_uri(iid)
-                        if endpoint:
-                            asyncio.run(self.notify_prism_iid_complete(endpoint, iid, value))
+                        prism_endpoint = self.get_instance_graphql_uri(iid)
+                        if prism_endpoint and prism_endpoint != TEST_MODE_URI:
+                            asyncio.run(self.notify_prism_iid_complete(prism_endpoint, iid, value))
                 elif isinstance(event, DeleteEvent):
                     '''
                     Delete is complicated, because we only want to presume the instance has
@@ -139,6 +141,7 @@ class Workflow:
     def complete(self, iid : str, tid : str):
         assert tid in self.bridge_cfg, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
         for next_task in self.bridge_cfg[tid]: # handle more than one outbound edge
+            logging.info(f'Firing edge {next_task}')
             # TODO: [REXFLOW-191] Either remove this duplicated code from app or here.
             next_headers = {
                 'x-flow-id': str(iid),
@@ -154,22 +157,21 @@ class Workflow:
 
             data = None if iid not in self.instance_data.keys() else self.instance_data[iid]
 
-            import requests
-            for _ in range(2):
-                try:
-                    svc_response = requests.get(next_task['k8s_url'], headers=next_headers) #, data=data)
-                    svc_response.raise_for_status()
-                    # try:
-                    #     self.save_traceid(svc_response.headers, iid)
-                    # except Exception as exn:
-                    #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
-                    # self._shadow_to_kafka(data, next_headers)
-                    return svc_response
-                except Exception as exn:
-                    logging.exception(
-                        f"failed making a call to {next_task['k8s_url']} on wf {iid}",
-                        exc_info=exn,
-                    )
+            try:
+                call = requests.post if next_task['method'] == 'POST' else requests.get
+                svc_response = call(next_task['k8s_url'], headers=next_headers, data=data)
+                svc_response.raise_for_status()
+                # try:
+                #     self.save_traceid(svc_response.headers, iid)
+                # except Exception as exn:
+                #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
+                # self._shadow_to_kafka(data, next_headers)
+                return svc_response
+            except Exception as exn:
+                logging.exception(
+                    f"failed making a call to {next_task['k8s_url']} on wf {iid}",
+                    exc_info=exn,
+                )
 
 
 class WorkflowTask:

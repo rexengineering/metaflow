@@ -14,7 +14,6 @@ from ariadne.graphql import graphql_sync
 
 from .prism_api.client import PrismApiClient
 
-from flowlib import executor
 from flowlib import executor, user_task
 from flowlib.constants import Headers, flow_result, TEST_MODE_URI
 from . import graphql_handlers, flowd_api
@@ -122,32 +121,6 @@ class REXFlowUIBridge(AsyncService):
             result.raise_for_status()
         except Exception as exn:
             logging.exception('Happy path is sad...', exc_info=exn)
-
-    async def complete(self, tid:str, iid:str):
-        assert tid in BRIDGE_CONFIG, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
-        for next_task in BRIDGE_CONFIG[tid]: # handle more than one outbound edge
-            # See REXFLOW-191.
-            next_headers = {
-                Headers.X_HEADER_FLOW_ID.lower(): str(tid),  # TODO: [REXFLOW-193] Shouldn't this be the instance ID (iid)?
-                Headers.X_HEADER_WORKFLOW_ID.lower(): str(WORKFLOW_DID),
-                Headers.CONTENT_TYPE.lower(): 'application/json',
-                Headers.X_HEADER_TASK_ID.lower(): next_task['next_task_id_header'],
-            }
-
-            try:
-                await asyncio.sleep(10)
-                my_executor = executor.get_executor()
-                loop = asyncio.get_running_loop()
-                logging.info(f'headers={next_headers}')
-                call_method = requests.post if next_task['method'] == 'POST' else requests.get
-                call = functools.partial(call_method, url=next_task['k8s_url'], headers=next_headers, json=json)
-                result = await loop.run_in_executor(my_executor, call)
-                logging.info(f'result={result.ok}')
-                logging.info(f'result.headers={result.headers}')
-                logging.info(f'result.text={repr(result.text)}')
-                result.raise_for_status()
-            except Exception as exn:
-                logging.exception('Happy path is sad...', exc_info=exn)
 
     def graphql_playground(self):
         return PLAYGROUND_HTML, 200
