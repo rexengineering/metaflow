@@ -155,11 +155,11 @@ class Workflow:
                     key,val = header.split(':')
                 next_headers[key] = val
 
-            data = None if iid not in self.instance_data.keys() else self.instance_data[iid]
+            # data = None if iid not in self.instance_data.keys() else self.instance_data[iid]
 
             try:
                 call = requests.post if next_task['method'] == 'POST' else requests.get
-                svc_response = call(next_task['k8s_url'], headers=next_headers, data=data)
+                svc_response = call(next_task['k8s_url'], headers=next_headers) #, data=data)
                 svc_response.raise_for_status()
                 # try:
                 #     self.save_traceid(svc_response.headers, iid)
@@ -169,7 +169,7 @@ class Workflow:
                 return svc_response
             except Exception as exn:
                 logging.exception(
-                    f"failed making a call to {next_task['k8s_url']} on wf {iid}",
+                    f"failed making a call to {next_task['k8s_url']} on wf {iid}\nheaders:{next_headers}", #\ndata:{data}",
                     exc_info=exn,
                 )
 
