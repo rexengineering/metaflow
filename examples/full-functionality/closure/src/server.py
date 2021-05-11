@@ -17,7 +17,7 @@ def healthcheck():
 @server.route('/', methods=['PUT', 'POST'])
 def serve():
     mode = os.environ.get('SERVER_MODE')
-    if mode == 'collect_people':
+    if mode == 'collect-people':
         return jsonify({"person1": "hong", 'person2': 'colt'})
     req = request.get_json(force=True, silent=True)
     if mode == 'fake-email' or mode == 'fake-email-2':

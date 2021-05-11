@@ -13,7 +13,7 @@ from etcd3.events import DeleteEvent, PutEvent
 
 from flowlib import flow_pb2, etcd_utils, executor
 from flowlib.flowd_utils import get_flowd_connection
-from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
     ENCRYPTED,
     DATA_ID,
@@ -144,10 +144,10 @@ class Workflow:
             logging.info(f'Firing edge {next_task}')
             # TODO: [REXFLOW-191] Either remove this duplicated code from app or here.
             next_headers = {
-                'x-flow-id': str(iid),
-                'x-rexflow-wf-id': str(self.did),
+                Headers.X_HEADER_FLOW_ID: str(iid),
+                Headers.X_HEADER_WORKFLOW_ID: str(self.did),
                 'content-type': 'application/json',
-                'x-rexflow-task-id': next_task['next_task_id_header'],
+                Headers.X_HEADER_TASK_ID: next_task['next_task_id_header'],
             }
 
             if iid in self.instance_headers.keys():

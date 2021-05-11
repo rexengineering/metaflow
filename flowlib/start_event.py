@@ -126,10 +126,10 @@ class BPMNStartEvent(BPMNComponent):
                 "value": FLOWD_PORT,
             }
         ]
-        if self._global_props.traffic_shadow_svc:
+        if self._global_props.traffic_shadow_url:
             deployment_env_config.append({
                 "name": "KAFKA_SHADOW_URL",
-                "value": self._global_props.traffic_shadow_svc['k8s_url'],
+                "value": self._global_props.traffic_shadow_url,
             })
 
         if self._kafka_topic is not None:

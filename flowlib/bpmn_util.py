@@ -85,27 +85,6 @@ def get_annotations(process: OrderedDict, source_ref=None):
                 yield (annotation,yaml.safe_load(text.replace('\xa0', '')))
 
 
-def parse_events(process: OrderedDict):
-    '''Accepts OrderedDict representing BPMN XML document. Returns a dict of form:
-    {
-        'catch': [list of Catch Events],
-        'throw': [list of Throw Events],
-    }
-    '''
-    # For now, to avoid forcing the user of REXFlow to have to annotate each event
-    # as either a Throw or Catch, we will infer based on the following rule:
-    # If there is an incoming edge to the Event in self.to_digraph, then
-    # it's a Throw event. Else, it's a Catch event.
-    all_events = [event for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent')]
-    out = {'throw': [], 'catch': []}
-    for event in all_events:
-        if 'bpmn:incoming' in event:
-            out['throw'].append(event)
-        else:
-            out['catch'].append(event)
-    return out
-
-
 class ServiceProperties:
     def __init__(self, annotations: dict = None):
         self._host = None
@@ -182,6 +161,8 @@ class ServiceProperties:
             self._id_hash = annotations['id_hash']
         if 'hash_used' in annotations:
             self._is_hash_used = annotations['hash_used']
+        if 'namespace' in annotations:
+            self._namespace = annotations['namespace']
 
 
 class CallProperties:
@@ -284,7 +265,9 @@ class WorkflowProperties:
         self._retry_total_attempts = 2
         self._is_recoverable = False
         self._transport = 'rpc'
-        self._traffic_shadow_svc = None
+        self._traffic_shadow_service_props = None
+        self._traffic_shadow_call_props = None
+        self._traffic_shadow_url = None
         self._xgw_expression_type = 'feel'
         self._deployment_timeout = 120
         self._use_closure_transport = False
@@ -330,8 +313,16 @@ class WorkflowProperties:
         return self._transport
 
     @property
-    def traffic_shadow_svc(self):
-        return self._traffic_shadow_svc
+    def traffic_shadow_call_props(self):
+        return self._traffic_shadow_call_props
+
+    @property
+    def traffic_shadow_service_props(self):
+        return self._traffic_shadow_service_props
+
+    @property
+    def traffic_shadow_url(self):
+        return self._traffic_shadow_url
 
     @property
     def xgw_expression_type(self):
@@ -395,31 +386,26 @@ class WorkflowProperties:
             self._deployment_timeout = annotations['deployment_timeout']
 
         if 'traffic_shadow_svc' in annotations:
-            assert self.transport == 'rpc', "Shadowing traffic not allowed in Reliable WF"
+            assert self.transport == 'rpc', \
+                "Shadowing traffic not yet supported in Reliable WF"
             shadow_annots = annotations['traffic_shadow_svc']
             svc_annots = shadow_annots['service']
+            print(svc_annots, '\n\n\n\n', flush=True)
+            call_annots = shadow_annots.get('call')
+            if call_annots is None:
+                call_annots = {}
 
-            if 'call' in shadow_annots:
-                if 'path' in shadow_annots['call']:
-                    path = shadow_annots['call']['path']
-                else:
-                    path = '/'
-            if not path.startswith('/'):
-                path = '/' + path
+            self._traffic_shadow_service_props = ServiceProperties()
+            self._traffic_shadow_service_props.update(svc_annots)
+            self._traffic_shadow_call_props = CallProperties()
+            self._traffic_shadow_call_props.update(call_annots)
 
-            proto = svc_annots.get('protocol', 'http')
-            self._traffic_shadow_svc = {}
-            k8s_url = f'{proto}://{svc_annots["host"]}.{svc_annots["namespace"]}:'
-            k8s_url += f'{svc_annots["port"]}{path}'
+            proto = self._traffic_shadow_service_props.protocol
+            path = self._traffic_shadow_call_props.path
+            port = self._traffic_shadow_service_props.port
 
-            envoy_host = f'{svc_annots["host"]}.{svc_annots["namespace"]}.svc.cluster.local'
-            envoy_cluster = f'outbound|{svc_annots["port"]}||{envoy_host}'
-
-            self._traffic_shadow_svc = {
-                'path': path,
-                'k8s_url': k8s_url,
-                'envoy_cluster': envoy_cluster,
-            }
+            self._traffic_shadow_url = f'{proto}://{svc_annots["host"]}.'
+            self._traffic_shadow_url += f'{svc_annots["namespace"]}:{port}{path}'
 
         if 'xgw_expression_type' in annotations:
             assert annotations['xgw_expression_type'] in VALID_XGW_EXPRESSION_TYPES

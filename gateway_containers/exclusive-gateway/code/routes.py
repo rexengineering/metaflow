@@ -68,9 +68,9 @@ def conditional():
         target_component_id = DEFAULT_PATH['component_id']
 
     headers = {
-        'x-flow-id': request.headers['x-flow-id'],
-        'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
-        'x-rexflow-task-id': target_component_id,
+        'x-rexflow-iid': request.headers['x-rexflow-iid'],
+        'x-rexflow-did': request.headers['x-rexflow-did'],
+        'x-rexflow-tid': target_component_id,
     }
     for h in FORWARD_HEADERS:
         if h in request.headers:
@@ -85,7 +85,7 @@ def conditional():
             break
         except Exception:
             logging.error(
-                f"failed making a call to {target_url} on wf {request.headers['x-flow-id']}"
+                f"failed making a call to {target_url} on wf {request.headers['x-rexflow-iid']}"
             )
 
     o = urlparse(target_url)

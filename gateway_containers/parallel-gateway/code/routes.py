@@ -1,14 +1,13 @@
 
 
 import json
+import logging
 import os
 import requests
 
 from flask import request, make_response, jsonify
 
 from . import app
-
-from flowlib.constants import Headers
 
 
 FORWARD_HEADERS = [
@@ -47,8 +46,8 @@ def parallel():
     incoming_json = request.json
 
     headers = {
-        'x-flow-id': request.headers['x-flow-id'],
-        'x-rexflow-wf-id': request.headers['x-rexflow-wf-id'],
+        'x-rexflow-iid': request.headers['x-rexflow-iid'],
+        'x-rexflow-did': request.headers['x-rexflow-did'],
     }
 
     for h in FORWARD_HEADERS:
@@ -66,7 +65,7 @@ def parallel():
 
     elif REXFLOW_PGW_TYPE == "combiner":
 
-        flow_id = request.headers['x-flow-id']
+        flow_id = request.headers['x-rexflow-iid']
 
         if flow_id not in pending_flows:
             pending_flows[flow_id] = []

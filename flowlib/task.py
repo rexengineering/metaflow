@@ -20,7 +20,12 @@ from .k8s_utils import (
     create_serviceaccount,
     create_rexflow_ingress_vs,
 )
-from .config import CREATE_DEV_INGRESS
+from .config import (
+    CREATE_DEV_INGRESS,
+    FLOWD_HOST,
+    FLOWD_PORT,
+    INSTANCE_FAIL_ENDPOINT_PATH,
+)
 from .reliable_wf_utils import create_kafka_transport
 from .constants import Headers
 
@@ -138,44 +143,38 @@ class BPMNTask(BPMNComponent):
             envoyfilter_name += '-' + self.workflow_properties.id_hash
 
         namespace = self._namespace  # namespace in which the k8s objects live.
-        traffic_shadow_cluster = ''
-        traffic_shadow_path = ''
-        if self._global_props.traffic_shadow_svc:
-            traffic_shadow_cluster = self._global_props.traffic_shadow_svc['envoy_cluster']
-            traffic_shadow_path = self._global_props.traffic_shadow_svc['path']
+        if self._global_props.traffic_shadow_service_props:
+            shadow_svc = self._global_props.traffic_shadow_service_props
+            shadow_call = self._global_props.traffic_shadow_call_props
+            host = f'{shadow_svc.host}.{shadow_svc.namespace}.svc.cluster.local'
+            shadow_upstream = Upstream(
+                host,
+                shadow_svc.port,
+                shadow_call.path,
+                shadow_call.method,
+                0,
+                ''
+            )
+        else:
+            shadow_upstream = Upstream('', 0, '', '', 0, '')
 
-        bavs_config = {
-            'forwards': [
-                self._make_forward(upstream) for upstream in upstreams
-            ],
-            'wf_id': self._global_props.id,
-            'flowd_envoy_cluster': 'outbound|9002||flowd.rexflow.svc.cluster.local',
-            'flowd_path': '/instancefail',
-            'task_id': self.id,
-            'traffic_shadow_cluster': traffic_shadow_cluster,
-            'traffic_shadow_path': traffic_shadow_path,
-            'closure_transport': self.workflow_properties.use_closure_transport,
-            'headers_to_forward': [Headers.X_HEADER_TOKEN_POOL_ID.lower()],
-            'upstream_port': self._target_port,
-            'inbound_retries': 0,
-        }
         # Error Gateway stuff
-        self.error_gateways = []
+        error_gateways = []
         for boundary_event in iter_xmldict_for_key(self._process, 'bpmn:boundaryEvent'):
             if 'bpmn:errorEventDefinition' not in boundary_event:
                 continue
             if boundary_event['@attachedToRef'] == self.id:
-                self.error_gateways.append(boundary_event)
-        if len(self.error_gateways):
-            assert len(self.error_gateways) == 1, \
+                error_gateways.append(boundary_event)
+        error_upstream_configs = []
+        if len(error_gateways):
+            assert len(error_gateways) == 1, \
                 "Multiple error gateways for one task is unimplemented."
-            boundary_event = self.error_gateways[0]
+            boundary_event = error_gateways[0]
             outgoing_edge_list = edge_map[boundary_event['@id']]
-            bavs_config['error_upstreams'] = []
             for edge in outgoing_edge_list:
                 error_target = component_map[edge['@targetRef']]
-                bavs_config['error_upstreams'].append(
-                    self._make_forward(Upstream(
+                error_upstream_configs.append(
+                    self._make_upstreamconfig(Upstream(
                         error_target.envoy_host,
                         error_target.service_properties.port,
                         error_target.call_properties.path,
@@ -190,20 +189,58 @@ class BPMNTask(BPMNComponent):
                     and 'bpmn:extensionElements' in self._task \
                     and 'camunda:inputOutput' in self._task['bpmn:extensionElements']:
             params = self._task['bpmn:extensionElements']['camunda:inputOutput']
-            bavs_config['input_params'] = [
+            input_params = [
                 form_param_config(param)
                 for param in iter_xmldict_for_key(params, 'camunda:inputParameter')
             ]
-            input_param_names = [param['name'] for param in bavs_config['input_params']]
+            input_param_names = [param['name'] for param in input_params]
             if '.' in input_param_names:
                 assert len(input_param_names) == 1, "Can only have one top-level input param."
-            bavs_config['output_params'] = [
+            output_params = [
                 form_param_config(param)
                 for param in iter_xmldict_for_key(params, 'camunda:outputParameter')
             ]
-            output_param_values = [param['value'] for param in bavs_config['output_params']]
+            output_param_values = [param['value'] for param in output_params]
             if '.' in output_param_values:
                 assert len(output_param_values) == 1, "Can only have one top-level output param."
+        else:
+            input_params = []
+            output_params = []
+
+        flowd_host = FLOWD_HOST
+        if not flowd_host.endswith('.svc.cluster.local'):
+            flowd_host += '.svc.cluster.local'
+        bavs_config = {
+            'inbound_upstream': self._make_upstreamconfig(Upstream(
+                self.envoy_host,
+                self._target_port,
+                self.call_properties.path,
+                self.call_properties.method,
+                self.call_properties.total_attempts,
+                self.id,
+            )),
+            'forward_upstreams': [
+                self._make_upstreamconfig(upstream) for upstream in upstreams
+            ],
+            'flowd_upstream': self._make_upstreamconfig(Upstream(
+                flowd_host,
+                FLOWD_PORT,
+                INSTANCE_FAIL_ENDPOINT_PATH,
+                'POST',
+                1,
+                '',
+            )),
+            'shadow_upstream': self._make_upstreamconfig(shadow_upstream),
+            'error_gateway_upstreams': error_upstream_configs,
+            'headers_to_forward': [Headers.X_HEADER_TOKEN_POOL_ID.lower()],
+            'closure_transport': self.workflow_properties.use_closure_transport,
+            'wf_did': self._global_props.id,
+            'input_params': input_params,
+            'output_params': output_params,
+            'wf_did_header': Headers.X_HEADER_WORKFLOW_ID.lower(),
+            'wf_tid_header': Headers.X_HEADER_TASK_ID.lower(),
+            'wf_iid_header': Headers.X_HEADER_FLOW_ID.lower(),
+        }
 
         envoy_filter = {
             'apiVersion': 'networking.istio.io/v1alpha3',
@@ -351,12 +388,12 @@ class BPMNTask(BPMNComponent):
 
         return k8s_objects
 
-    def _make_forward(self, upstream: Upstream):
+    def _make_upstreamconfig(self, upstream: Upstream):
         return {
             'full_hostname': upstream.full_hostname,
             'port': upstream.port,
             'path': upstream.path,
             'method': upstream.method, # TODO: Test with methods other than POST
             'total_attempts': upstream.total_attempts,
-            'task_id': upstream.task_id,
+            'wf_tid': upstream.task_id,
         }

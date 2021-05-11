@@ -78,12 +78,12 @@ REXFLOW_ROOT = REXFLOW_ROOT_PREFIX
 class Headers:
     '''Because namespace pollution affects us all...
     '''
-    FLOWID_HEADER = 'X-Flow-Id'
+    FLOWID_HEADER = 'X-Rexflow-Iid'
     TRACEID_HEADER = 'X-B3-Traceid'
-    X_HEADER_FLOW_ID = 'X-Flow-Id'
-    X_HEADER_WORKFLOW_ID = 'X-Rexflow-Wf-Id'
+    X_HEADER_FLOW_ID = 'X-Rexflow-Iid'
+    X_HEADER_WORKFLOW_ID = 'X-Rexflow-Did'
     X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
-    X_HEADER_TASK_ID = 'X-Rexflow-Task-Id'
+    X_HEADER_TASK_ID = 'X-Rexflow-Tid'
     CONTENT_TYPE = 'Content-Type'
 
 
