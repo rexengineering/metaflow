@@ -1,6 +1,6 @@
 import random
 
-from flowc.flowcode import service_task, workflow
+from prototypes.jriehl.flowc.flowcode import service_task, workflow
 
 @service_task()
 def get_random():

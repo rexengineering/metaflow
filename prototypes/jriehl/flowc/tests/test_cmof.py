@@ -1,3 +1,4 @@
+# pyright:
 import importlib.util
 import json
 import os.path
@@ -21,11 +22,12 @@ def get_module(module_name: str, module_path: str) -> types.ModuleType:
     module_spec = importlib.util.spec_from_file_location(
         module_name, module_path)
     module = importlib.util.module_from_spec(module_spec)
-    module_spec.loader.exec_module(module)
+    exec_module = getattr(module_spec.loader, 'exec_module')
+    exec_module(module)
     return module
 
 
-def get_bpmn_metamodel() -> types.ModuleType:
+def get_bpmn_metamodel() -> cmof.CMOFModule:
     '''Generate and load the BPMN metamodel, and all its dependencies.
     '''
     spec_modules = {}
@@ -38,8 +40,10 @@ def get_bpmn_metamodel() -> types.ModuleType:
             spec_dict = json.load(fileobj)
         module_path = os.path.join(TEMPDIR, f'{spec_name}.py')
         with open(module_path, 'w') as fileobj:
-            cmof.code_gen(spec_dict, spec_name, file=fileobj,
-                cmof_package='flowc')
+            cmof.code_gen(
+                spec_dict, spec_name, file=fileobj,
+                cmof_package='prototypes.jriehl.flowc'
+            )
         spec_modules[spec_name] = get_module(spec_name, module_path)
     bpmn = spec_modules['bpmn']
     for dependency in spec_modules.values():
@@ -49,13 +53,14 @@ def get_bpmn_metamodel() -> types.ModuleType:
     return bpmn
 
 
-def roundtrip_bpmn(tester: unittest.TestCase, bpmn: types.ModuleType):
+def roundtrip_bpmn(tester: unittest.TestCase, bpmn: cmof.CMOFModule):
     example_path = os.path.join(
         PATH, '..', '..', '..', '..', 'examples/underpants/underpants.bpmn')
     with open(example_path) as fileobj:
         example_src = fileobj.read()
     underpants1 = bpmn.registry.from_xml(example_src)  # type: cmof.Element
     xml1 = underpants1.to_xml(pretty=True, short_empty_elements=True)
+    assert xml1 is not None
     if __debug__:
         print(xml1)
     underpants2 = bpmn.registry.from_xml(xml1)  # type: cmof.Element

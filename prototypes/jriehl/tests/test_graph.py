@@ -1,6 +1,6 @@
 import unittest
 
-import graphplay
+from .. import graphplay
 
 class TestDigraph(unittest.TestCase):
     def test_digraph(self):

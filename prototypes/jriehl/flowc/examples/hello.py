@@ -1,4 +1,4 @@
-from flowc.flowcode import workflow, service_task
+from prototypes.jriehl.flowc.flowcode import workflow, service_task
 
 @service_task()
 def hello_task():

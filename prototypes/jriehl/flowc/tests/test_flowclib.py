@@ -17,6 +17,16 @@ BRANCH_PATH = os.path.join(EXAMPLE_PATH, 'branch.py')
 HELLO_PATH = os.path.join(EXAMPLE_PATH, 'hello.py')
 
 
+def _has_docker():
+    import docker
+    import docker.errors
+    try:
+        docker.from_env()
+    except docker.errors.DockerException:
+        return False
+    return True
+
+
 class TestFlowCLib(unittest.TestCase):
     def __init__(self, *args, **kws):
         super().__init__(*args, **kws)
@@ -125,6 +135,7 @@ class TestFlowCLib(unittest.TestCase):
             finally:
                 shutil.rmtree(temp_path)
 
+    @unittest.skipUnless(_has_docker(), 'Docker not present, skipping...')
     def test_make(self):
         with tempfile.TemporaryDirectory() as temp_path:
             try:

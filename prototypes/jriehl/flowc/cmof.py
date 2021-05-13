@@ -25,8 +25,9 @@ import collections
 import enum
 from functools import reduce
 import pprint
-from typing import Any, Callable, Dict, Generic, Hashable, Iterable, List, \
-    NamedTuple, Optional, Set, TypeVar
+import types
+from typing import Any, Dict, Generic, Hashable, Iterable, List, \
+    NamedTuple, Optional, Set, Type, TypeVar, Union
 import warnings
 import weakref
 
@@ -93,7 +94,7 @@ String = str
 
 
 class NamespaceMetadataMixin:
-    _registry: Callable[[], 'Registry']
+    _registry: 'Ref[Registry]'
     _ns = {}
 
     @classmethod
@@ -104,7 +105,7 @@ class NamespaceMetadataMixin:
             prefix = cls._ns['prefix']
             local_name = cls._ns['localName']
             if hasattr(cls, '_registry'):
-                registry = cls._registry()
+                registry = cls._registry.ref
                 if ((prefix in registry.package_map) and
                         ('xml' in (mdata := registry.package_map[prefix])) and
                         (mdata['xml'].get('tagAlias') == 'lowerCase')):
@@ -124,7 +125,7 @@ class NamespaceMetadataMixin:
                           warn: bool = True
                           ) -> Optional['NamespaceMetadataMixin']:
         if hasattr(cls, '_registry'):
-            return cls._registry().from_ordered_dict(
+            return cls._registry.ref.from_ordered_dict(
                 cls.get_tag(), odict, warn
             )
         msg = f'{cls.__name__} has not been associated with a type registry.'
@@ -138,7 +139,7 @@ class NamespaceMetadataMixin:
     def from_xml(cls, xml: str, *args, warn: bool = True, **kws
                  ) -> Optional['NamespaceMetadataMixin']:
         if hasattr(cls, '_registry'):
-            return cls._registry().from_xml(xml, *args, warn=warn, **kws)
+            return cls._registry.ref.from_xml(xml, *args, warn=warn, **kws)
         msg = f'{cls.__name__} has not been associated with a type registry.'
         if warn:
             warnings.warn(msg)
@@ -147,11 +148,11 @@ class NamespaceMetadataMixin:
         return None
 
 
-class ElementList(list, List['Element']):
+class ElementList(list):
     pass
 
 
-class Element(list, List['Element'], NamespaceMetadataMixin):
+class Element(List[NamespaceMetadataMixin], NamespaceMetadataMixin):
     def __init__(self, elems: Iterable['Element'] = (), **kws) -> None:
         super().__init__(elems)
         for key, value in kws.items():
@@ -173,7 +174,7 @@ class Element(list, List['Element'], NamespaceMetadataMixin):
                     child_value = None
                     if isinstance(child, Element):
                         child_value = child.to_ordered_dict()
-                    else:
+                    elif isinstance(child, Property):
                         child_value = child.value
                         if isinstance(child_value, Element):
                             if (hasattr(child, '_xml') and
@@ -196,7 +197,7 @@ class Element(list, List['Element'], NamespaceMetadataMixin):
                         result[tag] = child_value
         return result
 
-    def to_xml(self, *args, **kws):
+    def to_xml(self, *args, **kws) -> Optional[str]:
         return xmltodict.unparse(collections.OrderedDict([
             (self.tag, self.to_ordered_dict())]), *args, **kws)
 
@@ -232,9 +233,7 @@ class Ref(Generic[Referent]):
     @property
     def id(self) -> Optional[str]:
         ref = self.ref
-        if hasattr(ref, 'id'):
-            return ref.id
-        return None
+        return getattr(ref, 'id', None)
 
 
 class PropertyTuple(NamedTuple):
@@ -242,10 +241,10 @@ class PropertyTuple(NamedTuple):
 
 
 class Property(PropertyTuple, NamespaceMetadataMixin):
-    pass
+    _xml: Optional[Dict] = None
 
 
-class Registry(dict, Dict[str, type]):
+class Registry(Dict[str, type]):
     def __init__(self, types=[], package_map={}):
         super().__init__()
         self.package_map = package_map
@@ -258,7 +257,7 @@ class Registry(dict, Dict[str, type]):
                 f'{type_obj.__name__} is not a subclass of '
                 'NamespaceMetadataMixin'
             )
-        type_obj._registry = weakref.ref(self)
+        type_obj._registry = Ref(self)
         self[type_obj.get_tag()] = type_obj
 
     def update(self, *args, **kws):
@@ -266,7 +265,9 @@ class Registry(dict, Dict[str, type]):
         if len(args) > 0:
             self.package_map.update(getattr(args[0], 'package_map', {}))
 
-    def _get_child_cls_from_annotations(self, parent: Property):
+    def _get_child_cls_from_annotations(
+            self,
+            parent: Type[Property]) -> Optional[Type[NamespaceMetadataMixin]]:
         value_cls = parent.__annotations__.get('value')
         if isinstance(value_cls, str):
             value_tag = value_cls.replace('.', ':')
@@ -274,7 +275,7 @@ class Registry(dict, Dict[str, type]):
         return value_cls
 
     def from_ordered_dict(self, tag: str, odict: collections.OrderedDict,
-                          warn: bool = True):
+                          warn: bool = True) -> Union[Property, Element, None]:
         ctor = self.get(tag)
         if not ctor:
             msg = f'{repr(tag)} is not in this registry'
@@ -287,6 +288,7 @@ class Registry(dict, Dict[str, type]):
         children = []
         if (issubclass(ctor, Property) and
                 hasattr(ctor, '_xml') and
+                ctor._xml is not None and
                 ctor._xml.get('serialize') == 'xsi:type'):
             value_cls = self._get_child_cls_from_annotations(ctor)
             if value_cls:
@@ -309,12 +311,27 @@ class Registry(dict, Dict[str, type]):
                     children.append(child_type(value))
         return ctor(children, **attrs)
 
-    def from_xml(self, xml: str, *args, warn: bool = True, **kws):
+    def from_xml(
+            self, xml: str,
+            *args,
+            warn: bool = True,
+            **kws) -> Element:
         doc = xmltodict.parse(xml, *args, **kws)
         keys = tuple(doc.keys())
         assert len(keys) == 1
         key = keys[0]
-        return self.from_ordered_dict(key, doc[key], warn)
+        if key not in self or not issubclass(self[key], Element):
+            raise ValueError(
+                f'Top level XML container ({key}) must be associated with a '
+                'known element.'
+            )
+        result = self.from_ordered_dict(key, doc[key], warn)
+        assert isinstance(result, Element)
+        return result
+
+
+class CMOFModule(types.ModuleType):
+    registry: Registry
 
 
 def _avoid_python_keywords(candidate: str):
@@ -357,7 +374,7 @@ def toposort(digraph: Dict[Hashable, Set[Hashable]]):
         ordered = set(item for item, deps in digraph.items() if not deps)
         if not ordered:
             break
-        for item in sorted(ordered):
+        for item in sorted(str(dependency) for dependency in ordered):
             yield item
         digraph = {item: (deps - ordered) for item, deps in digraph.items()
                    if item not in ordered}

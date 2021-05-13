@@ -50,7 +50,7 @@ SERVICE_TASK_FUNCTION_TEMPLATE = '''def {function_name} (environment):
 '''
 
 JINJA_ENVIRONMENT = jinja2.Environment(
-    loader=jinja2.PackageLoader('flowc', '.'),
+    loader=jinja2.PackageLoader('prototypes.jriehl.flowc', '.'),
     autoescape=jinja2.select_autoescape(['.py']),
 )
 
@@ -105,7 +105,7 @@ class ToplevelVisitor(ast.NodeVisitor):
         self.counter += 1
         return service_task
 
-    def _make_edge(self, source: cmof.Element, target: cmof.Element):
+    def _make_edge(self, source: bpmn.BaseElement, target: bpmn.BaseElement):
         sequence_flow = bpmn.SequenceFlow(
             id=f'SequenceFlow_{self.counter}',
             sourceRef=source.id,
@@ -151,21 +151,28 @@ class ToplevelVisitor(ast.NodeVisitor):
         assert name not in self.bindings, f'A name can only be bound once ({name}).'
         self.bindings[name] = value
 
+    def _cast_lhs(self, expression: ast.expr) -> LHSs:
+        assert isinstance(expression, LHSs), 'Unsupported left-hand ' \
+            f'subexpression found in assignment ({type(expression)}).'
+        return expression
+
     def _handle_lhs(self, lhs: LHSs):
         result = None
         if isinstance(lhs, ast.Name):
             assert isinstance(lhs.ctx, ast.Store)
             result = lhs.id
         elif isinstance(lhs, ast.Starred):
-            result = self._handle_lhs(lhs.value)
+            result = self._handle_lhs(self._cast_lhs(lhs.value))
         elif isinstance(lhs, (ast.List, ast.Tuple)):
             container_type = list if isinstance(lhs, ast.List) else tuple
-            result = container_type(self._handle_lhs(elt) for elt in lhs.elts)
+            result = container_type(
+                self._handle_lhs(self._cast_lhs(elt)) for elt in lhs.elts
+            )
         return result
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         for target in node.targets:
-            name_or_names = self._handle_lhs(target)
+            name_or_names = self._handle_lhs(self._cast_lhs(target))
             if isinstance(name_or_names, str):
                 self._bind(name_or_names, node)
             else:
@@ -233,7 +240,7 @@ def gen_workflow(visitor: ToplevelVisitor, output_path: str) -> str:
     bpmn = visitor.to_bpmn()  # type: cmof.Element
     bpmn_path = os.path.join(workflow_path, f'{workflow_name}.bpmn')
     with open(bpmn_path, 'w') as bpmn_file:
-        bpmn_file.write(bpmn.to_xml(pretty=True, short_empty_elements=True))
+        bpmn.to_xml(output=bpmn_file, pretty=True, short_empty_elements=True)
     makefile_path = os.path.join(workflow_path, 'Makefile')
     with open(makefile_path, 'w') as makefile_file:
         target_names = [call.service_name for call in visitor.tasks]
