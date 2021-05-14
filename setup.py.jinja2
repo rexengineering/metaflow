@@ -1,13 +1,13 @@
 import setuptools
 from subprocess import check_output
 
-git_version = check_output("git describe --abbrev=4 --dirty --always".split()).decode('utf-8').strip()
+git_version = '{{git_version}}'
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="flowlib",  # NOTE: Hopefully this is temporary; see REXFLOW-190.
+    name="rexflowlib",  # NOTE: Hopefully this is temporary; see REXFLOW-190.
     version=git_version,
     author="REXFlow Developers",
     author_email="engineering@rexchange.com",
@@ -25,6 +25,7 @@ setuptools.setup(
         'etcd3',
         'grpcio',
         'quart',
+        'setuptools',
         'xmltodict',
     ],
     python_requires='>=3.8',
