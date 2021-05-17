@@ -80,9 +80,14 @@ class FlowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
+        self.app.route('/health', methods=['GET'])(self.health)
         self.app.route('/', methods=['POST'])(self.root_route)
         self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=(['POST']))(self.fail_route)
         self.app.route(WF_MAP_ENDPOINT_PATH, methods=['GET', 'POST'])(self.wf_map)
+
+    async def health(self):
+        self.etcd.get('Is The Force With Us?')
+        return flow_result(0, "Ok.")
 
     async def root_route(self):
         # When there is a flow ID in the headers, store the result in etcd and
@@ -160,12 +165,18 @@ class FlowApp(QuartApp):
         the workflow deployment ID, which it presently is.
         '''
         etcd = get_etcd(is_not_none=True)
-        wf_map = defaultdict(list)
+        wf_map = {}
         for workflow in get_workflows():
             if etcd.get(workflow.keys.state)[0] == BStates.RUNNING:
                 wf_id = workflow.process.xmldict['@id']
                 wf_did = workflow.id
-                wf_map[wf_id].append(wf_did)
+                start_event_urls = [
+                    start_event.k8s_url
+                    for start_event in workflow.process.start_events
+                ]
+                wf_map[wf_id] = {
+                    wf_did: start_event_urls
+                }
         return flow_result(0, 'Ok', wf_map=wf_map)
 
     def _put_payload(self, payload, keys, workflow):
