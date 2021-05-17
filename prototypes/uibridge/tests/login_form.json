@@ -1,4 +1,0 @@
-[
-    {"dataId":"uname", "type":"TEXT", "order":1, "label":"First Name", "data":"", "encrypted":"True", "validators":[]},
-    {"dataId":"password", "type":"TEXT", "order":2, "label":"Last Name", "data":"", "encrypted":"True", "validators":[]}
-]

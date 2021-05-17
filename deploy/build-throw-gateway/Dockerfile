@@ -6,11 +6,12 @@ RUN pip install -r requirements.txt
 COPY flowlib flowlib/
 COPY throwgateway.py .
 EXPOSE 5050/tcp
+RUN echo hello
 
 FROM throw-base AS test
 
 CMD ["echo", "TODO: run quick unit tests here."]
 
-FROM throw-base AS container
+FROM throw-base AS throw-container
 
 CMD ["python", "-m", "throwgateway"]
