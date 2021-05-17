@@ -14,9 +14,9 @@ RUN curl -sL  https://istio.io/downloadIstioctl | sh - && \
 
 COPY flowlib flowlib/
 COPY flowd flowd/
-COPY prototypes prototypes/
+COPY uibridge uibridge/
 COPY tools tools/
 
 ENV PYTHONPATH=/opt/rexflow
 
-CMD [ "python", "-m", "prototypes.uibridge", "-c", "flowlib.configs.development" ]
+CMD [ "python", "-m", "uibridge", "-c", "flowlib.configs.development" ]
