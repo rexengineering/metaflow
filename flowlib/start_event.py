@@ -124,7 +124,11 @@ class BPMNStartEvent(BPMNComponent):
             {
                 "name": "REXFLOW_FLOWD_PORT",
                 "value": FLOWD_PORT,
-            }
+            },
+            {
+                "name": "API_WRAPPER_TIMEOUT",
+                "value": self._global_props.synchronous_wrapper_timeout,
+            },
         ]
         if self._global_props.traffic_shadow_url:
             deployment_env_config.append({

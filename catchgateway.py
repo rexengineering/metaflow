@@ -54,7 +54,7 @@ FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
 WF_ID = os.getenv('WF_ID', None)
 API_WRAPPER_ENABLED = os.getenv("REXFLOW_API_WRAPPER_ENABLED") != "FALSE"
-API_WRAPPER_TIMEOUT = int(os.getenv("REXFLOW_API_WRAPPER_TIMEOUT", "5"))
+API_WRAPPER_TIMEOUT = int(os.getenv("REXFLOW_API_WRAPPER_TIMEOUT", "10"))
 KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
 '''
@@ -125,8 +125,12 @@ class EventCatchPoller:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error(f'Failed to transition {keys.state} from STARTING -> ERROR.')
 
-    def create_instance(self, incoming_data, content_type) -> Dict[str, object]:
-        instance_id = workflow.WorkflowInstance.new_instance_id(str(WF_ID))
+    def create_instance(self, incoming_data, content_type, instance_id=None) -> Dict[str, object]:
+        # Allow instance_id to be passed into this function in case a caller needs
+        # to have a watch_iter on the instance keys _before_ the instance gets created.
+        # This prevents the watch_iter from just dangling if, for example, the instance
+        # goes to the error state before this function returns.
+        instance_id = instance_id or workflow.WorkflowInstance.new_instance_id(str(WF_ID))
         logging.info(f'Creating instance {instance_id}')
         etcd = get_etcd()
         keys = WorkflowInstanceKeys(instance_id)
@@ -325,41 +329,102 @@ class EventCatchApp(QuartApp):
         return jsonify(response)
 
     async def get_result(self, instance_id, watch_iter, cancel_watch):
-        key_results = {
-            "state": None,
-            "result": None,
-            "content_type": None,
-        }
+        keys_obj = WorkflowInstanceKeys(instance_id)
+        relevant_keys = [
+            keys_obj.state,
+            keys_obj.result,
+            keys_obj.content_type,
+        ]
+        result = {}
         for event in watch_iter:
-            full_key = event.key.decode('utf-8')
-            key = full_key.split('/')[-1]
-            if key in key_results:
+            key = event.key.decode('utf-8')
+            if key in relevant_keys:
                 value = event.value.decode('utf-8')
-                key_results[key] = value
-                if all([key_results[k] is not None for k in key_results.keys()]):
+                if key == keys_obj.state:
+                    if value in [States.ERROR, States.COMPLETED, States.STOPPED]:
+                        result['state'] = value
+                elif key == keys_obj.result:
+                    result['result'] = value
+                elif key == keys_obj.content_type:
+                    result['content-type'] = value
+                if len(list(result.keys())) == len(relevant_keys):
                     cancel_watch()
-                    return key_results
-        return None
+        return result
 
     async def synchronous_wrapper(self):
-        start = datetime.datetime.now()
         etcd = get_etcd()
         data = await request.data
-        instance_id = self.manager.create_instance(data, request.headers['content-type'])['id']
+        instance_id = workflow.WorkflowInstance.new_instance_id(str(WF_ID))
         watch_iter, cancel_watch = etcd.watch_prefix(WorkflowInstanceKeys.key_of(instance_id))
+        self.manager.create_instance(data, request.headers['content-type'], instance_id=instance_id)
         wait_task = asyncio.create_task(self.get_result(instance_id, watch_iter, cancel_watch))
         timer = threading.Timer(API_WRAPPER_TIMEOUT, self._cleanup_watch_iter, [cancel_watch])
         timer.start()
-        result = await wait_task
-        if not result:
-            response = Response("WF Instance Timed Out.", 500)
+        instance_result = await wait_task # type: dict
+
+        response_status = None
+        response_payload = None
+        content_type = instance_result.get('content-type', 'application/octet-stream')
+
+        # If everything went well, we'll have three keys: state, content-type, and result
+        # If we don't have that, then the instance timed out.
+        if instance_result.get('state') == States.COMPLETED:
+            # Just return the direct result unmodified with an 'OK' status.
+            response_status = 200
+            response_payload = instance_result['result']
+        elif instance_result.get('state') is None:
+            # The instance didn't terminate before we got here, so we return
+            # a timeout.
+            response_status = 504
+            response_payload = json.dumps(flow_result(
+                -1,
+                "WF Instance Timed Out",
+                success=False,
+            ))
+            content_type = 'application/json'
+        elif instance_result.get('state') in [States.ERROR, States.STOPPED]:
+            # Note: As of this commit, the only difference in usage between
+            # the STOPPED and ERROR state is that the STOPPED state allows for a
+            # retry (i.e. WorkflowProperties.is_recoverable == True). A decision
+            # was made that it should be impossible to do a retry on an instance
+            # in the ERROR state (since the transition from ERROR -> RUNNING was
+            # deemed not good). Therefore, if we want to be able to retry, we
+            # put the instance in the STOPPED state.
+            response_status = 500
+
+            # If the error-handling in the `http://flowd/instancefail` endpoint
+            # went as planned, we should have a JSON blob containing a bunch of
+            # error information. If we do, then we load it and splat it. Otherwise,
+            # we just return the bytes.
+            error_data = {}
+            if 'result' in instance_result:
+                result = instance_result['result']
+                if content_type == 'application/json':
+                    error_data = json.loads(instance_result['result'])
+                else:
+                    error_data = {
+                        'error_data': instance_result['result'],
+                        'error_data_type': content_type,
+                    }
+            response_payload = json.dumps(flow_result(
+                -1,
+                "WF Instance Failed.",
+                success=False,
+                **error_data,
+            ))
+
+            # We're explicitly returning a json here, since we formed one just above.
+            content_type = 'application/json'
         else:
-            response = Response(result['result'])
-            response.headers[Headers.CONTENT_TYPE] = result['content_type']
+            assert False, "self.get_result() shouldn't return a thing like this."
+
+        response = Response(
+            response_payload.encode(),
+            status=response_status,
+            content_type=content_type,
+        )
         response.headers[Headers.X_HEADER_FLOW_ID] = instance_id
         response.headers['access-control-allow-origin'] = '*'
-
-        end = datetime.datetime.now()
         return response
 
     def _cleanup_watch_iter(self, cancel_watch):

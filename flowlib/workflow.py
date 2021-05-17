@@ -202,7 +202,8 @@ class WorkflowInstance:
 
     def start(self, start_event_id=None, *args):
         '''Starts the WF and returns the resulting ID. NOTE: Now, WF Id's are
-        created by the Start Event.
+        created by the Start Event, so this method simply makes an HTTP rpc call
+        to the appropriate start event of the appropriate WF Deployment.
         '''
         process = self.parent.process
         executor_obj = get_executor()

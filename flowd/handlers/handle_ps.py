@@ -1,8 +1,10 @@
 from io import StringIO
+import json
+import logging
 
 from flowlib import flow_pb2
 from flowlib import etcd_utils
-from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, IngressHostKeys
+from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States
 from flowlib.workflow import Workflow
 from flowlib.ingress_utils import get_host_dict
 
@@ -49,10 +51,23 @@ class PSHandlers:
         return self.handle_some_deployments(all_ids, include_kubernetes)
 
     def handle_single_instance(self, instance_id):
-        return etcd_utils.get_dict_from_prefix(
+        result = etcd_utils.get_dict_from_prefix(
             WorkflowInstanceKeys.key_of(instance_id),
             value_transformer=lambda bstr: bstr.decode('utf-8')
         )
+        if result['state'] in [States.ERROR, States.STOPPED] and  'content_type' in result \
+                and result['content_type'] == 'application/json':
+            # Then the result *should* be a JSON-loadable item. If so,
+            # we load it and splat it.
+            try:
+                splat_result = json.loads(result['result'])
+                del result['result']
+                splat_result.update(result)
+                result = splat_result
+            except Exception as exn:
+                logging.exception('unexpected error loading json of error instance:', exc_info=exn)
+
+        return result
 
     def handle_some_instances(self, ids):
         result = dict()

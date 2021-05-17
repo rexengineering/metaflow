@@ -41,8 +41,39 @@ def convert_envoy_hdr_msg_to_dict(headers_bytes):
     return hdrs
 
 
-def process_data(data_bytes):
-    return base64.b64decode(data_bytes)
+def process_data(encoded_str, data_should_be_json):
+    '''Accepts a string of b64-encoded data. Tries the following steps, saving
+    the result each time. If any of the steps fails, it returns the most recent
+    success. If no processing step succeeds (i.e. the result of decoding the
+    data not an ascii-representable string), then we just return the original
+    input: the base64-encoded string. Steps:
+    1. Try to decode the base64-encoded string into something ascii-readable.
+    2. If data_should_be_json, then we try to load the json into a python dict.
+    '''
+    result = encoded_str
+    # Step 1: Try to make it a human-readable string
+    try:
+        decoded_bytes = base64.b64decode(encoded_str)
+        if decoded_bytes.isascii():
+            decoded_str = decoded_bytes.decode()
+            result = decoded_str
+            if data_should_be_json:
+                result = json.loads(result)
+        elif data_should_be_json:
+            logging.warning(
+                f"Should've been able to json load this but it wasn't even ascii: {encoded_str}"
+            )
+    except json.decoder.JSONDecodeError as exn:
+        logging.exception(
+            f"Should've been able to json load the data but couldn't: {encoded_str}",
+            exc_info=exn,
+        )
+    except Exception as exn:
+        logging.exception(
+            f"Caught an unexpected exception processing `{encoded_str}`:",
+            exc_info=exn,
+        )
+    return result
 
 
 class FlowApp(QuartApp):
@@ -138,21 +169,56 @@ class FlowApp(QuartApp):
         return flow_result(0, 'Ok', wf_map=wf_map)
 
     def _put_payload(self, payload, keys, workflow):
+        '''Take all of the incoming data and make it as close to JSON as we possibly
+        can. The error data from BAVS looks like:
+        {
+            'input_headers_encoded': base64-encoded dump of headers of request to the task
+            'input_data_encoded': base64-encoded dump of request data to the task
+            'output_headers_encoded': (optional) base64-encoded dump of task response headers
+            'output_data_encoded': (optional) base64-encoded dump of task response data
+            'error_msg': human-readable error message
+            'error_code': enum of {
+                'CONNECTION_ERROR', 'TASK_ERROR', 'CONTEXT_INPUT_ERROR', 'CONTEXT_OUTPUT_ERROR'
+            }
+        }
+        For the input/output headers/data, we first try to decode them if they're not
+        binary data (since BAVS just encodes to avoid having to deal with escaping, etc.).
+        If we can successfully decode into a string, we then check if content-type is json,
+        and if so, we make it a dict.
+
+        Finally, after processing, we dump the whole dict into the `result` key, and
+        since we're putting a `json.dumps()` into the `result` key, we put `application/json`
+        into the `content-type` key so that consumers of the result payload may know how
+        to process the data.
+        '''
+        input_is_json = False
+        output_is_json = False
+        result = {}
+        if 'error_msg' in payload:
+            result['error_msg'] = payload['error_msg']
+        if 'error_code' in payload:
+            result['error_code'] = payload['error_code']
+
         if 'input_headers_encoded' in payload:
             hdrs = convert_envoy_hdr_msg_to_dict(payload['input_headers_encoded'])
-            self.etcd.put(keys.input_headers, json.dumps(hdrs))
+            result['input_headers'] = hdrs
             if Headers.X_HEADER_TASK_ID.lower() in hdrs:
                 task_id = hdrs[Headers.X_HEADER_TASK_ID.lower()]
                 bpmn_component = workflow.process.component_map[task_id]
-                self.etcd.put(keys.failed_task, bpmn_component.name)
+                result['failed_task_id'] = task_id
+                result['failed_task_name'] = bpmn_component.name
+            input_is_json = (hdrs.get('content-type')) == 'application/json'
+
         if 'input_data_encoded' in payload:
-            self.etcd.put(keys.input_data, process_data(payload['input_data_encoded']))
-        if 'output_data_encoded' in payload:
-            self.etcd.put(keys.output_data, process_data(payload['output_data_encoded']))
+            result['input_data'] = process_data(payload['input_data_encoded'], input_is_json)
+
         if 'output_headers_encoded' in payload:
             hdrs = convert_envoy_hdr_msg_to_dict(payload['output_headers_encoded'])
-            self.etcd.put(keys.output_headers, json.dumps(hdrs))
-        if 'error_code' in payload:
-            self.etcd.put(keys.error_code, payload['error_code'])
-        if 'error_msg' in payload:
-            self.etcd.put(keys.error_message, payload['error_msg'])
+            output_is_json = (hdrs.get('content-type')) == 'application/json'
+            result['output_headers'] = hdrs
+
+        if 'output_data_encoded' in payload:
+            result['output_data'] = process_data(payload['output_data_encoded'], output_is_json)
+
+        self.etcd.put(keys.result, json.dumps(result))
+        self.etcd.put(keys.content_type, 'application/json')

@@ -144,13 +144,6 @@ class WorkflowInstanceKeys:
         self.proc           = self.proc_key(iid)
         self.result         = self.result_key(iid)
         self.state          = self.state_key(iid)
-        self.error_code     = self.error_code_key(iid)
-        self.error_message  = self.error_message_key(iid)
-        self.failed_task    = self.failed_task_key(iid)
-        self.input_headers  = self.input_headers_key(iid)
-        self.input_data     = self.input_data_key(iid)
-        self.output_data    = self.output_data_key(iid)
-        self.output_headers = self.output_headers_key(iid)
         self.parent         = self.parent_key(iid)
         self.end_event      = self.end_event_key(iid)
         self.traceid        = self.traceid_key(iid)
@@ -185,34 +178,6 @@ class WorkflowInstanceKeys:
     @classmethod
     def end_event_key(cls, iid):
         return f'{cls.key_of(iid)}/end_event'
-
-    @classmethod
-    def error_code_key(cls, id):
-        return f'{cls.key_of(id)}/error_code'
-
-    @classmethod
-    def failed_task_key(cls, id):
-        return f'{cls.key_of(id)}/failed_task'
-
-    @classmethod
-    def error_message_key(cls, id):
-        return f'{cls.key_of(id)}/error_message'
-
-    @classmethod
-    def input_headers_key(cls, id):
-        return f'{cls.key_of(id)}/input_headers'
-
-    @classmethod
-    def input_data_key(cls, id):
-        return f'{cls.key_of(id)}/input_data'
-
-    @classmethod
-    def output_headers_key(cls, id):
-        return f'{cls.key_of(id)}/output_headers'
-
-    @classmethod
-    def output_data_key(cls, id):
-        return f'{cls.key_of(id)}/output_data'
 
     @classmethod
     def traceid_key(cls, iid):

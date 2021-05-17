@@ -269,7 +269,8 @@ class WorkflowProperties:
         self._traffic_shadow_call_props = None
         self._traffic_shadow_url = None
         self._xgw_expression_type = 'feel'
-        self._deployment_timeout = 120
+        self._deployment_timeout = 180
+        self._synchronous_wrapper_timeout = 10
         self._use_closure_transport = False
         self._priority_class = None
         if annotations is not None:
@@ -333,6 +334,10 @@ class WorkflowProperties:
         return self._deployment_timeout
 
     @property
+    def synchronous_wrapper_timeout(self):
+        return self._synchronous_wrapper_timeout
+
+    @property
     def use_closure_transport(self):
         return self._use_closure_transport
 
@@ -384,13 +389,15 @@ class WorkflowProperties:
 
         if 'deployment_timeout' in annotations:
             self._deployment_timeout = annotations['deployment_timeout']
+    
+        if 'synchronous_wrapper_timeout' in annotations:
+            self._synchronous_wrapper_timeout = annotations['synchronous_wrapper_timeout']
 
         if 'traffic_shadow_svc' in annotations:
             assert self.transport == 'rpc', \
                 "Shadowing traffic not yet supported in Reliable WF"
             shadow_annots = annotations['traffic_shadow_svc']
             svc_annots = shadow_annots['service']
-            print(svc_annots, '\n\n\n\n', flush=True)
             call_annots = shadow_annots.get('call')
             if call_annots is None:
                 call_annots = {}
