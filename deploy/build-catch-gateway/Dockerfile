@@ -11,6 +11,6 @@ FROM catch-base AS test
 
 CMD ["echo", "TODO: run quick unit tests here."]
 
-FROM catch-base AS catch-container
+FROM catch-base AS container
 
 CMD ["python", "-m", "catchgateway"]
