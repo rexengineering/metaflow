@@ -84,6 +84,8 @@ class Headers:
     X_HEADER_WORKFLOW_ID = 'X-Rexflow-Did'
     X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
     X_HEADER_TASK_ID = 'X-Rexflow-Tid'
+    X_HEADER_ORIGINAL_HOST = 'X-Rexflow-Original-Host'
+    X_HEADER_ORIGINAL_PATH = 'X-Rexflow-Original-Path'
     CONTENT_TYPE = 'Content-Type'
 
 

@@ -5,9 +5,9 @@ import logging
 import os
 import requests
 
-from flask import request, make_response, jsonify
+from flask import Flask, request, make_response, jsonify
 
-from . import app
+app = Flask(__name__)
 
 
 FORWARD_HEADERS = [
@@ -105,3 +105,6 @@ def parallel():
 def health():
     return jsonify({"status": 200, "msg": ""})
 
+
+if __name__ == '__main__':
+    app.run()

@@ -1,16 +1,16 @@
-FROM python:3.8-slim AS catch-base
+FROM python:3.8-slim AS pgw-base
 WORKDIR /opt/rexflow
 RUN apt-get update && apt-get install -y curl
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY flowlib flowlib/
-COPY bpmn_containers/catchgateway.py .
+COPY bpmn_containers/parallelgateway.py .
 EXPOSE 5050/tcp
 
-FROM catch-base AS test
+FROM pgw-base AS test
 
 CMD ["echo", "TODO: run quick unit tests here."]
 
-FROM catch-base AS container
+FROM pgw-base AS container
 
-CMD ["python", "-m", "catchgateway"]
+CMD ["python", "-m", "parallelgateway"]

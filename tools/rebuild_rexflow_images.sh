@@ -8,15 +8,9 @@ docker build -t catch-gateway -f deploy/build-catch-gateway/Dockerfile --target 
 
 docker build -t throw-gateway -f deploy/build-throw-gateway/Dockerfile --target container .
 
-# build the exclusive-gateway. TODO: refactor exclusive gateway to be more like
-# the others.
-pushd gateway_containers/exclusive-gateway
-docker build -t exclusive-gateway --target container -f Dockerfile .
-popd
+docker build -t exclusive-gateway -f deploy/build-exclusive-gateway/Dockerfile --target container .
 
-pushd gateway_containers/parallel-gateway
-docker build -t parallel-gateway --target container -f Dockerfile .
-popd
+docker build -t parallel-gateway -f deploy/build-parallel-gateway/Dockerfile --target container .
 
 
 
