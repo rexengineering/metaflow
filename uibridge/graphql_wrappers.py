@@ -17,6 +17,7 @@ IID        = 'iid'
 IID_LIST   = 'iid_list'
 IID_STATUS = 'iid_status'
 LABEL      = 'label'
+MESSAGE    = 'message'
 ORDER      = 'order'
 PASSED     = 'passed'
 RESULT     = 'result'
@@ -38,11 +39,11 @@ def validator(type:str, constraint:str) -> Dict[str,any]:
         CONSTRAINT:constraint,
     }
 
-def validator_result(validator:Dict[str,str], passed:bool, result:str):
+def validator_result(validator:Dict[str,str], passed:bool, message:str):
     return {
         VALIDATOR: validator,
         PASSED: passed,
-        RESULT: result,
+        MESSAGE: message,
     }
 
 def field_validation_result(data_id:str, passed:bool, results:List):
@@ -63,12 +64,10 @@ def task_mutations_form_input(iid:str, tid:str):
         TID:tid,
     }
 
-def task_field_input(data_id:str, type:str, data:str, encrypted:bool):
+def task_field_input(data_id:str, data:str):
     return {
         DATA_ID: data_id,
-        TYPE: type,
         DATA: data,
-        ENCRYPTED: encrypted,
     }
 
 def task_mutation_validate_input(iid:str, tid:str, fields:List):
