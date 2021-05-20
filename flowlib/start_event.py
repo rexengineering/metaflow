@@ -127,7 +127,7 @@ class BPMNStartEvent(BPMNComponent):
             },
             {
                 "name": "API_WRAPPER_TIMEOUT",
-                "value": self._global_props.synchronous_wrapper_timeout,
+                "value": str(self._global_props.synchronous_wrapper_timeout),
             },
         ]
         if self._global_props.traffic_shadow_url:
