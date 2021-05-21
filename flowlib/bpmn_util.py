@@ -273,6 +273,7 @@ class WorkflowProperties:
         self._synchronous_wrapper_timeout = 10
         self._use_closure_transport = False
         self._priority_class = None
+        self._user_opaque_metadata = {}
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -344,6 +345,12 @@ class WorkflowProperties:
     @property
     def priority_class(self):
         return self._priority_class
+
+    @property
+    def user_opaque_metadata(self):
+        '''Retrieves opaque metadata set by user in this bpmn process.
+        '''
+        return self._user_opaque_metadata
 
     def update(self, annotations):
         if 'priority_class' in annotations:
@@ -417,6 +424,10 @@ class WorkflowProperties:
         if 'xgw_expression_type' in annotations:
             assert annotations['xgw_expression_type'] in VALID_XGW_EXPRESSION_TYPES
             self._xgw_expression_type = annotations['xgw_expression_type']
+
+        if 'user_opaque_metadata' in annotations:
+            assert type(annotations['user_opaque_metadata']) == dict
+            self._user_opaque_metadata.update(annotations['user_opaque_metadata'])
 
 
 class BPMNComponent:
