@@ -1,4 +1,5 @@
 from ast import literal_eval
+import functools
 from io import StringIO
 import json
 import logging
@@ -50,6 +51,7 @@ class Workflow:
         self.id_hash = self.properties.id_hash
 
     @classmethod
+    @functools.lru_cache(maxsize=80)
     def from_id(cls, id):
         etcd = get_etcd(is_not_none=True)
 

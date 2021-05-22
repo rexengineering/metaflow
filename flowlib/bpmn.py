@@ -62,7 +62,7 @@ ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
 REX_ISTIO_PROXY_IMAGE = os.getenv('REX_ISTIO_PROXY_IMAGE', 'rex-proxy:1.8.2')
 
 
-class BPMNProcessBase:
+class BPMNProcess:
     def __init__(self, process: OrderedDict):
         self._process = process
         self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
@@ -435,13 +435,3 @@ class BPMNProcessBase:
     @property
     def xmldict(self) -> OrderedDict:
         return self._process
-
-
-class BPMNProcess(BPMNProcessBase):
-    CACHE = {}
-
-    def __new__(self, process: OrderedDict):
-        hash = hashlib.sha256(json.dumps(process).encode()).hexdigest()
-        if hash not in BPMNProcess.CACHE:
-            BPMNProcess.CACHE[hash] = BPMNProcessBase(process)
-        return BPMNProcess.CACHE[hash]
