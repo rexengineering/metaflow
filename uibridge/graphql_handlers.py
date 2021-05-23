@@ -2,8 +2,10 @@ from flowlib.constants import WorkflowInstanceKeys
 import json
 import logging
 import typing
+from .validators import validator_factory
 from . import graphql_wrappers as gql
 from .graphql_wrappers import (
+    DATA,
     DID,
     FAILURE,
     FIELDS,
@@ -14,6 +16,7 @@ from .graphql_wrappers import (
     RESULTS,
     SUCCESS, 
     TID,
+    TYPE,
     VALIDATORS,
     WORKFLOW,
 )
@@ -120,23 +123,35 @@ def _validate_fields(task:WorkflowTask, fields:List) -> Tuple[bool, List]:
     all_passed = True # assume all validators for all fields pass
     for in_field in fields:
         # TODO: handle decryption here if in_field is marked encrypted
-
-        # here we will need to run the data from the corresponding input.field through
-        # the validator(s) provided by field.validators to determine the result. For
-        # now balk and all validators pass.
+        field_id = in_field[DATA_ID]
         try:
-            field_id = in_field[DATA_ID]
             task_field = task.field(field_id)
             results = []
             field_passed = True # assume all validators on this field pass
+            logging.info(f'validating field {in_field} {task_field[VALIDATORS]}')
             for validator in task_field[VALIDATORS]:
-                passed = True #validator.result
-                field_passed = field_passed and passed
-                results.append(gql.validator_result(validator, passed, 'It\'s a fair cop!'))
+                # TODO: don't call validator_factory here. Prior to us getting here
+                # task_field[VALIDATORS] should already be populated with objects
+                # of BaseValidator-derived classes
+                try:
+                    vdor = validator_factory(validator)
+                    if vdor is None:
+                        raise NotImplementedError(f'Bad validator type \'{validator[TYPE]}\'')
+                    vdor_passed  = vdor.validate(in_field[DATA])
+                    field_passed = field_passed and vdor_passed
+                    results.append(gql.validator_result(vdor.as_validator(), vdor_passed, vdor.message()))
+                except Exception as ex:
+                    results.append(gql.validator_result(validator, False, ex))
+                    continue
+
             field_results.append(
                 gql.field_validation_result(field_id, field_passed, results)
             )
+
             all_passed = all_passed and field_passed
         except Exception as ex:
             print('_validate_fields',ex)
+            field_results.append(gql.field_validation_result(field_id, False, ex))
+            field_passed = all_passed = False
+
     return (all_passed, field_results)

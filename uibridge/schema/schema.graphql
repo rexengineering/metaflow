@@ -95,7 +95,6 @@ type TaskFieldData {
 
 type Validator {
     type: ValidationType!
-    """For regex validation the regex should go here"""
     constraint: String
 }
 
@@ -103,7 +102,7 @@ type Validator {
 type ValidatorResult {
     validator: Validator!
     passed: Boolean!
-    result: String
+    message: String
 }
 
 type FieldValidationResult {
@@ -128,9 +127,7 @@ input TaskMutationFormInput {
 
 input TaskFieldInput {
     dataId: DataId!
-    type: DataType!
     data: String
-    encrypted: Boolean!
 }
 
 input TaskMutationValidateInput {
