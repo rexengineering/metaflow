@@ -273,6 +273,9 @@ class WorkflowProperties:
         self._synchronous_wrapper_timeout = 10
         self._use_closure_transport = False
         self._priority_class = None
+        self._user_opaque_metadata = {}
+        self._passthrough_target = None
+        self._prefix_passthrough_with_namespace = False
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -344,6 +347,25 @@ class WorkflowProperties:
     @property
     def priority_class(self):
         return self._priority_class
+
+    @property
+    def user_opaque_metadata(self):
+        '''Retrieves opaque metadata set by user in this bpmn process.
+        '''
+        return self._user_opaque_metadata
+
+    @property
+    def passthrough_target(self):
+        '''As a development tool, we provide a Passthrough configuration option
+        In this case, a user can deploy a workflow to his/her own docker-desktop
+        cluster, and yet all service task calls will be "passed through" to a
+        user-specified target url: `f'{host}.{passthrough_target}{passthrough_prefix}'`
+        '''
+        return self._passthrough_target
+
+    @property
+    def prefix_passthrough_with_namespace(self):
+        return self._prefix_passthrough_with_namespace
 
     def update(self, annotations):
         if 'priority_class' in annotations:
@@ -417,6 +439,15 @@ class WorkflowProperties:
         if 'xgw_expression_type' in annotations:
             assert annotations['xgw_expression_type'] in VALID_XGW_EXPRESSION_TYPES
             self._xgw_expression_type = annotations['xgw_expression_type']
+
+        if 'user_opaque_metadata' in annotations:
+            assert type(annotations['user_opaque_metadata']) == dict
+            self._user_opaque_metadata.update(annotations['user_opaque_metadata'])
+
+        if 'passthrough_target' in annotations:
+            self._passthrough_target = annotations['passthrough_target']
+            if annotations.get('prefix_passthrough_with_namespace', False):
+                self._prefix_passthrough_with_namespace = True
 
 
 class BPMNComponent:

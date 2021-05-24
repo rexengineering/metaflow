@@ -20,11 +20,13 @@ class PSHandlers:
             keys=keys,
             value_transformer=lambda bstr: bstr.decode('utf-8')
         )
+        wf = Workflow.from_id(deployment_id)
+        if wf.properties.user_opaque_metadata != {}:
+            response['user_opaque_metadata'] = wf.properties.user_opaque_metadata
         if include_kubernetes:
             # get the kubernetes spec. Can't directly query S3 because not all
             # flowd deployments will have access to s3. Therefore, we get the
             # cached value if cached, else recompute from scratch.
-            wf = Workflow.from_id(deployment_id)
             k8s_specs_stream = StringIO()
             wf.process.to_istio(stream=k8s_specs_stream)
             response['k8s_specs'] = k8s_specs_stream.getvalue()

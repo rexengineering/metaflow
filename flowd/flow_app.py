@@ -169,14 +169,18 @@ class FlowApp(QuartApp):
         for workflow in get_workflows():
             if etcd.get(workflow.keys.state)[0] == BStates.RUNNING:
                 wf_id = workflow.process.xmldict['@id']
+                if wf_id not in wf_map:
+                    wf_map[wf_id] = []
                 wf_did = workflow.id
                 start_event_urls = [
                     start_event.k8s_url
                     for start_event in workflow.process.start_events
                 ]
-                wf_map[wf_id] = {
-                    wf_did: start_event_urls
-                }
+                wf_map[wf_id].append({
+                    'id': wf_did,
+                    'start_event_urls': start_event_urls,
+                    'user_opaque_metadata': workflow.properties.user_opaque_metadata,
+                })
         return flow_result(0, 'Ok', wf_map=wf_map)
 
     def _put_payload(self, payload, keys, workflow):
