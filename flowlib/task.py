@@ -102,8 +102,10 @@ class BPMNTask(BPMNComponent):
             extensions = task['bpmn:extensionElements']
             if 'camunda:connector' in extensions:
                 hostname = extensions['camunda:connector']['camunda:connectorId']
-                self._service_properties._host = hostname
-                self._service_properties._container_name = hostname
+                self._service_properties.update({
+                    'host': hostname,
+                    'container': hostname,
+                })
         elif 'bpmn:documentation' in task and task['bpmn:documentation'].startswith('rexflow:'):
             # Third priority: check for annotations in the documentation.
             self.update_annotations(yaml.safe_load(task['bpmn:documentation']))
@@ -117,6 +119,9 @@ class BPMNTask(BPMNComponent):
                 # their health endpoint, so (for now) require it to be specified.
                 self._health_properties = None
         self._process = process
+        self.is_passthrough = (
+            self._is_preexisting and (self._global_props.passthrough_target is not None)
+        )
 
     def _generate_envoyfilter(self, upstreams: List[Upstream], component_map, edge_map) -> dict:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy

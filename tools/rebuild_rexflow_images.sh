@@ -12,6 +12,8 @@ docker build -t exclusive-gateway -f deploy/build-exclusive-gateway/Dockerfile -
 
 docker build -t parallel-gateway -f deploy/build-parallel-gateway/Dockerfile --target container .
 
+docker build -t passthrough-container -f deploy/build-passthrough-container/Dockerfile --target container .
+
 
 
 

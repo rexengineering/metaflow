@@ -55,6 +55,7 @@ from .config import (
     UI_BRIDGE_PORT,
     UI_BRIDGE_INIT_PATH,
     CREATE_DEV_INGRESS,
+    PASSTHROUGH_IMAGE,
 )
 
 
@@ -399,6 +400,9 @@ class BPMNProcess:
                     f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
                 ))
 
+        if self.properties.passthrough_target is not None:
+            results.extend(self._get_passthrough_services())
+
         # Now, add the REXFlow labels
         for k8s_spec in results:
             add_labels(k8s_spec, get_rexflow_labels(self.properties.id))
@@ -435,3 +439,76 @@ class BPMNProcess:
     @property
     def xmldict(self) -> OrderedDict:
         return self._process
+
+    def _get_passthrough_services(self):
+        result = []
+
+        # Maps from f"{service_name}.{namespace}"  --> list of url's for that service
+        services = {}
+        for task in self.tasks:
+            if not task.is_passthrough:
+                continue
+            
+            key = f'{task.service_name}.{task.namespace}'
+            if key not in services:
+                target_url = f'http://{task.service_name}'
+                if self.properties.prefix_passthrough_with_namespace:
+                    target_url += f'.{task.namespace}'
+                target_url += '.' + self.properties.passthrough_target
+                services[key] = {
+                    'target_url': target_url,
+                    'target_port': task._target_port,
+                    'targets': [],
+                    'service_name': task.service_name,
+                    'namespace': task.namespace,
+                    'service_port': task.service_properties.port,
+                }
+
+            services[key]['targets'].append({
+                # TODO: See if this works with Gary's path templating.
+                'path': task.call_properties.path.replace('{', '<').replace('}', '>'),
+                'method': task.call_properties.method,
+            })
+
+        for service_key in services.keys():
+            result.extend(self._generate_passthrough_service(services[service_key]))
+        return result
+
+    def _generate_passthrough_service(self, config):
+        result = []
+        service_name = config['service_name']
+        target_port = config['target_port']
+        namespace = config['namespace']
+        service_port = config['service_port']
+
+        env_config = [
+            {
+                'name': 'REXFLOW_PASSTHROUGH_CONFIG', 
+                'value': json.dumps(config),
+            },
+        ]
+        result.append(
+            create_deployment(
+                namespace,
+                service_name,
+                PASSTHROUGH_IMAGE,
+                target_port,
+                env_config,
+                use_service_account=False,
+            )
+        )
+        result.append(
+            create_serviceaccount(
+                namespace,
+                service_name,
+            )
+        )
+        result.append(
+            create_service(
+                namespace,
+                service_name,
+                service_port,
+                target_port,
+            )
+        )
+        return result
