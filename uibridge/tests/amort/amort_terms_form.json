@@ -1,0 +1,18 @@
+[
+    {"dataId":"principal", "type":"CURRENCY", "order":1, "label":"Principal", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"interest", "type":"PERCENTAGE", "order":2, "label":"Interest Rate %", "data":"", "encrypted":"False", "validators":[
+            {"type" : "PERCENTAGE"},
+            {"type" : "REQUIRED", "constraint":"findrate == 'False'"}
+        ]
+    },
+    {"dataId":"findrate", "type":"BOOLEAN", "order":3, "label":"Find best rate?", "data":"False", "encrypted":"False", "validators":[]},
+    {"dataId":"term", "type":"INTEGER", "order":4, "label":"Term (months)", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    }
+]

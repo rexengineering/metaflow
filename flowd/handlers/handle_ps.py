@@ -57,7 +57,7 @@ class PSHandlers:
             WorkflowInstanceKeys.key_of(instance_id),
             value_transformer=lambda bstr: bstr.decode('utf-8')
         )
-        if result['state'] in [States.ERROR, States.STOPPED] and  'content_type' in result \
+        if 'state' in result and result['state'] in [States.ERROR, States.STOPPED] and 'content_type' in result \
                 and result['content_type'] == 'application/json':
             # Then the result *should* be a JSON-loadable item. If so,
             # we load it and splat it.

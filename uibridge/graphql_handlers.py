@@ -89,26 +89,20 @@ def task_mutation_form(_, info, input):
 @task_mutation.field('validate')
 def task_mutation_validate(_,info,input):
     task = info.context[WORKFLOW].task(input[TID])
-    all_passed, field_results = _validate_fields(task, input[FIELDS])
+    all_passed, field_results = _validate_fields(task, input[IID], input[FIELDS])
     return gql.task_validate_payload(input[IID], input[TID], SUCCESS, all_passed, field_results)
 
 @task_mutation.field('save')
 def task_mutation_save(_,info,input):
-    # run the input though the validator to make sure it's good
-    iid = input[IID]
-    tid = input[TID]
-    task = info.context[WORKFLOW].task(tid)
-    field_results = []
     status = FAILURE
-    passed = False
+    tid    = input[TID]
+    iid    = input[IID]
+    task   = info.context[WORKFLOW].task(tid)
     if task:
-        # not all fields may have been passed in. Hence, we merge or update the 
-        # provided fields into the stored image.
-        fields = list(task.update(iid, input[FIELDS]).values())
-        print(fields)
-        passed, field_results = _validate_fields(task, fields)
+        all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
+        task.update(iid, input[FIELDS])
         status = SUCCESS
-    return gql.task_save_payload(iid, tid,  status, passed, field_results)
+    return gql.task_validate_payload(iid, tid, status, all_passed, field_results)
 
 @task_mutation.field('complete')
 def task_mutation_complete(_,info,input):
@@ -118,7 +112,17 @@ def task_mutation_complete(_,info,input):
     workflow.complete(input[IID], input[TID])
     return gql.task_complete_payload(input[IID], input[TID], SUCCESS)
 
-def _validate_fields(task:WorkflowTask, fields:List) -> Tuple[bool, List]:
+def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, List]:
+    # pull the current values for all fields from the backstore
+    eval_locals = task.field_vals(iid)
+    logging.info(eval_locals)
+
+    # overlay the values form the validator input over the persisted values
+    # to give a currently 'proposed' form value set
+    for in_field in fields:
+        logging.info(f'updating {in_field[DATA_ID]} {eval_locals[in_field[DATA_ID]]} with {in_field[DATA]}')
+        eval_locals[in_field[DATA_ID]] = in_field[DATA]
+
     field_results = []
     all_passed = True # assume all validators for all fields pass
     for in_field in fields:
@@ -137,7 +141,7 @@ def _validate_fields(task:WorkflowTask, fields:List) -> Tuple[bool, List]:
                     vdor = validator_factory(validator)
                     if vdor is None:
                         raise NotImplementedError(f'Bad validator type \'{validator[TYPE]}\'')
-                    vdor_passed  = vdor.validate(in_field[DATA])
+                    vdor_passed  = vdor.validate(in_field[DATA], eval_locals)
                     field_passed = field_passed and vdor_passed
                     results.append(gql.validator_result(vdor.as_validator(), vdor_passed, vdor.message()))
                 except Exception as ex:

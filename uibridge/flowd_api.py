@@ -115,6 +115,7 @@ class Workflow:
                 kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False,
             )
             response = flowd.PSQuery(request)
+            logging.info(f'get_instances req:{request} res:{response}')
             data = json.loads(response.data)
             return [key for key in data.keys() if key.startswith(self.did)]
 
@@ -246,6 +247,13 @@ class WorkflowTask:
         if id not in self._fields.keys():
             raise ValueError(f'Field {id} does not exist in task {self.tid}')
         return self._fields[id]
+
+    def field_vals(self, iid:str) -> Dict[str,any]:
+        ret = {}
+        fields = self.fields(iid)
+        for fld in fields:
+            ret[fld[DATA_ID]] = fld[DATA]
+        return ret
 
 if __name__ == "__main__":
     # flowd_run_workflow_instance("tde-15839350")

@@ -1,0 +1,23 @@
+[
+    {"dataId":"principal", "type":"CURRENCY", "order":1, "label":"Principal", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"interest", "type":"PERCENTAGE", "order":2, "label":"Interest Rate %", "data":"", "encrypted":"False", "validators":[
+            {"type" : "PERCENTAGE"},
+            {"type" : "REQUIRED", "constraint":"findrate == 'False'"}
+        ]
+    },
+    {"dataId":"findrate", "type":"BOOLEAN", "order":3, "label":"Find best rate?", "data":"", "encrypted":"False", "validators":[]},
+    {"dataId":"term", "type":"INTEGER", "order":4, "label":"Term (months)", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"payment", "type":"CURRENCY", "order":5, "label":"Monthly Payment", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"}
+        ]
+    },
+    {"dataId":"amort_table", "type":"JSON", "order":6, "label":"Amortization Table", "data":"[[1,2],[3,4]]", "encrypted":"False", "validators":[]}    
+]

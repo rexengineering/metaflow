@@ -65,13 +65,22 @@ enum OperationStatus {
 
 """Client side constraints for user input"""
 enum ValidationType {
+    BOOLEAN
     REQUIRED
+    REQUIRED_IF
+    PERCENTAGE
+    POSITIVE
     REGEX
 }
 
 """Data request types that will be mapped to UI components"""
 enum DataType {
     TEXT
+    CURRENCY
+    INTEGER
+    FLOAT
+    BOOLEAN
+    PERCENTAGE
 }
 
 """A task will request a list of data elements"""
@@ -133,6 +142,7 @@ input TaskFieldInput {
 input TaskMutationValidateInput {
     iid:WorkflowInstanceId!
     tid:TaskId!
+    entire: Boolean
     fields: [TaskFieldInput!]!
 }
 
