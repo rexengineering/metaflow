@@ -141,6 +141,7 @@ class Workflow:
 
     def complete(self, iid : str, tid : str):
         assert tid in self.bridge_cfg, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
+        task = self.tasks[tid]
         for next_task in self.bridge_cfg[tid]: # handle more than one outbound edge
             logging.info(f'Firing edge {next_task}')
             # TODO: [REXFLOW-191] Either remove this duplicated code from app or here.
@@ -156,17 +157,26 @@ class Workflow:
                     key,val = header.split(':')
                 next_headers[key] = val
 
-            # data = None if iid not in self.instance_data.keys() else self.instance_data[iid]
-
+            # initialize the data JSON to pass to the next step in the workflow.
+            # This is at least the data that was passed in to this task, but we
+            # need to append the form data collected here.
+            data = {}
+            for fld in task.get_form(iid):
+                data[fld[DATA_ID]] = fld[DATA]
+            if iid in self.instance_data:
+                data.update(self.instance_data[iid])
+            logging.info(f'-- headers {next_headers} data {data}')
+            
             try:
                 call = requests.post if next_task['method'] == 'POST' else requests.get
-                svc_response = call(next_task['k8s_url'], headers=next_headers) #, data=data)
+                svc_response = call(next_task['k8s_url'], headers=next_headers, json=data)
                 svc_response.raise_for_status()
                 # try:
                 #     self.save_traceid(svc_response.headers, iid)
                 # except Exception as exn:
                 #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
                 # self._shadow_to_kafka(data, next_headers)
+                logging.info(svc_response)
                 return svc_response
             except Exception as exn:
                 logging.exception(
@@ -187,7 +197,7 @@ class WorkflowTask:
             for k,v in self._fields.items():
                 self._values[k] = v[DATA]
 
-    def get_form(self,iid:str):
+    def get_form(self, iid:str):
         '''
         Pull the task form for the given iid. If the iid record does not exist,
         create the iid form from the did form master.

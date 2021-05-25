@@ -114,6 +114,7 @@ def task_mutation_complete(_,info,input):
 
 def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, List]:
     # pull the current values for all fields from the backstore
+    logging.info(f'_validate_fields {iid} {fields}')
     eval_locals = task.field_vals(iid)
     logging.info(eval_locals)
 

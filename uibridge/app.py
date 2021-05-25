@@ -81,7 +81,8 @@ class REXFlowUIBridge(AsyncService):
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
         if Headers.X_HEADER_TOKEN_POOL_ID in request.headers.keys():
             self.workflow.register_instance_header(iid, f'{Headers.X_HEADER_TOKEN_POOL_ID}:{request.headers[Headers.X_HEADER_TOKEN_POOL_ID]}')
-        self.workflow.set_instance_data(iid, request.get_json())
+        jayson = await request.get_json()
+        self.workflow.set_instance_data(iid, jayson)
         ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
 
         # upstream cycle timer events can call this access point multiple times for the
