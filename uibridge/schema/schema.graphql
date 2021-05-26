@@ -51,6 +51,7 @@ enum WorkflowStatus {
     STARTING
     STOPPED
     STOPPING
+    UNKNOWN
 }
 
 enum TaskStatus {

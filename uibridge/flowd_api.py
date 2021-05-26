@@ -18,6 +18,7 @@ from .graphql_wrappers import (
     ENCRYPTED,
     DATA_ID,
     DATA,
+    UNKNOWN,
 )
 from .prism_api.client import PrismApiClient
 
@@ -120,16 +121,17 @@ class Workflow:
             return [key for key in data.keys() if key.startswith(self.did)]
 
     def get_instance_graphql_uri(self, iid:str) -> str:
-        uri, _ = self.etcd.get(WorkflowInstanceKeys.ui_server_uri_key(iid))
-        if uri:
-            return uri.decode('utf-8')
-        return uri      # will be None or the URI
+        return self._get_etcd_value(WorkflowInstanceKeys.ui_server_uri_key(iid))
 
     def get_instance_status(self, iid:str) -> str:
-        status, _ = self.etcd.get(WorkflowInstanceKeys.state_key(iid))
-        if status:
-            return status.decode('utf-8')
-        return ''
+        status = self._get_etcd_value(WorkflowInstanceKeys.state_key(iid))
+        return status if status is not None else UNKNOWN
+
+    def _get_etcd_value(self, key:str):
+        ret, _ = self.etcd.get(key)
+        if ret:
+            return ret.decode('utf-8')
+        return None
 
     def get_task_ids(self):
         return self.tasks.keys()

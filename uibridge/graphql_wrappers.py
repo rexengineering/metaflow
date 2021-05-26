@@ -29,6 +29,7 @@ TYPE       = 'type'
 VALIDATOR  = 'validator'
 VALIDATORS = 'validators'
 WORKFLOW   = 'workflow'
+UNKNOWN    = 'UNKNOWN'
 
 SUCCESS = 'SUCCESS'
 FAILURE = 'FAILURE'
@@ -39,7 +40,7 @@ def validator(type:str, constraint:str) -> Dict[str,any]:
         CONSTRAINT:constraint,
     }
 
-def validator_result(validator:Dict[str,str], passed:bool, message:str):
+def validator_result(validator:Dict[str,any], passed:bool, message:str):
     return {
         VALIDATOR: validator,
         PASSED: passed,

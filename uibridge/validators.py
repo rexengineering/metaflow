@@ -4,7 +4,7 @@ import numbers
 import re
 from enum import Enum
 from typing import Any, Dict
-from .graphql_wrappers import TYPE, CONSTRAINT
+from .graphql_wrappers import TYPE, CONSTRAINT, validator
 
 class ValidatorType(Enum):
     BOOLEAN = 'BOOLEAN'
@@ -29,7 +29,15 @@ class BaseValidator:
         self.rules.append(rule)
 
     def validate(self, data:Any, locals:Dict[str,any] = None) -> bool:
-        raise NotImplementedError('validator missing validate() method')
+        '''
+        perform the 'root' validation. Right now we're just concerned
+        that
+        '''
+        if isinstance(data,str):
+            return len(data.strip()) > 0
+        if isinstance(data,tuple):
+            return len(data) > 0
+        return True
 
     def message(self) -> str:
         return self.msg
@@ -38,7 +46,7 @@ class BaseValidator:
         self.msg = msg
 
     def as_validator(self) -> dict:
-        return {TYPE: self.type, CONSTRAINT: self.constraint}
+        return validator(self.type.name, self.constraint)
 
 
 class RequiredValidator(BaseValidator):
@@ -49,6 +57,9 @@ class RequiredValidator(BaseValidator):
         '''
         REQUIRED validator only requires that the data is not empty
         '''
+        if not super().validate(data,locals):
+            return False
+
         if self.constraint is not None:
             # evaluate the constraint. since this is python, we'll just eval() the
             # constraint as an expression
@@ -71,19 +82,20 @@ class PositiveValidator(BaseValidator):
         '''
         POSITIVE means greater than zero for whatever type data is
         '''
-        wrk = data
-        if isinstance(data,str):
-            try:
-                wrk = ast.literal_eval(data)
-            except ValueError:
-                pass
+        if super().validate(data,locals):
+            wrk = data
+            if isinstance(data,str):
+                try:
+                    wrk = ast.literal_eval(data)
+                except ValueError:
+                    pass
 
-        if isinstance(wrk, numbers.Number):
-            if wrk > 0:
-                return True
-            self.set_message(f'{data} is not positive')
-        else:
-            self.set_message(f'{data} is not a number')
+            if isinstance(wrk, numbers.Number):
+                if wrk > 0:
+                    return True
+                self.set_message(f'{data} is not positive')
+            else:
+                self.set_message(f'{data} is not a number')
         return False
 
 class RangeValidator(BaseValidator):
@@ -98,15 +110,16 @@ class RangeValidator(BaseValidator):
         # this might need to get more sophisticated. Do we need
         # specializations for integers, floats, and currency or
         # do we just infer from the data types?
-        wrk = data
-        if isinstance(data,str):
-            try:
-                wrk = ast.literal_eval(data)
-            except ValueError:
-                pass
+        if super().validate(data,locals):            
+            wrk = data
+            if isinstance(data,str):
+                try:
+                    wrk = ast.literal_eval(data)
+                except ValueError:
+                    pass
 
-        if isinstance(wrk, numbers.Number):
-            return self.constraint[0] <= wrk and wrk <= self.constraint[1]
+            if isinstance(wrk, numbers.Number):
+                return self.constraint[0] <= wrk and wrk <= self.constraint[1]
 
         return False
 
@@ -120,6 +133,9 @@ class RegexValidator(BaseValidator):
             self.pattern = None
 
     def validate(self, data:str, locals:Dict[str,any] = None) -> bool:
+        if not super().validate(data,locals):
+            return False
+
         self.result = None
         if self.pattern:
             self.result = re.match(self.pattern, data)
@@ -139,6 +155,8 @@ class BooleanValidator(BaseValidator):
         None, 0, '', or False is False
         Most anything else is True
         '''
+        if not super().validate(data,locals):
+            return False
         return bool(data)
         
 
