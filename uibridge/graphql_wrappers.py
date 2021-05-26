@@ -7,9 +7,11 @@ from typing import Dict, List
 CONSTRAINT = 'constraint'
 DATA       = 'data'
 DATA_ID    = 'dataId'
+DEFAULT    = 'default'
 DID        = 'did'
 DID_STATUS = 'did_status'
 ENCRYPTED  = 'encrypted'
+EVAL       = 'EVAL'
 FIELD      = 'field'
 FIELDS     = 'fields'
 GRAPHQL_URI= 'graphqlUri'
@@ -20,14 +22,17 @@ LABEL      = 'label'
 MESSAGE    = 'message'
 ORDER      = 'order'
 PASSED     = 'passed'
+RESET      = 'reset'
 RESULT     = 'result'
 RESULTS    = 'results'
 STATUS     = 'status'
 TASKS      = 'tasks'
+TEXT       = 'TEXT'
 TID        = 'tid'
 TYPE       = 'type'
 VALIDATOR  = 'validator'
 VALIDATORS = 'validators'
+VALUE      = 'value'
 WORKFLOW   = 'workflow'
 UNKNOWN    = 'UNKNOWN'
 
@@ -114,19 +119,26 @@ def get_instances_payload(did:str, did_status:str, iid_list:List, tasks:List[str
         TASKS: tasks,
     }
 
+def field_initializer(type:str, value:str):
+    return {
+        TYPE: type,
+        VALUE: value,
+    }
+
 def field_validator(type:str, constraint:str):
     return {
         TYPE: type,
         CONSTRAINT: constraint,
     }
 
-def task_field_data(data_id:str, type:str, order:int, label:str, data:str, encrypted:bool, validators:List):
+def task_field_data(data_id:str, type:str, order:int, label:str, data:str, deefault:dict, encrypted:bool, validators:List):
     return {
         DATA_ID: data_id,
         TYPE: type,
         ORDER: order,
         LABEL: label,
         DATA: data,
+        DEFAULT: deefault,
         ENCRYPTED: encrypted,
         VALIDATORS: validators,
     }

@@ -13,6 +13,7 @@ from .graphql_wrappers import (
     DATA_ID,
     IID,
     PASSED,
+    RESET,
     RESULTS,
     SUCCESS, 
     TID,
@@ -78,10 +79,11 @@ def task_mutation_form(_, info, input):
     workflow = info.context[WORKFLOW]
     task = workflow.task(input[TID])
     iid = '' if IID not in input else input[IID]
+    reset = False if RESET not in input else input[RESET]
     form = []
     status = FAILURE
     if task:
-        form = task.get_form(iid)
+        form = task.get_form(iid,reset)
         status = SUCCESS
         logging.info(form)
     return gql.task_form_payload(iid, input[TID], status, form)
@@ -116,13 +118,13 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
     # pull the current values for all fields from the backstore
     logging.info(f'_validate_fields {iid} {fields}')
     eval_locals = task.field_vals(iid)
-    logging.info(eval_locals)
 
     # overlay the values form the validator input over the persisted values
     # to give a currently 'proposed' form value set
     for in_field in fields:
         logging.info(f'updating {in_field[DATA_ID]} {eval_locals[in_field[DATA_ID]]} with {in_field[DATA]}')
         eval_locals[in_field[DATA_ID]] = in_field[DATA]
+    logging.info(eval_locals)
 
     field_results = []
     all_passed = True # assume all validators for all fields pass

@@ -16,9 +16,14 @@ from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
     ENCRYPTED,
+    EVAL,
     DATA_ID,
+    DEFAULT,
     DATA,
+    TEXT,
+    TYPE,
     UNKNOWN,
+    VALUE,
 )
 from .prism_api.client import PrismApiClient
 
@@ -60,8 +65,13 @@ class Workflow:
         self.instance_headers[iid].append(header)
         logging.info(f'{iid} header {header}')
 
-    def set_instance_data(self, iid:str, data:str):
+    def set_instance_data(self, iid:str, data:any):
         self.instance_data[iid] = data
+
+    def get_instance_data(self, iid:str):
+        if iid in self.instance_data:
+            return self.instance_data[iid]
+        return None
 
     def get_status(self) -> str:
         status, _ = self.etcd.get(WorkflowKeys.state_key(self.did))
@@ -199,19 +209,44 @@ class WorkflowTask:
             for k,v in self._fields.items():
                 self._values[k] = v[DATA]
 
-    def get_form(self, iid:str):
+    def get_form(self, iid:str, reset:bool = False):
         '''
-        Pull the task form for the given iid. If the iid record does not exist,
+        If iid is not provided, pull the form for the task. Otherwise
+        pull the task form for the given iid. If the iid record does not exist,
         create the iid form from the did form master.
         '''
-        key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
-        form, _ = self.wf.etcd.get(key)
-        if form is None:
-            tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
+        tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
+        if iid:
+            iid_key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
+            form, _ = self.wf.etcd.get(iid_key)
+            if form is None:
+                form, _ = self.wf.etcd.get(tid_key)
+                self.wf.etcd.put(iid_key, form)
+                logging.info(f'Form for {iid_key} did not exist - {form}')
+                reset = True # run any initializers since we're created the form
+        else:
             form, _ = self.wf.etcd.get(tid_key)
-            self.wf.etcd.put(key,form)
-            logging.info(f'Form for {key} did not exist - {form}')
-        return list(self._normalize_fields(form).values())
+
+        form = list(self._normalize_fields(form).values())
+
+        if reset:
+            '''
+            If any fields have default's defined, execute them
+            '''
+            eval_locals = None  # lazy init
+            for fld in form:
+                if DEFAULT in fld:
+                    initr = fld[DEFAULT]
+                    if TYPE in initr and VALUE in initr:
+                        if initr[TYPE] == EVAL:
+                            if eval_locals is None:
+                                eval_locals = self.field_vals(iid)
+                                eval_locals['req_json'] = self.wf.get_instance_data(iid)
+                            logging.info(f'eval_locals {eval_locals}')
+                            fld[DATA] = json.dumps(eval(initr[VALUE], {}, eval_locals))
+                        elif initr[TYPE] == TEXT:
+                            fld[DATA] = initr[VALUE]
+        return form
 
     def update(self, iid:str, in_fields:list):
         # get the current fields into a dict for easy access!
@@ -266,6 +301,8 @@ class WorkflowTask:
         for fld in fields:
             ret[fld[DATA_ID]] = fld[DATA]
         return ret
+
+    
 
 if __name__ == "__main__":
     # flowd_run_workflow_instance("tde-15839350")

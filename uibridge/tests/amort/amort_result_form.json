@@ -19,5 +19,5 @@
             {"type" : "POSITIVE"}
         ]
     },
-    {"dataId":"amort_table", "type":"JSON", "order":6, "label":"Amortization Table", "data":"[[1,2],[3,4]]", "encrypted":"False", "validators":[]}    
+    {"dataId":"amort_table", "type":"TEXT", "order":6, "label":"Amortization Table", "data":"", "default": {"type":"EVAL","value":"req_json['table']"}, "encrypted":"False", "validators":[]}    
 ]
