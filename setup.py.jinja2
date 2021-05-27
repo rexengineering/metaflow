@@ -1,32 +1,15 @@
 import setuptools
-from subprocess import check_output
 
-git_version = '{{git_version}}'
+GIT_VERSION = '{{git_version}}'
 
 with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+    LONG_DESCRIPTION = fh.read()
+
+SETUP_ARGS = {{setup_args}}
+
 
 setuptools.setup(
-    name="rexflowlib",  # NOTE: Hopefully this is temporary; see REXFLOW-190.
-    version=git_version,
-    author="REXFlow Developers",
-    author_email="engineering@rexchange.com",
-    description="A utility library for workflow orchestration",
-    long_description=long_description,  # TODO: Make this flowlib specific...
-    long_description_content_type="text/markdown",
-    url="https://bitbucket.org/rexdev/rexflow",
-    packages=['flowlib', 'flowlib.configs'],
-    classifiers=[
-        "Programming Language :: Python :: 3",
-    ],
-    install_requires=[
-        'boto3',
-        'confluent-kafka',
-        'etcd3',
-        'grpcio',
-        'quart',
-        'setuptools',
-        'xmltodict',
-    ],
-    python_requires='>=3.8',
+    version=GIT_VERSION,
+    long_description=LONG_DESCRIPTION,
+    **SETUP_ARGS
 )
