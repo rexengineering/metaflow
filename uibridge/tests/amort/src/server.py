@@ -48,6 +48,9 @@ def serve():
             mRp1xT = mRp1 ** T
             PMT    = round(P / ((mRp1xT-1.0)/(mR * mRp1xT)), 2)
 
+            data = {"payment":PMT}
+            data.update(req_json)
+            
             table = {}
 
             B = P
@@ -59,8 +62,7 @@ def serve():
                 table[month+1] = [PP, PI, B]
                 if B < PMT:
                     PMT = B
-            data = {"table":table}
-            data.update(req_json)
+            data["table"] = table
             response = make_response(data, 200)
             for hdr in FORWARD_HEADERS:
                 if hdr in request.headers:

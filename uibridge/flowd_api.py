@@ -236,14 +236,16 @@ class WorkflowTask:
             eval_locals = None  # lazy init
             for fld in form:
                 if DEFAULT in fld:
+                    logging.info(f'Field {fld[DATA_ID]} has default initializer {fld[DEFAULT]}')
                     initr = fld[DEFAULT]
                     if TYPE in initr and VALUE in initr:
                         if initr[TYPE] == EVAL:
                             if eval_locals is None:
                                 eval_locals = self.field_vals(iid)
                                 eval_locals['req_json'] = self.wf.get_instance_data(iid)
-                            logging.info(f'eval_locals {eval_locals}')
+                            logging.info(f'Evaluating {initr[VALUE]} with eval_locals {eval_locals}')
                             fld[DATA] = json.dumps(eval(initr[VALUE], {}, eval_locals))
+                            logging.info(f'{fld[DATA_ID]} default is {fld[DATA]}')
                         elif initr[TYPE] == TEXT:
                             fld[DATA] = initr[VALUE]
         return form
