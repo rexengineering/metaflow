@@ -16,8 +16,14 @@ from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
     ENCRYPTED,
+    EVAL,
     DATA_ID,
+    DEFAULT,
     DATA,
+    TEXT,
+    TYPE,
+    UNKNOWN,
+    VALUE,
 )
 from .prism_api.client import PrismApiClient
 
@@ -59,8 +65,13 @@ class Workflow:
         self.instance_headers[iid].append(header)
         logging.info(f'{iid} header {header}')
 
-    def set_instance_data(self, iid:str, data:str):
+    def set_instance_data(self, iid:str, data:any):
         self.instance_data[iid] = data
+
+    def get_instance_data(self, iid:str):
+        if iid in self.instance_data:
+            return self.instance_data[iid]
+        return None
 
     def get_status(self) -> str:
         status, _ = self.etcd.get(WorkflowKeys.state_key(self.did))
@@ -115,20 +126,22 @@ class Workflow:
                 kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False,
             )
             response = flowd.PSQuery(request)
+            logging.info(f'get_instances req:{request} res:{response}')
             data = json.loads(response.data)
             return [key for key in data.keys() if key.startswith(self.did)]
 
     def get_instance_graphql_uri(self, iid:str) -> str:
-        uri, _ = self.etcd.get(WorkflowInstanceKeys.ui_server_uri_key(iid))
-        if uri:
-            return uri.decode('utf-8')
-        return uri      # will be None or the URI
+        return self._get_etcd_value(WorkflowInstanceKeys.ui_server_uri_key(iid))
 
     def get_instance_status(self, iid:str) -> str:
-        status, _ = self.etcd.get(WorkflowInstanceKeys.state_key(iid))
-        if status:
-            return status.decode('utf-8')
-        return ''
+        status = self._get_etcd_value(WorkflowInstanceKeys.state_key(iid))
+        return status if status is not None else UNKNOWN
+
+    def _get_etcd_value(self, key:str):
+        ret, _ = self.etcd.get(key)
+        if ret:
+            return ret.decode('utf-8')
+        return None
 
     def get_task_ids(self):
         return self.tasks.keys()
@@ -140,6 +153,7 @@ class Workflow:
 
     def complete(self, iid : str, tid : str):
         assert tid in self.bridge_cfg, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
+        task = self.tasks[tid]
         for next_task in self.bridge_cfg[tid]: # handle more than one outbound edge
             logging.info(f'Firing edge {next_task}')
             # TODO: [REXFLOW-191] Either remove this duplicated code from app or here.
@@ -155,17 +169,26 @@ class Workflow:
                     key,val = header.split(':')
                 next_headers[key] = val
 
-            # data = None if iid not in self.instance_data.keys() else self.instance_data[iid]
-
+            # initialize the data JSON to pass to the next step in the workflow.
+            # This is at least the data that was passed in to this task, but we
+            # need to append the form data collected here.
+            data = {}
+            for fld in task.get_form(iid):
+                data[fld[DATA_ID]] = fld[DATA]
+            if iid in self.instance_data:
+                data.update(self.instance_data[iid])
+            logging.info(f'-- headers {next_headers} data {data}')
+            
             try:
                 call = requests.post if next_task['method'] == 'POST' else requests.get
-                svc_response = call(next_task['k8s_url'], headers=next_headers) #, data=data)
+                svc_response = call(next_task['k8s_url'], headers=next_headers, json=data)
                 svc_response.raise_for_status()
                 # try:
                 #     self.save_traceid(svc_response.headers, iid)
                 # except Exception as exn:
                 #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
                 # self._shadow_to_kafka(data, next_headers)
+                logging.info(svc_response)
                 return svc_response
             except Exception as exn:
                 logging.exception(
@@ -186,19 +209,46 @@ class WorkflowTask:
             for k,v in self._fields.items():
                 self._values[k] = v[DATA]
 
-    def get_form(self,iid:str):
+    def get_form(self, iid:str, reset:bool = False):
         '''
-        Pull the task form for the given iid. If the iid record does not exist,
+        If iid is not provided, pull the form for the task. Otherwise
+        pull the task form for the given iid. If the iid record does not exist,
         create the iid form from the did form master.
         '''
-        key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
-        form, _ = self.wf.etcd.get(key)
-        if form is None:
-            tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
+        tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
+        if iid:
+            iid_key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
+            form, _ = self.wf.etcd.get(iid_key)
+            if form is None:
+                form, _ = self.wf.etcd.get(tid_key)
+                self.wf.etcd.put(iid_key, form)
+                logging.info(f'Form for {iid_key} did not exist - {form}')
+                reset = True # run any initializers since we're created the form
+        else:
             form, _ = self.wf.etcd.get(tid_key)
-            self.wf.etcd.put(key,form)
-            logging.info(f'Form for {key} did not exist - {form}')
-        return list(self._normalize_fields(form).values())
+
+        form = list(self._normalize_fields(form).values())
+
+        if reset:
+            '''
+            If any fields have default's defined, execute them
+            '''
+            eval_locals = None  # lazy init
+            for fld in form:
+                if DEFAULT in fld:
+                    logging.info(f'Field {fld[DATA_ID]} has default initializer {fld[DEFAULT]}')
+                    initr = fld[DEFAULT]
+                    if TYPE in initr and VALUE in initr:
+                        if initr[TYPE] == EVAL:
+                            if eval_locals is None:
+                                eval_locals = self.field_vals(iid)
+                                eval_locals['req_json'] = self.wf.get_instance_data(iid)
+                            logging.info(f'Evaluating {initr[VALUE]} with eval_locals {eval_locals}')
+                            fld[DATA] = json.dumps(eval(initr[VALUE], {}, eval_locals))
+                            logging.info(f'{fld[DATA_ID]} default is {fld[DATA]}')
+                        elif initr[TYPE] == TEXT:
+                            fld[DATA] = initr[VALUE]
+        return form
 
     def update(self, iid:str, in_fields:list):
         # get the current fields into a dict for easy access!
@@ -246,6 +296,15 @@ class WorkflowTask:
         if id not in self._fields.keys():
             raise ValueError(f'Field {id} does not exist in task {self.tid}')
         return self._fields[id]
+
+    def field_vals(self, iid:str) -> Dict[str,any]:
+        ret = {}
+        fields = self.fields(iid)
+        for fld in fields:
+            ret[fld[DATA_ID]] = fld[DATA]
+        return ret
+
+    
 
 if __name__ == "__main__":
     # flowd_run_workflow_instance("tde-15839350")

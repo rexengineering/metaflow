@@ -1,0 +1,13 @@
+[
+    {"dataId":"principal", "type":"CURRENCY", "order":1, "label":"Principal", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"findrate", "type":"BOOLEAN", "order":3, "label":"Find best rate?", "data":"False", "encrypted":"False", "validators":[]},
+    {"dataId":"term", "type":"INTEGER", "order":4, "label":"Term (months)", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    }
+]

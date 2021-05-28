@@ -73,25 +73,26 @@ class REXFlowUIBridge(AsyncService):
         '''
         entry point for when the bridge gets called by the rexflow.
         '''
-        logging.info('Starting init_route()...')
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
         iid = request.headers[Headers.X_HEADER_FLOW_ID]
         tid = request.headers[Headers.X_HEADER_TASK_ID]
+        logging.info(f'Starting init_route()... {iid} {tid}')
 
         self.etcd.replace(f'{self.get_instance_etcd_key(request)}state', 'pending', 'initialized')
         if Headers.X_HEADER_TOKEN_POOL_ID in request.headers.keys():
             self.workflow.register_instance_header(iid, f'{Headers.X_HEADER_TOKEN_POOL_ID}:{request.headers[Headers.X_HEADER_TOKEN_POOL_ID]}')
-        self.workflow.set_instance_data(iid, request.get_json())
+        req_json = await request.get_json()
+        self.workflow.set_instance_data(iid, req_json)
         ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
+        logging.info(req_json)
 
         # upstream cycle timer events can call this access point multiple times for the
         # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
         # specific interaction
         #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
-        logging.info(f'{ui_srv_url} {TEST_MODE_URI}')
         if ui_srv_url and ui_srv_url != TEST_MODE_URI:
             response = await PrismApiClient.start_task(ui_srv_url, iid, tid)
-            logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response.status}')
+            logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
 
         return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
 
