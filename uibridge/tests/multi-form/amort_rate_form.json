@@ -1,0 +1,7 @@
+[
+    {"dataId":"interest", "type":"PERCENTAGE", "order":2, "label":"Best Rate %", "data":"", "encrypted":"False", "validators":[
+            {"type" : "PERCENTAGE"},
+            {"type" : "REQUIRED"}
+        ]
+    }
+]

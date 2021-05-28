@@ -12,8 +12,6 @@ from flowlib.constants import (
 )
 from flowlib.config import XGW_LISTEN_PORT
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 CONDITIONAL_PATHS = json.loads(os.environ['REXFLOW_XGW_CONDITIONAL_PATHS'])
 DEFAULT_PATH = json.loads(os.environ['REXFLOW_XGW_DEFAULT_PATH'])
@@ -39,20 +37,12 @@ class ExclusiveGatewayApp(QuartApp):
         super().__init__(__name__, **kws)
         self.app.route('/', methods=['GET'])(self.health_check)
         self.app.route('/', methods=['POST'])(self.exclusive_gateway)
-        logger.info('Exclusive Gateway\n============')
-        logger.info(f'CONDITIONAL_PATHS {CONDITIONAL_PATHS}')
-        logger.info(f'DEFAULT_PATH {DEFAULT_PATH}')
-        logger.info(f'REXFLOW_XGW_FAIL_URL {REXFLOW_XGW_FAIL_URL}')
-        logger.info(f'KAFKA_SHADOW_URL {KAFKA_SHADOW_URL}')
-        logger.info(f'FORWARD_HEADERS {FORWARD_HEADERS}')
-        logger.info(f'DMN_SERVER_HOST {DMN_SERVER_HOST}')
 
     def health_check(self):
         return flow_result(0, "Ok.")
 
     async def exclusive_gateway(self):
         req_json = await request.get_json()
-        logger.info(f'received {req_json}')
         total_attempts = None
         target_url = None
         target_component_id = None
@@ -61,7 +51,6 @@ class ExclusiveGatewayApp(QuartApp):
         # worked with Jon to figure out how to support multiple outgoing branches in
         # a single XGW).
         for path in CONDITIONAL_PATHS:
-            logger.info(f'evaluating {path}')
             if path['type'] == 'python':
                 if eval(path['expression']):
                     total_attempts = path['total_attempts']
@@ -104,7 +93,6 @@ class ExclusiveGatewayApp(QuartApp):
         success = False
         for _ in range(int(total_attempts)):
             try:
-                logger.info(f'Trying URL {target_url} json:{req_json} headers:{headers}')
                 response = requests.post(target_url, json=req_json, headers=headers)
                 response.raise_for_status()
                 success = True
@@ -136,6 +124,5 @@ class ExclusiveGatewayApp(QuartApp):
 
 
 if __name__ == '__main__':
-
     app = ExclusiveGatewayApp(bind=f'0.0.0.0:{XGW_LISTEN_PORT}')
     app.run()
