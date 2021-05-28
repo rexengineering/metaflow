@@ -32,7 +32,7 @@ COMMON_SETTINGS = dict(
     description="A utility library for workflow orchestration",
     long_description_content_type="text/markdown",
     url="https://bitbucket.org/rexdev/rexflow",
-    python_requires='>=3.8',
+    python_requires='>=3.7',
 )
 
 FLOWLIB_SETTINGS : Dict[str, Any] = COMMON_SETTINGS.copy()
