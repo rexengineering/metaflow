@@ -258,15 +258,15 @@ class TimedEventManager:
                    every time the timer matures.
         '''
 
-        # if self.aspects is None, then we need to validate the spec in the light of
-        # passed in information
+        # if self.is_dynamic_spec is True, then we need to validate the spec employing
+        # information passed in with the request
         if self.is_dynamic_spec:
             # args[0] is the data provided with the incoming request. This should be
-            # JSON. Do decode that, and pass it to the substiution logic to get a
-            # "current" timer specification, then process that. Oy.
-            req_json = json.loads(args[0].decode())
-            adj_spec = self._json_substitution(req_json, self.spec)
-            self.aspects  = self.validate_spec(self.timer_type, adj_spec)
+            # JSON. So, decode that, and pass it to the substiution logic to get a
+            # "current" timer specification, then validate that. Oy.
+            req_json     = json.loads(args[0].decode())
+            adj_spec     = self._json_substitution(req_json, self.spec)
+            self.aspects = self.validate_spec(self.timer_type, adj_spec)
 
         context = TimerContext(self, token_stack, args)
 
@@ -417,10 +417,11 @@ if __name__ == "__main__":
     #mgr = TimedEventManager('["timeDuration","P10D"]')
     type = 'timeCycle'
     # spec = "R{repeat_cnt}/ADD({date}T12:00:00Z,PT{hour_cnt}H)/PT30M"
-    spec = "R{repeat_cnt}/ADD(NOW,PT30S)/PT{hour_cnt}S"
+    # spec = "R{repeat_cnt}/ADD(NOW,PT30S)/PT{hour_cnt}S"
+    spec = "R{repeat_cnt}/ADD({date-{year}},PT30S)/PT{hour_cnt}S"
 
     mgr = TimedEventManager(f'["{type}","{spec}"]', test_callback)
-    locals = '{"date":"12-02-2020", "repeat_cnt":"3", "hour_cnt":"5"}'
+    # locals = '{"date":"12-02-2020", "repeat_cnt":"3", "hour_cnt":"5"}'
     # term = TimedEventManager._json_substitution(locals, 'R{repeat_cnt}/ADD({date}T12:00:00Z,PT{hour_cnt}H)/PT30M')
     # term = TimedEventManager._json_substitution(locals, 'R{repeat_cnt}/DATE_ADD({date}T12:00:00Z,PT{hour_cnt}H)/{date}T23:59:59Z')
     # TimedEventManager._do_date_math(term)
@@ -428,9 +429,9 @@ if __name__ == "__main__":
     # R3/DATE_ADD(2021-01-01T12:0000,-PT2H)/kdlsjfa
     # def create_timer(self, wf_inst_id : str, token_stack : str, args : list):
     # args is [data, flow_id, wf_id, content_type]
-    mgr.create_timer('test_flow_id', None, [locals.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
+    # mgr.create_timer('test_flow_id', None, [locals.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
 
-    locals = '{"date":"12-02-2020", "repeat_cnt":"5", "hour_cnt":"7"}'
+    locals = '{"date-2020":"2020-12-01T00:00:00Z", "date-2021":"2021-12-01T00:00:00Z", "year":"2021", "repeat_cnt":"5", "hour_cnt":"7"}'
     mgr.create_timer('test_flow_id', None, [locals.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
 
     # x = TimedEvent(None, "timeDate", "2011-03-11T12:13:14Z", "aKey", "aValue")
