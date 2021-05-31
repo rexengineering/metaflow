@@ -391,8 +391,6 @@ class TimedEventManager:
         elif func == cls.SUB_FUNC:
             args[0] -= args[1]
             res = datetime.fromtimestamp(args[0]).strftime(cls.ISO_8601_FORMAT)
-        elif func == cls.NOW_FUNC:
-            res = datetime.now(datetime.timezone.utc).strftime(cls.ISO_8601_FORMAT)
         else:
             raise NameError(f'Unknown function {func}')
         return res
