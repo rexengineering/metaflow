@@ -24,7 +24,7 @@ The value is a JSON'd list of
 
 
 '''
-import datetime
+import copy
 import isodate
 import json
 import logging
@@ -32,6 +32,7 @@ import threading
 import time
 import typing
 
+from datetime import datetime, timezone
 from flowlib import token_api
 
 class WrappedTimer:
@@ -72,17 +73,33 @@ class WrappedTimer:
         self._done_action(self._context)
 
 class TimedEventManager:
+    SUBS_BEG = '{'
+    SUBS_END = '}'
+    FUNC_BEG = '('
+    FUNC_END = ')'
+    ADD_FUNC = 'ADD'
+    SUB_FUNC = 'SUB'
+    NOW      = 'NOW'
+    DIVIDER  = '/'
+    FUNCS = [ADD_FUNC,SUB_FUNC]
+    ISO_8601_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+
     TIME_DATE      = 0
     TIME_DURATION  = 1
     TIME_CYCLE     = 2
 
-    def __init__(self, timer_description_json : str, callback : typing.Callable[[list], None], use_tokens : bool = True):
+    def __init__(self, timer_description_json : str, callback : typing.Callable[[list], None]):
         # TODO: load and schedule any persisted timed events
         self.events = dict()
         self.json = timer_description_json
-        info = json.loads(timer_description_json) #[timer_type, timer_spec]
+        #[timer_type, timer_spec]
+        self.timer_type, self.spec = json.loads(timer_description_json) 
         self.callback = callback
-        self.aspects =  TimedEventManager.validate_spec(info[0], info[1].upper() )
+        # if validate_spec returns None, then the spec has dynamic references
+        # i.e. {substitutions} and/or FUNCTIONS(), so we will resolve dynamically
+        # in create_timer().
+        self.aspects =  TimedEventManager.validate_spec(self.timer_type, self.spec.upper())
+        self.is_dynamic_spec = self.aspects == None
         self.token_pool_id = None
         self.completed = True
 
@@ -107,6 +124,12 @@ class TimedEventManager:
     @classmethod
     def validate_spec(cls, timer_type : str, spec : str) -> ValidationResults:
         logging.info(f'Validating {timer_type} {spec}')
+        # check here if spec contains any substitution or function markers. 
+        # if so, return None
+        if any( marker in [cls.FUNC_BEG, cls.SUBS_BEG] for marker in spec):
+            logging.info('Deferring spec validation as spec has substitution/function markers')
+            return None
+
         # the spec contains the ISO 8601 value apropos to type
         results = cls.ValidationResults(timer_type, spec)
 
@@ -123,7 +146,7 @@ class TimedEventManager:
             # e.g. 2011-03-11T12:13:14Z
             results.start_date = int(isodate.parse_datetime(spec).timestamp())
             results.timer_type = cls.TIME_DATE
-            logging.info(f'timeDate timing event created - executing on {datetime.datetime.fromtimestamp(results.start_date)}')
+            logging.info(f'timeDate timing event created - executing on {datetime.fromtimestamp(results.start_date)}')
 
         elif timer_type == 'timeDuration':
             # spec needs to be an ISO 8601 period
@@ -158,14 +181,14 @@ class TimedEventManager:
                 results.interval   = datum[2]
                 logging.info(f'timeCycle timing event created - {results.recurrance} cycle(s) '
                              f'{results.interval} seconds apart '
-                             f'starting on {datetime.datetime.fromtimestamp(results.start_date)}')
+                             f'starting on {datetime.fromtimestamp(results.start_date)}')
 
             elif pat == 'RPD':
                 results.interval = datum[1]
                 results.end_date = datum[2]
                 logging.info(f'timeCycle timing event created - {results.recurrance} cycle(s) '
                              f'{results.interval} seconds apart '
-                             f'ending no later than {datetime.datetime.fromtimestamp(results.end_date)}')
+                             f'ending no later than {datetime.fromtimestamp(results.end_date)}')
 
             else: # pat == 'RDPD'
                 results.start_date = datum[1]
@@ -174,8 +197,8 @@ class TimedEventManager:
                 assert results.start_date <= results.end_date, "Error - start date must preceed end date"
                 logging.info(f'timeCycle timing event created - {results.recurrance} cycle(s) '
                              f'{results.interval} seconds apart, '
-                             f'starting on {datetime.datetime.fromtimestamp(results.start_date)} '
-                             f'and ending no later than {datetime.datetime.fromtimestamp(results.end_date)}')
+                             f'starting on {datetime.fromtimestamp(results.start_date)} '
+                             f'and ending no later than {datetime.fromtimestamp(results.end_date)}')
 
             results.timer_type = cls.TIME_CYCLE
         else:
@@ -197,7 +220,7 @@ class TimedEventManager:
         '''
         cat = ''
         results = []
-        for elem in spec.upper().split('/'):
+        for elem in spec.strip().upper().split('/'):
             if elem.startswith('P'):
                 # PERIOD
                 cat += 'P'
@@ -234,6 +257,16 @@ class TimedEventManager:
                    behavior should be. For now, the event will be fired
                    every time the timer matures.
         '''
+
+        # if self.aspects is None, then we need to validate the spec in the light of
+        # passed in information
+        if self.is_dynamic_spec:
+            # args[0] is the data provided with the incoming request. This should be
+            # JSON. Do decode that, and pass it to the substiution logic to get a
+            # "current" timer specification, then process that. Oy.
+            req_json = json.loads(args[0].decode())
+            adj_spec = self._json_substitution(req_json, self.spec)
+            self.aspects  = self.validate_spec(self.timer_type, adj_spec)
 
         context = TimerContext(self, token_stack, args)
 
@@ -297,6 +330,73 @@ class TimedEventManager:
         else:
             self.completed = True
 
+    @classmethod
+    def _json_substitution(cls, locals:dict, src:str) -> str:
+        '''
+        Take an input string with (supposed) embedded token references bracketed by {}
+        e.g. "hello {world}" In this case, the token "world" is abstracted, and a node
+        with that name is searched in the json.
+        '''
+        itr = enumerate(src)
+        trg = cls._sub_json_token(locals, itr, 0, '')
+        logging.info(f'Json sub results {src}\n{trg}')
+        return trg
+
+    @classmethod
+    def _sub_json_token(cls, locals:dict, itr:enumerate, level:int, bank:str, func:str = None) -> str:
+
+        trg = ''
+        for _,c in itr: 
+            if c == cls.SUBS_BEG:
+                # found a nested reference - so resolve it
+                trg += cls._sub_json_token(locals, itr, level + 1, bank)
+            elif c == cls.SUBS_END:
+                if (level):
+                    # trg contains a JSON path to be resolved, and its
+                    # value used in place of the identified path
+                    return locals[trg]
+                # otherwise error?
+            elif c == cls.FUNC_BEG:
+                # trg contains the name of a function
+                trg = trg.upper()
+                if not trg in cls.FUNCS:
+                    raise ValueError(f'Unknown function: {trg}')
+                trg = cls._sub_json_token(locals, itr, level + 1, bank, trg)
+            elif c == cls.FUNC_END:
+                # trg contains parms to the function
+                return cls._proc_func(func,trg)
+            else:
+                trg += c
+                if c == cls.DIVIDER:
+                    # bank trg and start over - but keep the separator
+                    bank += trg
+                    trg = ''
+        # if (level) error?
+        return bank + trg
+
+    @classmethod
+    def _proc_func(cls, func:str, parms:str):
+        res  = ''
+        args = []
+        for arg in parms.split(','):
+            if arg == cls.NOW:
+                val = datetime.now(timezone.utc).timestamp()
+            else:
+                val = cls.parse_spec(arg)[1][0]
+            args.append(val)
+
+        if func == cls.ADD_FUNC:
+            args[0] += args[1]
+            res = datetime.fromtimestamp(args[0]).strftime(cls.ISO_8601_FORMAT)
+        elif func == cls.SUB_FUNC:
+            args[0] -= args[1]
+            res = datetime.fromtimestamp(args[0]).strftime(cls.ISO_8601_FORMAT)
+        elif func == cls.NOW_FUNC:
+            res = datetime.now(datetime.timezone.utc).strftime(cls.ISO_8601_FORMAT)
+        else:
+            raise NameError(f'Unknown function {func}')
+        return res
+
 class TimerContext:
     def __init__(self, source : TimedEventManager, token_stack : str, vals : list):
         self.timer_type    = source.aspects.timer_type
@@ -317,11 +417,23 @@ if __name__ == "__main__":
     # mgr.enqueue(test_callback, '', 'test_flow_id','test_wf_id', 'application/json')
 
     #mgr = TimedEventManager('["timeDuration","P10D"]')
+    type = 'timeCycle'
+    # spec = "R{repeat_cnt}/ADD({date}T12:00:00Z,PT{hour_cnt}H)/PT30M"
+    spec = "R{repeat_cnt}/ADD(NOW,PT30S)/PT{hour_cnt}S"
 
-    mgr = TimedEventManager('["timeCycle","R3/PT30S"]', test_callback)
-    #def create_timer(self, wf_inst_id : str, token_stack : str, args : list):
+    mgr = TimedEventManager(f'["{type}","{spec}"]', test_callback)
+    locals = '{"date":"12-02-2020", "repeat_cnt":"3", "hour_cnt":"5"}'
+    # term = TimedEventManager._json_substitution(locals, 'R{repeat_cnt}/ADD({date}T12:00:00Z,PT{hour_cnt}H)/PT30M')
+    # term = TimedEventManager._json_substitution(locals, 'R{repeat_cnt}/DATE_ADD({date}T12:00:00Z,PT{hour_cnt}H)/{date}T23:59:59Z')
+    # TimedEventManager._do_date_math(term)
+
+    # R3/DATE_ADD(2021-01-01T12:0000,-PT2H)/kdlsjfa
+    # def create_timer(self, wf_inst_id : str, token_stack : str, args : list):
     # args is [data, flow_id, wf_id, content_type]
-    mgr.create_timer('test_flow_id', None, [''.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
+    mgr.create_timer('test_flow_id', None, [locals.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
+
+    locals = '{"date":"12-02-2020", "repeat_cnt":"5", "hour_cnt":"7"}'
+    mgr.create_timer('test_flow_id', None, [locals.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
 
     # x = TimedEvent(None, "timeDate", "2011-03-11T12:13:14Z", "aKey", "aValue")
     # x = TimedEvent(None, "timeDuration", "P10D", "aKey", "aValue")
