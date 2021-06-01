@@ -55,5 +55,7 @@ Thumbs.db
 build/
 *.egg-info/
 .env
-setup.py
-
+.coverage
+build_artifacts
+htmlcov
+.*.sw*

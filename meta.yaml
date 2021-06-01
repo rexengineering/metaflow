@@ -1,0 +1,37 @@
+# TODO: This won't work, because there is not yet any python-etc3 conda
+# package. Re-enable once there is.
+
+{% set data = load_setup_py_data() %}
+
+package:
+  name: python-rexflowlib
+  version: {{ data.get('version') }}
+
+source:
+  path: .
+
+build:
+  noarch: python
+  script: python -m pip install --no-deps --ignore-installed .
+
+requirements:
+  build:
+    - coverage
+    - pip>=21 # https://stackoverflow.com/questions/16370583/pip-issue-installing-almost-any-library
+    - pip-tools>=5.5.0
+    - pytest
+    - python>=3.7
+    - pyyaml
+    - setuptools
+    - python-rex-setuptools>=0.0.10
+  run:
+    - boto3
+    - grpcio
+    - isodate
+    - python-confluent-kafka
+    - python-etcd3
+    - python>=3.7
+    - pyyaml
+    - pyyaml
+    - quart
+    - xmltodict

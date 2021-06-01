@@ -1,0 +1,11 @@
+**/.*.sw*
+**/__pycache__
+.coverage
+**/.eggs
+htmlcov
+*.egg-info
+build_artifacts
+build_artifacts/**
+flake8.log
+dist
+build
