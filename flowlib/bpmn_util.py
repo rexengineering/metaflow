@@ -262,7 +262,7 @@ class WorkflowProperties:
         self._namespace = None
         self._namespace_shared = False
         self._id_hash = None
-        self._retry_total_attempts = 2
+        self._retry_total_attempts = 1  # retry is opt-in feature: default no retry
         self._is_recoverable = False
         self._transport = 'rpc'
         self._traffic_shadow_service_props = None
