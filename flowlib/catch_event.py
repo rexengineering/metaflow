@@ -38,8 +38,10 @@ class BPMNCatchEvent(BPMNComponent):
         self._kafka_topic = None
 
         # if this is a timed catch event, verify that the timer aspects are valid
-        if self._timer_aspects:
-            if self._timer_aspects.timer_type == TimedEventManager.TIME_CYCLE:
+        if self._timer_aspects or self._timer_dynamic:
+            # dynamic timer specifications contain substitutions and/or functions, so the validation
+            # actually happens in-context when the timer is created by the wf.
+            if not self._timer_dynamic and self._timer_aspects.timer_type == TimedEventManager.TIME_CYCLE:
                 assert self._timer_aspects.recurrance > 0, f'Unbounded recurrance is not allowed for timed catch events'
                 assert self._timer_aspects.recurrance <= self.MAX_RECURRANCE, f'Recurrance must be between 1 and {self.MAX_RECURRANCE}, inclusive'
         else:
@@ -58,7 +60,7 @@ class BPMNCatchEvent(BPMNComponent):
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict, edge_map: OrderedDict) -> list:
-        assert self._timer_aspects is not None or KAFKA_HOST is not None, \
+        assert self._timer_aspects is not None or self._timer_dynamic or KAFKA_HOST is not None, \
             "Kafka Installation required for Catch Events."
 
         k8s_objects = []

@@ -24,7 +24,6 @@ The value is a JSON'd list of
 
 
 '''
-import copy
 import isodate
 import json
 import logging
@@ -98,8 +97,7 @@ class TimedEventManager:
         # if validate_spec returns None, then the spec has dynamic references
         # i.e. {substitutions} and/or FUNCTIONS(), so we will resolve dynamically
         # in create_timer().
-        self.aspects =  TimedEventManager.validate_spec(self.timer_type, self.spec.upper())
-        self.is_dynamic_spec = self.aspects == None
+        self.aspects, self.is_dynamic_spec = TimedEventManager.validate_spec(self.timer_type, self.spec.upper())
         self.token_pool_id = None
         self.completed = True
 
@@ -128,7 +126,7 @@ class TimedEventManager:
         # if so, return None
         if any( marker in [cls.FUNC_BEG, cls.SUBS_BEG] for marker in spec):
             logging.info('Deferring spec validation as spec has substitution/function markers')
-            return None
+            return None, True
 
         # the spec contains the ISO 8601 value apropos to type
         results = cls.ValidationResults(timer_type, spec)
@@ -203,7 +201,7 @@ class TimedEventManager:
             results.timer_type = cls.TIME_CYCLE
         else:
             raise ValueError(f'Illegal timed event type specified: {timer_type}')
-        return results
+        return results, False
 
     @classmethod
     def parse_spec(cls, spec : str) -> list:
@@ -264,9 +262,9 @@ class TimedEventManager:
             # args[0] is the data provided with the incoming request. This should be
             # JSON. So, decode that, and pass it to the substiution logic to get a
             # "current" timer specification, then validate that. Oy.
-            req_json     = json.loads(args[0].decode())
-            adj_spec     = self._json_substitution(req_json, self.spec)
-            self.aspects = self.validate_spec(self.timer_type, adj_spec)
+            req_json        = json.loads(args[0].decode())
+            adj_spec        = self._json_substitution(req_json, self.spec)
+            self.aspects, _ = self.validate_spec(self.timer_type, adj_spec)
 
         context = TimerContext(self, token_stack, args)
 
@@ -397,7 +395,7 @@ class TimedEventManager:
 
 class TimerContext:
     def __init__(self, source : TimedEventManager, token_stack : str, vals : list):
-        self.timer_type    = source.aspects.timer_type
+        self.timer_type    = source.aspects.timer_type_s
         self.start_date    = source.aspects.start_date
         self.end_date      = source.aspects.end_date
         self.interval      = source.aspects.interval
@@ -418,7 +416,7 @@ if __name__ == "__main__":
     type = 'timeCycle'
     # spec = "R{repeat_cnt}/ADD({date}T12:00:00Z,PT{hour_cnt}H)/PT30M"
     # spec = "R{repeat_cnt}/ADD(NOW,PT30S)/PT{hour_cnt}S"
-    spec = "R{repeat_cnt}/ADD({date-{year}},PT30S)/PT{hour_cnt}S"
+    spec = "R{cycle_count}/ADD(NOW,PT{delay_secs}S)/PT{recur_delay}S"
 
     mgr = TimedEventManager(f'["{type}","{spec}"]', test_callback)
     # locals = '{"date":"12-02-2020", "repeat_cnt":"3", "hour_cnt":"5"}'
@@ -431,7 +429,8 @@ if __name__ == "__main__":
     # args is [data, flow_id, wf_id, content_type]
     # mgr.create_timer('test_flow_id', None, [locals.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
 
-    locals = '{"date-2020":"2020-12-01T00:00:00Z", "date-2021":"2021-12-01T00:00:00Z", "year":"2021", "repeat_cnt":"5", "hour_cnt":"7"}'
+    # locals = '{"date-2020":"2020-12-01T00:00:00Z", "date-2021":"2021-12-01T00:00:00Z", "year":"2021", "repeat_cnt":"5", "hour_cnt":"7"}'
+    locals = '{"cycle_count":"3", "delay_secs":"30", "recur_delay":"45"}'
     mgr.create_timer('test_flow_id', None, [locals.encode('utf-8'), 'test_flow_id', 'test_wf_id', 'application/json'])
 
     # x = TimedEvent(None, "timeDate", "2011-03-11T12:13:14Z", "aKey", "aValue")
