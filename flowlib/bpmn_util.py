@@ -510,7 +510,7 @@ class BPMNComponent:
                     # this will raise if there's anything seriously wrong. The finer points - like
                     # ranges and such - are verified by the individual component types.
                     self._timer_description = [key, spec[BPMN_TIMER_EVENT_DEFINITION][tag]['#text']]
-                    self._timer_aspects = TimedEventManager.validate_spec(key, self._timer_description[1])
+                    self._timer_aspects, self._timer_dynamic = TimedEventManager.validate_spec(key, self._timer_description[1])
                     break
             assert self._timer_description, "timerEventDefinition has invalid timer type"
 
