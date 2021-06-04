@@ -19,22 +19,22 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="timed-subst">
+      <bpmndi:BPMNEdge id="Flow_1o7g5a6_di" bpmnElement="Flow_1o7g5a6">
+        <di:waypoint x="328" y="97" />
+        <di:waypoint x="392" y="97" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_01qis9i_di" bpmnElement="Flow_01qis9i">
         <di:waypoint x="215" y="97" />
-        <di:waypoint x="272" y="97" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1o7g5a6_di" bpmnElement="Flow_1o7g5a6">
-        <di:waypoint x="308" y="97" />
-        <di:waypoint x="372" y="97" />
+        <di:waypoint x="292" y="97" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="179" y="79" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_1a4ipyn_di" bpmnElement="End-Event">
-        <dc:Bounds x="372" y="79" width="36" height="36" />
+        <dc:Bounds x="392" y="79" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_15btiml_di" bpmnElement="el_timer">
-        <dc:Bounds x="272" y="79" width="36" height="36" />
+        <dc:Bounds x="292" y="79" width="36" height="36" />
       </bpmndi:BPMNShape>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
