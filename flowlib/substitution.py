@@ -51,7 +51,7 @@ Functions
     make sense. The handler is expected to return the string value to substitute in the
     source string.
  
-        def _func_add(parms:str):
+        def _func_add(parms:str) -> str:
             # split the parms string into tokens, then interpret the tokens
             args = []
             for arg in parms.split(','):
