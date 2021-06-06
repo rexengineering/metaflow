@@ -1,4 +1,4 @@
-'''
+"""
 Contains framework logic for processing timed events.
 
 ISO 8601 formats are supported by the standard python library
@@ -22,8 +22,7 @@ The value is a JSON'd list of
         'data' : [data, flow_id, wf_id, content_type]   # outbound event data
     }
 
-
-'''
+"""
 import isodate
 import json
 import logging
@@ -36,11 +35,11 @@ from flowlib import token_api
 from flowlib.substitution import Substitutor
 
 class WrappedTimer:
-    '''
+    """
     Python timers are created, start, and die without any notifications. This
     class wraps a threading.Timer object so that we can receive a notification
     once the timer matures.
-    '''
+    """
     def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context : typing.Any):
         self._interval = interval
         self._done_action = done_action
@@ -115,11 +114,11 @@ class TimedEventManager:
             self.recurrance = 0
 
     def reset(self, aspects : ValidationResults) -> None:
-        '''
+        """
         Reset the timer manager to the provided timer type and specification.
         This can only happen if the current configuration has already run its
         course.
-        '''
+        """
         assert self.completed, 'Cannot reset - timer still active'
         self.aspects = aspects
 
@@ -209,7 +208,7 @@ class TimedEventManager:
 
     @classmethod
     def parse_spec(cls, spec : str) -> list:
-        '''
+        """
         Parse the time period specification as per ISO 8601-1
         - elements are separated by '/' (4.4.2.a)
         - element that start with 'P' is a PERIOD (4.4.2.b)
@@ -219,7 +218,7 @@ class TimedEventManager:
         Return a tuple of a pattern of encountered data elements, e.g.
         'RP' for a recurrence/period, and a list of result objects,
         e.g. ['RP',[3,103420]]
-        '''
+        """
         cat = ''
         results = []
         for elem in spec.strip().upper().split('/'):
@@ -240,7 +239,7 @@ class TimedEventManager:
         return [cat,results]
 
     def create_timer(self, wf_inst_id : str, token_stack : str, args : list):
-        '''
+        """
         The parms passed to us *must* be passed to the callback when firing the
         timer. Here, we take the timer parameters when the manager was created
         and determine the appropriate duration(s) for the timers to be created.
@@ -258,7 +257,7 @@ class TimedEventManager:
                    is confusing in the rexflow implementation as to what the
                    behavior should be. For now, the event will be fired
                    every time the timer matures.
-        '''
+        """
 
         # if self.is_dynamic_spec is True, then we need to validate the spec employing
         # information passed in with the request
@@ -296,13 +295,13 @@ class TimedEventManager:
             context.recurrance = context.recurrance - 1
 
     def timer_action(self, *data):
-        '''
+        """
         Called when a timer fires. This calls the callback provided when the
         timer was enqueued.
 
         Note that the callback is expected to handle any problems with communicating
         with other services, POST's, GET's, whatever so we just make the call here.
-        '''
+        """
         logging.info(f'timer_action - calling back with {data}')
         try:
             resp = self.callback(*data)
@@ -311,7 +310,7 @@ class TimedEventManager:
             logging.exception('Callback threw exception, which was ignored', exc_info=ex)
 
     def timer_done_action(self, context):
-        '''
+        """
         Called after a timer has fired. In this implementation, this could be
         combined with timer_action, but keep it separate to give us more
         flexibility should we want separate done actions evoked for different
@@ -321,7 +320,7 @@ class TimedEventManager:
         a cycle timer and there are no more recurrences then we're done.
         Otherwise, calculate the maturity time for the next cycle and enqueue
         that timer.
-        '''
+        """
         if self.aspects.timer_type == self.TIME_CYCLE and context.recurrance > 0:
             if context.end_date is not None:
                 exec_time = int(time.time()) + self.aspects.interval
