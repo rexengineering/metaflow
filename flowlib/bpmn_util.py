@@ -94,6 +94,7 @@ class ServiceProperties:
         self._id_hash = None
         self._is_hash_used = False
         self._namespace = None
+        self._asynchronous = False
         if annotations:
             self.update(annotations)
 
@@ -144,6 +145,12 @@ class ServiceProperties:
         '''
         return self._container_name
 
+    @property
+    def asynchronous(self):
+        '''Returns whether this is an Asynchronous Service.
+        '''
+        return self._asynchronous
+
     def update(self, annotations):
         if 'host' in annotations:
             self._host = annotations['host'].replace('_', '-')
@@ -163,6 +170,8 @@ class ServiceProperties:
             self._is_hash_used = annotations['hash_used']
         if 'namespace' in annotations:
             self._namespace = annotations['namespace']
+        if 'asynchronous' in annotations and annotations.get('asynchronous', False):
+            self._asynchronous = True
 
 
 class CallProperties:

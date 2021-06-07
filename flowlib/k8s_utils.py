@@ -16,6 +16,8 @@ from .config import (
     KAFKA_SECURITY_PROTOCOL,
     ETCD_HOSTS,
     REXFLOW_ROOT_PREFIX,
+    FLOWD_HOST,
+    FLOWD_PORT,
 )
 
 ETCD_ENV_MAP = {
@@ -106,6 +108,13 @@ def create_deployment(
             if value is None:
                 continue
             env.append({"name": env_var, "value": value})
+    env.extend([{
+        "name": "REXFLOW_FLOWD_HOST",
+        "value": FLOWD_HOST,
+    }, {
+        "name": "REXFLOW_FLOWD_PORT",
+        "value": FLOWD_PORT,
+    }])
 
     spec = deployment['spec']['template']['spec']
     spec['containers'][0]['env'] = env

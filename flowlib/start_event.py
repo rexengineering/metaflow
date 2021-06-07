@@ -21,8 +21,6 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     CREATE_DEV_INGRESS,
-    FLOWD_HOST,
-    FLOWD_PORT,
 )
 
 
@@ -116,14 +114,6 @@ class BPMNStartEvent(BPMNComponent):
             {
                 "name": "KAFKA_GROUP_ID",
                 "value": self.service_name,
-            },
-            {
-                "name": "REXFLOW_FLOWD_HOST",
-                "value": FLOWD_HOST,
-            },
-            {
-                "name": "REXFLOW_FLOWD_PORT",
-                "value": FLOWD_PORT,
             },
             {
                 "name": "API_WRAPPER_TIMEOUT",

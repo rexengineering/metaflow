@@ -222,6 +222,8 @@ class WorkflowInstance:
             serialization = call_props.serialization.lower()
             eval_args = [literal_eval(arg) for arg in args]
             if serialization == 'json':
+                if eval_args == []:
+                    eval_args = {}
                 data = json.dumps(eval_args)
                 mime_type = 'application/json'
             elif serialization == 'yaml':

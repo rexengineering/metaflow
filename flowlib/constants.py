@@ -1,4 +1,5 @@
 from hashlib import sha256
+import uuid
 import re
 from flowlib.config import REXFLOW_ROOT_PREFIX
 
@@ -61,6 +62,17 @@ class States:
     STOPPED = 'STOPPED'
     STOPPING = 'STOPPING'
     TRUE = 'TRUE'
+
+
+class ErrorCodes:
+    '''Possible error codes for workflow Instances in the ERROR state.
+    The BAVS code sends these error codes to the flowd /instancefail endpoint
+    when a failure occurs.
+    '''
+    FAILED_TASK = "FAILED_TASK"
+    FAILED_CONNECTION = "FAILED_CONNECTION"
+    FAILED_CONTEXT_INPUT_PARSING = "FAILED_CONTEXT_INPUT_PARSING"
+    FAILED_CONTEXT_OUTPUT_PARSING = "FAILED_CONTEXT_OUTPUT_PARSING"
 
 
 # TODO: research caching this conversion.
@@ -209,6 +221,14 @@ class WorkflowInstanceKeys:
     def ui_server_uri_key(cls, iid):
         return f'{cls.form_key(iid)}/graphql_uri'
 
+    @classmethod
+    def async_request_payload_key(cls, iid, tid, request_id):
+        return f'{cls.key_of(iid)}/async_service_task/{tid}/{request_id}/payload'
+
+    @classmethod
+    def async_callback_response_key(cls, iid, tid, request_id):
+        return f'{cls.key_of(iid)}/async_service_task/{tid}/{request_id}/response'
+
 def split_key(iid: str):
     '''
     Accept a key in the form of <workflow_id>-<guid>
@@ -230,6 +250,13 @@ def flow_result(status: int, message: str, **kwargs):
 def get_ingress_object_name(hostname):
     long_name = f'rexflow-{hostname}-{sha256(hostname.encode()).hexdigest()[:8]}'
     return to_valid_k8s_name(long_name)
+
+
+def generate_request_id():
+    '''Return a 10-char high-entropy string. Currently used for
+    async service bridge request ID's.
+    '''
+    return uuid.uuid4().hex[:10]
 
 
 class IngressHostKeys:

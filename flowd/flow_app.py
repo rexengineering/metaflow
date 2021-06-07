@@ -5,7 +5,7 @@ import logging
 import json
 
 from async_timeout import timeout
-from quart import request
+from quart import request, jsonify
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
@@ -111,7 +111,7 @@ class FlowApp(QuartApp):
         # change the state to ERROR.
 
         if Headers.X_HEADER_WORKFLOW_ID not in request.headers or Headers.X_HEADER_FLOW_ID not in request.headers:
-            return
+            return jsonify(flow_result(-1, "Didn't provide workflow headers"), 400)
 
         flow_id = request.headers[Headers.X_HEADER_FLOW_ID]
         wf_id = request.headers[Headers.X_HEADER_WORKFLOW_ID]
@@ -150,10 +150,18 @@ class FlowApp(QuartApp):
                     exc_info=exn
                 )
                 self.etcd.put(state_key, BStates.ERROR)
-                return
+                return jsonify(flow_result(-1, "Could not load promised data."), 400)
 
-            payload = json.loads(incoming_data.decode())
-            self._put_payload(payload, keys, workflow)
+            try:
+                payload = json.loads(incoming_data.decode())
+                self._put_payload(payload, keys, workflow)
+            except Exception as exn:
+                logging.exception(
+                    f"Failed processing instance error payload:",
+                    exc_info=exn,
+                )
+                self.etcd.put(keys.result, incoming_data)
+                self.etcd.put(keys.content_type, 'application/octet-stream')
             if workflow.process.properties.is_recoverable:
                 self.etcd.replace(state_key, BStates.STOPPING, BStates.STOPPED)
         return 'Another happy landing (:'
@@ -183,8 +191,25 @@ class FlowApp(QuartApp):
                 })
         return flow_result(0, 'Ok', wf_map=wf_map)
 
-    def _put_payload(self, payload, keys, workflow):
-        '''Take all of the incoming data and make it as close to JSON as we possibly
+    def _put_payload(self, payload: dict, keys: WorkflowInstanceKeys, workflow: Workflow):
+        '''Accepts incoming JSON and saves the error payload. Error data from Envoy
+        looks slightly different than error data from flowpost(), simply because
+        it's harder to manipulate data within the confines of the Envoy codebase.
+        Therefore, we have a separate helper method _put_payload_from_envoy() that
+        cleans up and stores the data. If the `from_flowpost` key is in the result,
+        we don't use that helper; otherwise, we know the data came from Envoy, and we
+        do use the helper.
+        '''
+        if payload.get('from_envoy', True):
+            self._put_payload_from_envoy(payload, keys, workflow)
+        else:
+            self.etcd.put(keys.result, json.dumps(payload))
+            self.etcd.put(keys.content_type, 'application/json')
+
+    def _put_payload_from_envoy(
+        self, payload: dict, keys: WorkflowInstanceKeys, workflow: Workflow
+    ):
+        '''Take all of the incoming data from envoy and make it as close to JSON as we
         can. The error data from BAVS looks like:
         {
             'input_headers_encoded': base64-encoded dump of headers of request to the task
