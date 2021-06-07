@@ -1,3 +1,4 @@
+import enum
 from hashlib import sha256
 import uuid
 import re
@@ -103,6 +104,17 @@ class Headers:
     X_REXFLOW_ORIGINAL_HOST = 'x-rexflow-original-host'
     X_REXFLOW_ORIGINAL_PATH = 'x-rexflow-original-path'
     X_REXFLOW_FAILURE = 'x-rexflow-failure'
+
+
+FORWARD_HEADERS = [
+    'x-request-id',
+    'x-b3-traceid',
+    'x-b3-spanid',
+    'x-b3-parentspanid',
+    'x-b3-sampled',
+    'x-b3-flags',
+    'x-ot-span-context',
+]
 
 
 class WorkflowKeys:
@@ -294,3 +306,24 @@ class IngressHostKeys:
     @classmethod
     def component_name_key(cls, host):
         return f'{cls.key_of(host)}/component_name'
+
+class Parallel:
+
+    @enum.unique
+    class MergeModes(enum.IntEnum):
+        '''Enumeration of the data merge modes supported by the parallel gateway.
+
+        ARRAY - Merge incoming data into a JSON array.
+        OBJECT - Merge incoming data into a JSON object.
+        UPDATE - Merge incoming data into a Python dictionary using the update() method.
+        '''
+        ARRAY = 1
+        OBJECT = 2
+        UPDATE = 3
+
+    class GatewayVars:
+        INCOMING_IDS = 'REXFLOW_PGW_INCOMING_IDS'
+        INCOMING_URLS = 'REXFLOW_PGW_INCOMING_URLS'
+        FORWARD_IDS = 'REXFLOW_PGW_FORWARD_IDS'
+        FORWARD_URLS = 'REXFLOW_PGW_FORWARD_URLS'
+        MERGE_MODE = 'REXFLOW_PGW_MERGE_MODE'

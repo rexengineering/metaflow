@@ -9,7 +9,7 @@ import requests
 from flowlib.bpmn_util import BPMNComponent
 from flowlib.etcd_utils import get_etcd, get_next_level, get_keys_from_prefix
 from flowlib.executor import get_executor
-from flowlib.flowd_utils import get_log_format
+from flowlib.flowd_utils import setup_root_logger
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
 from flowlib.constants import States, BStates, WorkflowKeys, WorkflowInstanceKeys
@@ -266,7 +266,7 @@ class HealthManager:
         ''' Force a health-check rather than waiting for the timer to mature.
         '''
         return [self.probe(workflow_id) for workflow_id in self.probes.keys()]
- 
+
     def probe(self, workflow_id):
         ''' Force a health-check on worfkow_id
         '''
@@ -306,6 +306,6 @@ if __name__ == '__main__':
     # Two startup modes:
     # Hot (re)start - Data already exists in etcd, reconstruct probes.
     # Cold start - No workflow and/or probe data are in etcd.
-    logging.basicConfig(format=get_log_format('healthd'), level=logging.INFO)
+    setup_root_logger('healthd', logging.INFO)
     app = HealthApp(bind='0.0.0.0:5050')
     app.run()

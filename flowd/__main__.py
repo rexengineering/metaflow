@@ -7,7 +7,7 @@ from typing import Union
 from grpc.experimental import aio
 
 from flowlib import flow_pb2_grpc
-from flowlib.flowd_utils import get_log_format
+from flowlib.flowd_utils import setup_root_logger
 
 from .flow_daemon import Flow
 from .flow_app import FlowApp
@@ -40,8 +40,7 @@ def build_app():
     namespace = build_parser().parse_args()
     if namespace.config:
         config = importlib.import_module(namespace.config[0]).__dict__
-    logging.basicConfig(format=get_log_format('flowd'),
-                        level=getattr(logging, namespace.level, logging.INFO))
+    setup_root_logger('flowd', getattr(logging, namespace.level, logging.INFO))
     loop = asyncio.get_event_loop()
     loop.create_task(serve('[::]', 9001))
     return FlowApp(bind='0.0.0.0:9002', config=config)

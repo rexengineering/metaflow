@@ -3,6 +3,7 @@ WORKDIR /opt/rexflow
 RUN apt-get update && apt-get install -y curl
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+RUN pip install flask
 COPY flowlib flowlib/
 COPY bpmn_containers/parallelgateway.py .
 EXPOSE 5050/tcp

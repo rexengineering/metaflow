@@ -1,97 +1,54 @@
-
-
 import json
 import logging
 import os
+from typing import Any
+
+from flask import Flask, request, make_response
 import requests
 
-from flask import Flask, request, make_response, jsonify
+from flowlib import connectors, executor
+from flowlib.constants import flow_result, Headers, Parallel
+
 
 app = Flask(__name__)
 
 
-FORWARD_HEADERS = [
-    'x-request-id',
-    'x-b3-traceid',
-    'x-b3-spanid',
-    'x-b3-parentspanid',
-    'x-b3-sampled',
-    'x-b3-flags',
-    'x-ot-span-context',
-]
+def post(target: str, response: Any) -> None:
+    responses_response = requests.post(target, headers=response.headers, data=response.data)
+    responses_response.raise_for_status()
 
 
-REXFLOW_PGW_TYPE = os.getenv('REXFLOW_PGW_TYPE', "")
-REXFLOW_PGW_INCOMING_COUNT = int(os.getenv('REXFLOW_PGW_INCOMING_COUNT', 0))
-REXFLOW_PGW_FORWARD_URL = os.getenv('REXFLOW_PGW_FORWARD_URL', "")
-REXFLOW_PGW_FORWARD_ID = os.getenv('REXFLOW_PGW_FORWARD_ID', "")
-REXFLOW_PGW_FORWARD_URLS = os.getenv('REXFLOW_PGW_FORWARD_URLS', "")
-REXFLOW_PGW_FORWARD_IDS = os.getenv('REXFLOW_PGW_FORWARD_IDS', "")
-
-if REXFLOW_PGW_FORWARD_URLS:
-    REXFLOW_PGW_FORWARD_URLS = json.loads(REXFLOW_PGW_FORWARD_URLS)
-
-if REXFLOW_PGW_FORWARD_IDS:
-    REXFLOW_PGW_FORWARD_IDS = json.loads(REXFLOW_PGW_FORWARD_IDS)
-
-REXFLOW_PGW_FORWARD_URLS = REXFLOW_PGW_FORWARD_URLS or []
-REXFLOW_PGW_FORWARD_IDS = REXFLOW_PGW_FORWARD_IDS or []
+def make_connector() -> connectors.Connector:
+    mode = Parallel.MergeModes(int(os.getenv(Parallel.GatewayVars.MERGE_MODE, 1)))
+    in_ids = json.loads(os.getenv(Parallel.GatewayVars.INCOMING_IDS, '[]'))
+    in_urls = json.loads(os.getenv(Parallel.GatewayVars.INCOMING_URLS, '[]'))
+    out_ids = json.loads(os.getenv(Parallel.GatewayVars.FORWARD_IDS, '[]'))
+    out_urls = json.loads(os.getenv(Parallel.GatewayVars.FORWARD_URLS, '[]'))
+    in_edges = [connectors.Connection(in_id, in_url, None) for in_id, in_url in zip(in_ids, in_urls)]
+    # TODO: Use the HTTP method appropriate to each destination.
+    out_edges = [connectors.Connection(out_id, out_url, 'POST') for out_id, out_url in zip(out_ids, out_urls)]
+    return connectors.ParallelConnector(in_edges, out_edges, {'post': post}, mode)
 
 
-pending_flows = {}
+connector = make_connector()
+connector_executor = executor.get_executor()
+
+def handle_data(request):
+    try:
+        connector.handle_data(request)
+    except connectors.ConnectorError as exn:
+        # TODO: Mark a fault as occurring here in the workflow and transition to ERROR state.
+        logging.exception('One or more errors occurred while handling response(s).', exc_info=exn)
 
 
 @app.route('/', methods=['POST'])
 def parallel():
-    incoming_json = request.json
-
-    headers = {
-        'x-rexflow-iid': request.headers['x-rexflow-iid'],
-        'x-rexflow-did': request.headers['x-rexflow-did'],
-    }
-
-    for h in FORWARD_HEADERS:
-        if h in request.headers:
-            headers[h] = request.headers[h]
-
-    if REXFLOW_PGW_TYPE == "splitter":
-
-        assert len(REXFLOW_PGW_FORWARD_URLS) == len(REXFLOW_PGW_FORWARD_IDS), \
-            f"Lengths of REXFLOW_PGW_FORWARD_URLS and REXFLOW_PGW_FORWARD_IDS differ: {len(REXFLOW_PGW_FORWARD_URLS)} {len(REXFLOW_PGW_FORWARD_IDS)}"
-
-        for i in range(len(REXFLOW_PGW_FORWARD_URLS)):
-            headers['x-rexflow-task-id'] = REXFLOW_PGW_FORWARD_IDS[i]
-            requests.post(REXFLOW_PGW_FORWARD_URLS[i], json=incoming_json, headers=headers)
-
-    elif REXFLOW_PGW_TYPE == "combiner":
-
-        flow_id = request.headers['x-rexflow-iid']
-
-        if flow_id not in pending_flows:
-            pending_flows[flow_id] = []
-
-        results = pending_flows[flow_id]
-        results.append(incoming_json)
-
-        pending_count = REXFLOW_PGW_INCOMING_COUNT - len(results)
-
-        if pending_count == 0:
-
-            if REXFLOW_PGW_FORWARD_URL:
-                headers['x-rexflow-task-id'] = REXFLOW_PGW_FORWARD_ID
-                requests.post(REXFLOW_PGW_FORWARD_URL, json=incoming_json, headers=headers)
-            else:
-                logging.error(f"[flow_id={flow_id}] REXFLOW_PGW_FORWARD_URL not set, can't send results.")
-
-            del pending_flows[flow_id]
-
-        else:
-            logging.info(f"[flow_id={flow_id}] Still waiting for {pending_count} results.")
-
+    if connector.is_valid(request):
+        connector_executor.submit(handle_data, request)
+        resp = make_response(flow_result(0, 'Ok'), 202)
     else:
-        logging.error(f"REXFLOW_PGW_TYPE == '{REXFLOW_PGW_TYPE}'???")
-
-    resp = make_response({"status": 200, "msg": ""})
+        # TODO: Mark a fault as occurring here in the workflow and transition to ERROR state.
+        resp = make_response(flow_result(-1, 'Invalid input'), 400)
 
     if Headers.TRACEID_HEADER in request.headers:
         resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
@@ -103,7 +60,7 @@ def parallel():
 
 @app.route('/', methods=['GET'])
 def health():
-    return jsonify({"status": 200, "msg": ""})
+    return flow_result(0, 'Ok')
 
 
 if __name__ == '__main__':
