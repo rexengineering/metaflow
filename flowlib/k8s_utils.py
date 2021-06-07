@@ -36,8 +36,10 @@ def to_base64(file_loc):
 
 
 def create_deployment(
-        namespace, dns_safe_name, container, container_port, env, etcd_access=False,
-        kafka_access=False, use_service_account=True, replicas=1, priority_class=None):
+    namespace, dns_safe_name, container, container_port, env, etcd_access=False,
+    kafka_access=False, use_service_account=True, replicas=1, priority_class=None,
+    health_props=None
+):
     deployment = {
         'apiVersion': 'apps/v1',
         'kind': 'Deployment',
@@ -121,6 +123,26 @@ def create_deployment(
     if use_service_account:
         spec['serviceAccountName'] = dns_safe_name
 
+    if health_props is not None:
+        spec['containers'][0]['livenessProbe'] = {
+            'httpGet': {
+                'path': health_props.path,
+                'port': container_port,
+            },
+            'initialDelaySeconds': health_props.initial_delay,
+            'periodSeconds': health_props.period,
+            'timeoutSeconds': health_props.timeout,
+            'failureThreshold': health_props.failure_threshold,
+        }
+        spec['containers'][0]['readinessProbe'] = {
+            'httpGet': {
+                'path': health_props.path,
+                'port': container_port,
+            },
+            'periodSeconds': health_props.period,
+            'timeoutSeconds': health_props.timeout,
+            'failureThreshold': health_props.failure_threshold,
+        }
     return deployment
 
 

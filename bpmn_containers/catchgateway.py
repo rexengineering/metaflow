@@ -279,6 +279,15 @@ class EventCatchApp(QuartApp):
             self.app.route('/timer', methods=['GET','POST'])(self.timer_query)
 
     def health_check(self):
+        if FUNCTION == FUNCTION_START:
+            # TODO: clean up all the calls to get_etcd().
+            # We just want to make sure we can indeed connect. This should be just
+            # a call to `self._etcd.get('foo')`, but we don't have a self._etcd yet.
+            etcd = get_etcd()
+
+            # Still need to call .get(foo) because we could have lost connection to
+            # the etcd server between now and when the _etcd global was initialized.
+            etcd.get('healthcheck')
         return jsonify(flow_result(0, ""))
 
     async def catch_event(self):

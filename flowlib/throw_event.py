@@ -126,6 +126,7 @@ class BPMNThrowEvent(BPMNComponent):
             env_config,
             kafka_access=True,
             priority_class=self.workflow_properties.priority_class,
+            health_props=self.health_properties,
         ))
 
         return k8s_objects

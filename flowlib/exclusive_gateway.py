@@ -166,5 +166,6 @@ class BPMNXGateway(BPMNComponent):
             XGW_IMAGE,
             port,
             env_config,
+            health_props=self.health_properties,
         ))
         return k8s_objects

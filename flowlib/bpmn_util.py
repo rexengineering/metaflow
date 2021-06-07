@@ -222,6 +222,8 @@ class HealthProperties:
         self._period = None
         self._response = None
         self._timeout = None
+        self._initial_delay = None
+        self._failure_threshold = None
 
     @property
     def path(self) -> str:
@@ -243,6 +245,14 @@ class HealthProperties:
     def timeout(self) -> int:
         return self._timeout if self._timeout else 5
 
+    @property
+    def initial_delay(self) -> int:
+        return self._initial_delay if self._initial_delay else 30
+
+    @property
+    def failure_threshold(self) -> int:
+        return self._failure_threshold if self._failure_threshold else 3
+
     def update(self, annotations):
         if 'path' in annotations:
             self._path = annotations['path']
@@ -256,6 +266,10 @@ class HealthProperties:
             self._response = annotations['response']
         if 'timeout' in annotations:
             self._timeout = annotations['timeout']
+        if 'initial_delay' in annotations:
+            self._initial_delay = annotations['initial_delay']
+        if 'failure_threshold' in annotations:
+            self._failure_threshold = annotations['failure_threshold']
 
 
 # TODO: Clean this up a bit

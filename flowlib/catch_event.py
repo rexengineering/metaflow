@@ -139,5 +139,6 @@ class BPMNCatchEvent(BPMNComponent):
             kafka_access=True,
             etcd_access=True,
             priority_class=self.workflow_properties.priority_class,
+            health_props=self.health_properties,
         ))
         return k8s_objects

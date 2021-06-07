@@ -29,6 +29,7 @@ from .constants import WorkflowKeys, to_valid_k8s_name
 from .user_task import BPMNUserTask
 
 from .bpmn_util import (
+    HealthProperties,
     iter_xmldict_for_key,
     raw_proc_to_digraph,
     BPMNComponent,
@@ -388,7 +389,8 @@ class BPMNProcess:
                 UI_BRIDGE_PORT,
                 ui_bridge_env,
                 etcd_access=True,
-                use_service_account=False
+                use_service_account=False,
+                health_props=HealthProperties(),
             ))
             results.append(create_service(
                 self.namespace,
@@ -535,6 +537,7 @@ class BPMNProcess:
                 target_port,
                 env_config,
                 use_service_account=False,
+                health_props=HealthProperties()
             )
         )
         result.append(

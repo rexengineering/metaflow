@@ -177,6 +177,9 @@ class EventThrowApp(QuartApp):
         self.app.route('/', methods=['POST'])(self.throw_event)
 
     def health_check(self):
+        if FUNCTION == 'END':
+            etcd = get_etcd()
+            etcd.get('healthcheck')
         return jsonify(flow_result(0, ""))
 
     async def throw_event(self):

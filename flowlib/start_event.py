@@ -150,6 +150,7 @@ class BPMNStartEvent(BPMNComponent):
             etcd_access=True,
             kafka_access=True,
             priority_class=self.workflow_properties.priority_class,
+            health_props=self.health_properties,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(

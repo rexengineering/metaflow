@@ -11,6 +11,7 @@ from .bpmn_util import (
     WorkflowProperties,
     ServiceProperties,
     CallProperties,
+    HealthProperties,
     BPMNComponent,
     get_edge_transport,
     iter_xmldict_for_key,
@@ -445,6 +446,7 @@ class BPMNTask(BPMNComponent):
             etcd_access=True,
             kafka_access=True,
             priority_class=self.workflow_properties.priority_class,
+            health_props=HealthProperties(),
         ))
         result.append(create_serviceaccount(
             self.namespace,
@@ -478,6 +480,7 @@ class BPMNTask(BPMNComponent):
             target_port,
             env=[],
             priority_class=self.workflow_properties.priority_class,
+            health_props=self.health_properties,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(
