@@ -1,4 +1,4 @@
-'''
+"""
 Contains framework logic for processing timed events.
 
 ISO 8601 formats are supported by the standard python library
@@ -22,8 +22,7 @@ The value is a JSON'd list of
         'data' : [data, flow_id, wf_id, content_type]   # outbound event data
     }
 
-
-'''
+"""
 import isodate
 import json
 import logging
@@ -33,13 +32,14 @@ import typing
 
 from datetime import datetime, timezone
 from flowlib import token_api
+from flowlib.substitution import Substitutor
 
 class WrappedTimer:
-    '''
+    """
     Python timers are created, start, and die without any notifications. This
     class wraps a threading.Timer object so that we can receive a notification
     once the timer matures.
-    '''
+    """
     def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context : typing.Any):
         self._interval = interval
         self._done_action = done_action
@@ -100,6 +100,9 @@ class TimedEventManager:
         self.aspects, self.is_dynamic_spec = TimedEventManager.validate_spec(self.timer_type, self.spec.upper())
         self.token_pool_id = None
         self.completed = True
+        self._substitutor = Substitutor() \
+            .add_handler(self.ADD_FUNC, self._func_add) \
+            .add_handler(self.SUB_FUNC, self._func_sub)
 
     class ValidationResults:
         def __init__(self, timer_type : str, spec : str):
@@ -111,11 +114,11 @@ class TimedEventManager:
             self.recurrance = 0
 
     def reset(self, aspects : ValidationResults) -> None:
-        '''
+        """
         Reset the timer manager to the provided timer type and specification.
         This can only happen if the current configuration has already run its
         course.
-        '''
+        """
         assert self.completed, 'Cannot reset - timer still active'
         self.aspects = aspects
 
@@ -205,7 +208,7 @@ class TimedEventManager:
 
     @classmethod
     def parse_spec(cls, spec : str) -> list:
-        '''
+        """
         Parse the time period specification as per ISO 8601-1
         - elements are separated by '/' (4.4.2.a)
         - element that start with 'P' is a PERIOD (4.4.2.b)
@@ -215,7 +218,7 @@ class TimedEventManager:
         Return a tuple of a pattern of encountered data elements, e.g.
         'RP' for a recurrence/period, and a list of result objects,
         e.g. ['RP',[3,103420]]
-        '''
+        """
         cat = ''
         results = []
         for elem in spec.strip().upper().split('/'):
@@ -236,7 +239,7 @@ class TimedEventManager:
         return [cat,results]
 
     def create_timer(self, wf_inst_id : str, token_stack : str, args : list):
-        '''
+        """
         The parms passed to us *must* be passed to the callback when firing the
         timer. Here, we take the timer parameters when the manager was created
         and determine the appropriate duration(s) for the timers to be created.
@@ -254,7 +257,7 @@ class TimedEventManager:
                    is confusing in the rexflow implementation as to what the
                    behavior should be. For now, the event will be fired
                    every time the timer matures.
-        '''
+        """
 
         # if self.is_dynamic_spec is True, then we need to validate the spec employing
         # information passed in with the request
@@ -263,7 +266,7 @@ class TimedEventManager:
             # JSON. So, decode that, and pass it to the substiution logic to get a
             # "current" timer specification, then validate that. Oy.
             req_json        = json.loads(args[0].decode())
-            adj_spec        = self._json_substitution(req_json, self.spec)
+            adj_spec        = self._substitutor.do_sub(req_json, self.spec)
             self.aspects, _ = self.validate_spec(self.timer_type, adj_spec)
 
         context = TimerContext(self, token_stack, args)
@@ -292,13 +295,13 @@ class TimedEventManager:
             context.recurrance = context.recurrance - 1
 
     def timer_action(self, *data):
-        '''
+        """
         Called when a timer fires. This calls the callback provided when the
         timer was enqueued.
 
         Note that the callback is expected to handle any problems with communicating
         with other services, POST's, GET's, whatever so we just make the call here.
-        '''
+        """
         logging.info(f'timer_action - calling back with {data}')
         try:
             resp = self.callback(*data)
@@ -307,7 +310,7 @@ class TimedEventManager:
             logging.exception('Callback threw exception, which was ignored', exc_info=ex)
 
     def timer_done_action(self, context):
-        '''
+        """
         Called after a timer has fired. In this implementation, this could be
         combined with timer_action, but keep it separate to give us more
         flexibility should we want separate done actions evoked for different
@@ -317,81 +320,38 @@ class TimedEventManager:
         a cycle timer and there are no more recurrences then we're done.
         Otherwise, calculate the maturity time for the next cycle and enqueue
         that timer.
-        '''
+        """
         if self.aspects.timer_type == self.TIME_CYCLE and context.recurrance > 0:
             if context.end_date is not None:
                 exec_time = int(time.time()) + self.aspects.interval
                 assert exec_time <= context.end_date, "Recursion terminated - execution time exceeds specified end time."
             timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context)
             timer.start()
-            context.recurrance = context.recurrance - 1
+            context.recurrance -= 1
         else:
             self.completed = True
 
-    @classmethod
-    def _json_substitution(cls, locals:dict, src:str) -> str:
-        '''
-        Take an input string with (supposed) embedded token references bracketed by {}
-        e.g. "hello {world}" In this case, the token "world" is abstracted, and a node
-        with that name is searched in the json.
-        '''
-        itr = enumerate(src)
-        trg = cls._sub_json_token(locals, itr, 0, '')
-        logging.info(f'Json sub results {src}\n{trg}')
-        return trg
-
-    @classmethod
-    def _sub_json_token(cls, locals:dict, itr:enumerate, level:int, bank:str, func:str = None) -> str:
-
-        trg = ''
-        for _,c in itr: 
-            if c == cls.SUBS_BEG:
-                # found a nested reference - so resolve it
-                trg += cls._sub_json_token(locals, itr, level + 1, bank)
-            elif c == cls.SUBS_END:
-                if (level):
-                    # trg contains a JSON path to be resolved, and its
-                    # value used in place of the identified path
-                    return locals[trg]
-                # otherwise error?
-            elif c == cls.FUNC_BEG:
-                # trg contains the name of a function
-                trg = trg.upper()
-                if not trg in cls.FUNCS:
-                    raise ValueError(f'Unknown function: {trg}')
-                trg = cls._sub_json_token(locals, itr, level + 1, bank, trg)
-            elif c == cls.FUNC_END:
-                # trg contains parms to the function
-                return cls._proc_func(func,trg)
-            else:
-                trg += c
-                if c == cls.DIVIDER:
-                    # bank trg and start over - but keep the separator
-                    bank += trg
-                    trg = ''
-        # if (level) error?
-        return bank + trg
-
-    @classmethod
-    def _proc_func(cls, func:str, parms:str):
-        res  = ''
+    def _time_preproc(self, parms:str) -> list:
         args = []
         for arg in parms.split(','):
-            if arg == cls.NOW:
+            if arg == 'NOW':
                 val = datetime.now(timezone.utc).timestamp()
             else:
-                val = cls.parse_spec(arg)[1][0]
+                val = TimedEventManager.parse_spec(arg)[1][0]
             args.append(val)
+        return args
 
-        if func == cls.ADD_FUNC:
-            args[0] += args[1]
-            res = datetime.fromtimestamp(args[0]).strftime(cls.ISO_8601_FORMAT)
-        elif func == cls.SUB_FUNC:
-            args[0] -= args[1]
-            res = datetime.fromtimestamp(args[0]).strftime(cls.ISO_8601_FORMAT)
-        else:
-            raise NameError(f'Unknown function {func}')
-        return res
+    def _func_add(self, parms:str):
+        args = self._time_preproc(parms)
+        assert len(args) == 2, f'{self.ADD_FUNC} takes 2 parameters, {len(args)} provided'
+        args[0] += args[1]
+        return datetime.fromtimestamp(args[0]).strftime(self.ISO_8601_FORMAT)
+
+    def _func_sub(self, parms:str):
+        args = self._time_preproc(parms)
+        assert len(args) == 2, f'{self.SUB_FUNC} takes 2 parameters, {len(args)} provided'
+        args[0] -= args[1]
+        return datetime.fromtimestamp(args[0]).strftime(self.ISO_8601_FORMAT)
 
 class TimerContext:
     def __init__(self, source : TimedEventManager, token_stack : str, vals : list):
