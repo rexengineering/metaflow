@@ -166,6 +166,15 @@ class WorkflowInstanceKeys:
         self.timed_results  = self.timed_results_key(iid)
 
     @classmethod
+    def iid_from_key(cls, key):
+        """Given an etcd key for a workflow instance, return the iid
+        that the key is associated with.
+        """
+        trimmed = key[len(WorkflowInstanceKeys.ROOT) + 1:]
+        iid = trimmed[:trimmed.find('/')]
+        return iid
+
+    @classmethod
     def key_of(cls, iid):
         return f'{WorkflowInstanceKeys.ROOT}/{iid}'
 

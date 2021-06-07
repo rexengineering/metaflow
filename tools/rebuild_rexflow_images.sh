@@ -15,3 +15,5 @@ docker build -t parallel-gateway -f deploy/build-parallel-gateway/Dockerfile --t
 docker build -t passthrough-container -f deploy/build-passthrough-container/Dockerfile --target container .
 
 docker build -t async-bridge -f deploy/build-async-bridge/Dockerfile --target container .
+
+docker build -t workflow-publisher -f deploy/build-workflow-publisher/Dockerfile --target container .

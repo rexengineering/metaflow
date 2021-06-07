@@ -8,6 +8,7 @@ import re
 import json
 from flowlib.constants import BPMN_TIMER_EVENT_DEFINITION, TIMER_DESCRIPTION, to_valid_k8s_name
 from flowlib.timer_util import TimedEventManager
+from flowlib.config import WORKFLOW_PUBLISHER_LISTEN_PORT
 
 
 def get_edge_transport(edge, default_transport):
@@ -274,9 +275,7 @@ class WorkflowProperties:
         self._retry_total_attempts = 1  # retry is opt-in feature: default no retry
         self._is_recoverable = False
         self._transport = 'rpc'
-        self._traffic_shadow_service_props = None
-        self._traffic_shadow_call_props = None
-        self._traffic_shadow_url = None
+        self._notification_kafka_topic = None
         self._xgw_expression_type = 'feel'
         self._deployment_timeout = 180
         self._synchronous_wrapper_timeout = 10
@@ -327,15 +326,25 @@ class WorkflowProperties:
 
     @property
     def traffic_shadow_call_props(self):
-        return self._traffic_shadow_call_props
+        return CallProperties()
 
     @property
     def traffic_shadow_service_props(self):
-        return self._traffic_shadow_service_props
+        return ServiceProperties({
+            'host': f'wf-publisher-{self.id}',
+            'namespace': self.namespace,
+            'port': WORKFLOW_PUBLISHER_LISTEN_PORT,
+        })
 
     @property
     def traffic_shadow_url(self):
-        return self._traffic_shadow_url
+        url = f'http://{self.traffic_shadow_service_props.host}.'
+        url += self.traffic_shadow_service_props.namespace + "/"
+        return url
+
+    @property
+    def notification_kafka_topic(self):
+        return self._notification_kafka_topic
 
     @property
     def xgw_expression_type(self):
@@ -424,26 +433,8 @@ class WorkflowProperties:
         if 'synchronous_wrapper_timeout' in annotations:
             self._synchronous_wrapper_timeout = annotations['synchronous_wrapper_timeout']
 
-        if 'traffic_shadow_svc' in annotations:
-            assert self.transport == 'rpc', \
-                "Shadowing traffic not yet supported in Reliable WF"
-            shadow_annots = annotations['traffic_shadow_svc']
-            svc_annots = shadow_annots['service']
-            call_annots = shadow_annots.get('call')
-            if call_annots is None:
-                call_annots = {}
-
-            self._traffic_shadow_service_props = ServiceProperties()
-            self._traffic_shadow_service_props.update(svc_annots)
-            self._traffic_shadow_call_props = CallProperties()
-            self._traffic_shadow_call_props.update(call_annots)
-
-            proto = self._traffic_shadow_service_props.protocol
-            path = self._traffic_shadow_call_props.path
-            port = self._traffic_shadow_service_props.port
-
-            self._traffic_shadow_url = f'{proto}://{svc_annots["host"]}.'
-            self._traffic_shadow_url += f'{svc_annots["namespace"]}:{port}{path}'
+        if 'notification_kafka_topic' in annotations:
+            self._notification_kafka_topic = annotations['notification_kafka_topic']
 
         if 'xgw_expression_type' in annotations:
             assert annotations['xgw_expression_type'] in VALID_XGW_EXPRESSION_TYPES

@@ -153,7 +153,8 @@ class Workflow:
                 logging.error(f'Error from Docker:\n{docker_result.stderr}')
                 etcd.replace(self.keys.state, States.STOPPING, States.ERROR)
         elif orchestrator in {'kubernetes', 'istio'}:
-            self._delete_kafka_topics()
+            # TODO: Rethink when to delete kafka topics since more than
+            # one deployment may use a given topic.
             kubernetes_stream = StringIO()
             if orchestrator == 'kubernetes':
                 self.process.to_kubernetes(kubernetes_stream, self.id_hash)

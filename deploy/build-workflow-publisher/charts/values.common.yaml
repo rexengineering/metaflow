@@ -1,0 +1,4 @@
+nameOverride: rexflow-workflow-publisher
+
+build:
+   build_from: ../..

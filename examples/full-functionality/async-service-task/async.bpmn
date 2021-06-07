@@ -48,18 +48,20 @@
     port: 5000</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_11e5v7s" sourceRef="Activity_1w6bnfo" targetRef="TextAnnotation_0ghbzqm" />
+    <bpmn:textAnnotation id="TextAnnotation_14v5iw7">
+      <bpmn:text>rexflow_global_properties:
+  notification_kafka_topic: async-demo</bpmn:text>
+    </bpmn:textAnnotation>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="async-force">
-      <bpmndi:BPMNShape id="TextAnnotation_04roe2e_di" bpmnElement="TextAnnotation_04roe2e">
-        <dc:Bounds x="370" y="100" width="150" height="82" />
+      <bpmndi:BPMNShape id="TextAnnotation_14v5iw7_di" bpmnElement="TextAnnotation_14v5iw7">
+        <dc:Bounds x="490" y="380" width="270" height="40" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
-        <dc:Bounds x="586" y="90" width="128" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_0ghbzqm_di" bpmnElement="TextAnnotation_0ghbzqm">
-        <dc:Bounds x="160" y="106" width="160" height="68" />
-      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_11vl1fq_di" bpmnElement="Flow_11vl1fq">
+        <di:waypoint x="360" y="287" />
+        <di:waypoint x="420" y="287" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1v6c7k6_di" bpmnElement="Flow_1v6c7k6">
         <di:waypoint x="520" y="287" />
         <di:waypoint x="600" y="287" />
@@ -72,10 +74,12 @@
         <di:waypoint x="700" y="287" />
         <di:waypoint x="762" y="287" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_11vl1fq_di" bpmnElement="Flow_11vl1fq">
-        <di:waypoint x="360" y="287" />
-        <di:waypoint x="420" y="287" />
-      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="162" y="269" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="160" y="312" width="43" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0hj12ju_di" bpmnElement="Task_1mrtiy4">
         <dc:Bounds x="600" y="247" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -88,14 +92,17 @@
       <bpmndi:BPMNShape id="Activity_1ac1bae_di" bpmnElement="Activity_0kfkoqt">
         <dc:Bounds x="420" y="247" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
-        <dc:Bounds x="162" y="269" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="160" y="312" width="43" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1kwe9j2_di" bpmnElement="Activity_1w6bnfo">
         <dc:Bounds x="260" y="247" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_04roe2e_di" bpmnElement="TextAnnotation_04roe2e">
+        <dc:Bounds x="370" y="100" width="150" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
+        <dc:Bounds x="586" y="90" width="128" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0ghbzqm_di" bpmnElement="TextAnnotation_0ghbzqm">
+        <dc:Bounds x="160" y="106" width="160" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_1yz0l60_di" bpmnElement="Association_1yz0l60">
         <di:waypoint x="651" y="247" />

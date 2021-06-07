@@ -54,6 +54,8 @@ from .config import (
     UI_BRIDGE_NAME,
     UI_BRIDGE_PORT,
     UI_BRIDGE_INIT_PATH,
+    WORKFLOW_PUBLISHER_LISTEN_PORT,
+    WORFKLOW_PUBLISHER_IMAGE,
     CREATE_DEV_INGRESS,
     PASSTHROUGH_IMAGE,
 )
@@ -237,6 +239,8 @@ class BPMNProcess:
                 self._sequence_flow_table
             )
             kafka_topics.extend(component.kafka_topics)
+        if self.properties.notification_kafka_topic:
+            kafka_topics.append(self.properties.notification_kafka_topic)
         return set(kafka_topics)
 
     @classmethod
@@ -402,6 +406,9 @@ class BPMNProcess:
 
         if self.properties.passthrough_target is not None:
             results.extend(self._get_passthrough_services())
+    
+        if self.properties.notification_kafka_topic is not None:
+            results.extend(self._get_workflow_publisher_specs())
 
         # Now, add the REXFlow labels
         for k8s_spec in results:
@@ -435,6 +442,39 @@ class BPMNProcess:
             logging.error(f'Error from Istio:\n{istioctl_result.stderr}')
 
         return result
+
+    def _get_workflow_publisher_specs(self):
+        results = []
+        env_config = [
+            {
+                "name": "REXFLOW_PUBLISHER_KAFKA_TOPIC",
+                "value": self.properties.notification_kafka_topic,
+            },
+            {
+                "name": "REXFLOW_PUBLISHER_WORKFLOW_ID",
+                "value": self.properties.id,
+            }
+        ]
+        results.append(create_deployment(
+            self.namespace,
+            self.properties.traffic_shadow_service_props.host,
+            WORFKLOW_PUBLISHER_IMAGE,
+            WORKFLOW_PUBLISHER_LISTEN_PORT,
+            env_config,
+            etcd_access=True,
+            kafka_access=True,
+            priority_class=self.properties.priority_class,
+        ))
+        results.append(create_service(
+            self.namespace,
+            self.properties.traffic_shadow_service_props.host,
+            WORKFLOW_PUBLISHER_LISTEN_PORT,
+        ))
+        results.append(create_serviceaccount(
+            self.namespace,
+            self.properties.traffic_shadow_service_props.host,
+        ))
+        return results
 
     @property
     def xmldict(self) -> OrderedDict:

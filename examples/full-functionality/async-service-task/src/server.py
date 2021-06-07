@@ -32,6 +32,20 @@ def serve():
     return jsonify({"status": "acceptedasdf"}, 202)
 
 
+@server.route('/message', methods=['POST'])
+def message():
+    # A synchronous service task that sends a slack message
+    incoming = request.get_json()
+    payload = {
+        'email': incoming['email'],
+        'message': f'Instance {incoming["instance_id"]} is in state {incoming["instance_state"]}',
+        'botToken': 'REX_SVC_SCHEDULER_SLACK_BOT_TOKEN',
+    }
+    requests.post('http://slack-api.b-develop.ing.branch.rex.sh/message/', json=payload)
+    return jsonify({"status": "ok"})
+        
+
+
 @server.route('/jedi', methods=['POST'])
 def jedi():
     data = request.get_json()
