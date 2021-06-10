@@ -34,6 +34,8 @@ from datetime import datetime, timezone
 from flowlib import token_api
 from flowlib.substitution import Substitutor
 
+from typing import Tuple
+
 class WrappedTimer:
     """
     Python timers are created, start, and die without any notifications. This
@@ -123,7 +125,7 @@ class TimedEventManager:
         self.aspects = aspects
 
     @classmethod
-    def validate_spec(cls, timer_type : str, spec : str) -> ValidationResults:
+    def validate_spec(cls, timer_type : str, spec : str) -> Tuple[ValidationResults, bool]:
         logging.info(f'Validating {timer_type} {spec}')
         # check here if spec contains any substitution or function markers. 
         # if so, return None

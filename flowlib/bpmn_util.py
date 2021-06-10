@@ -1,7 +1,7 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
-from typing import Any, Generator, Mapping, List, Set, Union
+from typing import Any, Generator, Mapping, List, Set, Union, Optional
 import yaml
 from hashlib import sha1, sha256
 import re
@@ -511,7 +511,8 @@ class BPMNComponent:
         self._proc = process
         self._kafka_topics = []
         self._timer_description = []
-        self._timer_aspects = None
+        self._timer_aspects: Optional[TimedEventManager.ValidationResults] = None
+        self._timer_dynamic = False
 
         if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']

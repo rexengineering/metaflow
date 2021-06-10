@@ -21,6 +21,7 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     CREATE_DEV_INGRESS,
+    K8S_DEFAULT_REPLICAS,
 )
 
 
@@ -141,6 +142,10 @@ class BPMNStartEvent(BPMNComponent):
         namespace = self._namespace
         k8s_objects.append(create_serviceaccount(namespace, self.service_name))
         k8s_objects.append(create_service(namespace, self.service_name, port))
+        if self._timer_aspects or self._timer_dynamic:
+            replicas = 1
+        else:
+            replicas = K8S_DEFAULT_REPLICAS
         k8s_objects.append(create_deployment(
             namespace,
             self.service_name,
@@ -151,6 +156,7 @@ class BPMNStartEvent(BPMNComponent):
             kafka_access=True,
             priority_class=self.workflow_properties.priority_class,
             health_props=self.health_properties,
+            replicas=replicas,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(

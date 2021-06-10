@@ -9,8 +9,10 @@ from enum import Enum
 import logging
 import json
 import requests
-from typing import Mapping, Union, Callable
+from typing import Dict, Mapping, Optional, Union, Callable
 from urllib.parse import urlparse
+
+from requests import models
 from flowlib import bpmn
 
 from flowlib.config import INSTANCE_FAIL_ENDPOINT
@@ -34,16 +36,16 @@ class FlowPostStatus(Enum):
 class FlowPostResult:
     """Tuple of response and message. The response is the HTTP response of the
     successful request (or last failed request). The message tells us whether:
-    * The call succeeded OR 
+    * The call succeeded OR
     * The call failed and we successfully reported the Instance-level failure OR
     * The call failed and we did NOT succeed in reporting the Instance-level failure.
     """
-    def __init__(self, response: requests.models.Response, message: FlowPostStatus):
+    def __init__(self, response: Optional[requests.models.Response], message: FlowPostStatus):
         self._response = response
         self._message = message
 
     @property
-    def response(self) -> requests.models.Response:
+    def response(self) -> Optional[requests.models.Response]:
         return self._response
 
     @property
@@ -59,8 +61,8 @@ class FlowPost:
         data: Union[bytes, str],
         url: str = None,
         method: str = 'post',
-        req_method: Callable = None,
-        headers: Mapping[str, str] = None,
+        req_method: Optional[Callable[..., requests.models.Response]] = None,
+        headers: Optional[Mapping[str, str]] = None,
         retries: int = None,
         shadow_url: str = None,
         workflow_obj: Workflow = None,
@@ -94,7 +96,7 @@ class FlowPost:
         self._url = url
         self._method = method
         self._req_method = req_method
-        self._headers = headers.copy() or {}
+        self._headers = dict(headers) if headers else {}
         self._retries = retries
         self._workflow_obj = workflow_obj
         self._shadow_url = shadow_url
@@ -110,27 +112,19 @@ class FlowPost:
 
     def _send(self) -> FlowPostResult:
         headers = self.headers.copy()
-        response = None
         try:
             logging.info(
                 f'Making {self.method} to {self.url} for instance {self.instance_id}.'
             )
-            response = self.req_method(
+            response: requests.models.Response = self.req_method(
                 self.url,
                 data=self.data,
                 headers=headers,
                 timeout=TIMEOUT,
-            ) # type: requests.models.Response
-            response.raise_for_status()
-            logging.info(
-                f'Successfully made call for {self.instance_id}: {response}.'
             )
-            return FlowPostResult(response, FlowPostStatus.SUCCESS)
-        except Exception as exn:
-            if self.retries > 0:
-                self._retries -= 1
-                return self._send()
-            elif isinstance(exn, (requests.exceptions.HTTPError)):
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as exn:
                 logging.exception(
                     f"Instance {self.instance_id} failed on task {self.task_id} {self.url}",
                     exc_info=exn,
@@ -139,6 +133,14 @@ class FlowPost:
                     return self.raise_connection_error()
                 else:
                     return self.raise_task_error(response)
+            logging.info(
+                f'Successfully made call for {self.instance_id}: {response}.'
+            )
+            return FlowPostResult(response, FlowPostStatus.SUCCESS)
+        except Exception as exn:
+            if self.retries > 0:
+                self._retries = self.retries - 1
+                return self._send()
             else:
                 logging.exception(
                     f"Instance {self.instance_id} failed to connect to task on url {self.url}.",
@@ -233,7 +235,7 @@ class FlowPost:
                 f"Failed reporting error for instance {self._instance_id}."
             )
             return FlowPostResult(None, FlowPostStatus.FAILED_TO_REPORT_ERROR)
-            
+
     @classmethod
     def jsonify_or_encode_data(cls, data: Union[bytes, str]) -> Union[dict, str]:
         """Accepts data and returns it in dict format (via json.loads()) if possible.
@@ -285,7 +287,7 @@ class FlowPost:
 
     @property
     def method(self) -> str:
-        """Returns the lowercase  method with which to call the 
+        """Returns the lowercase  method with which to call the
         """
         if self._method is None:
             self._method = self.bpmn_component_obj.call_properties.method
@@ -333,10 +335,10 @@ class FlowPost:
         return self._data
 
     @property
-    def headers(self) -> Mapping[str, str]:
+    def headers(self) -> Dict[str, str]:
         """Returns headers to send to the task.
         """
-        headers = dict(self._headers.copy())
+        headers = self._headers.copy()
         headers[Headers.X_HEADER_FLOW_ID] = self.instance_id
         headers[Headers.X_HEADER_TASK_ID] = self.task_id
         headers[Headers.X_HEADER_WORKFLOW_ID] = self.workflow_id

@@ -288,27 +288,27 @@ class WorkflowInstance:
         # mark running
         etcd = get_etcd()
 
+        try:
+            payload = json.loads(etcd.get(self.keys.result)[0].decode())
+            headers = payload['input_headers']
+            data = payload['input_data']
+            failed_task_id = payload['failed_task_id']
+            component = self.parent.process.component_map[failed_task_id]
+            etcd.delete(self.keys.result)
+        except Exception as exn:
+            logging.exception(
+                f'Failed loading previous state when retrying WF Instance {self.id}.',
+                exc_info=exn,
+            )
+            return flow_result(-1, "Failed to load previous instance state from before failure.")
+
         if not etcd.replace(self.keys.state, States.STOPPED, States.STARTING):
             logging.error('Failed to transition from STOPPED -> STARTING.')
 
-        # get headers
-        headers = json.loads(etcd.get(self.keys.input_headers)[0].decode())
-
-        # next, get the payload
-        payload = etcd.get(self.keys.input_data)[0]
-
         # now, start the thing again.
-        failed_task_name = etcd.get(self.keys.failed_task)[0].decode()
-        component_list = list(filter(
-            lambda x: x.name == failed_task_name,
-            self.parent.process.all_components
-        ))
-        assert len(component_list) == 1, \
-            f"Should be exactly one task with name {failed_task_name}"
-        component = component_list[0]
         response = requests.post(
             component.k8s_url,
-            data=payload,
+            json=data,  # TODO: Handle more than just JSON mimetype.
             headers=headers,
         )
 

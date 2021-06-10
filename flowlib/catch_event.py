@@ -22,6 +22,7 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     INSTANCE_FAIL_ENDPOINT,
+    K8S_DEFAULT_REPLICAS,
 )
 from .reliable_wf_utils import create_kafka_transport
 from .constants import BPMN_INTERMEDIATE_CATCH_EVENT
@@ -130,6 +131,10 @@ class BPMNCatchEvent(BPMNComponent):
 
         k8s_objects.append(create_serviceaccount(self._namespace, service_name))
         k8s_objects.append(create_service(self._namespace, service_name, port))
+        if self._timer_aspects or self._timer_dynamic:
+            replicas = 1
+        else:
+            replicas = K8S_DEFAULT_REPLICAS
         k8s_objects.append(create_deployment(
             self._namespace,
             service_name,
@@ -140,5 +145,6 @@ class BPMNCatchEvent(BPMNComponent):
             etcd_access=True,
             priority_class=self.workflow_properties.priority_class,
             health_props=self.health_properties,
+            replicas=replicas,
         ))
         return k8s_objects
