@@ -5,7 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import os
-from typing import Callable, Iterable
+from threading import Thread
+from typing import Callable, Iterable, Optional
 
 from etcd3.client import Etcd3Client
 from etcd3.events import PutEvent
@@ -36,13 +37,13 @@ class MessageTypes:
 
 class EtcdInstanceWatcher:
     def __init__(self, etcd: Etcd3Client, kafka: Producer, workflow_id: str, kafka_topic: str):
-        self._etcd = etcd # type: Etcd3Client
-        self._kafka = kafka # type: Producer
-        self._workflow_id = workflow_id # type: str
-        self._kafka_topic = kafka_topic # type: str
-        self._cancel = None # type: Callable
+        self._etcd: Etcd3Client = etcd
+        self._kafka: Producer = kafka
+        self._workflow_id: str = workflow_id
+        self._kafka_topic: str = kafka_topic
+        self._cancel: Optional[Callable] = None
         self._watch_iter = None
-        self._executor = get_executor() # type: ThreadPoolExecutor
+        self._executor: ThreadPoolExecutor = get_executor()
         self._etcd_prefix = f'{WorkflowInstanceKeys.ROOT}/{self._workflow_id}'
         
 
@@ -109,10 +110,10 @@ class EtcdInstanceWatcher:
 class WorkflowPublisher(QuartApp):
     def __init__(self, kafka: Producer, etcd: Etcd3Client, workflow_id, kafka_topic, **kws):
         super().__init__(__name__, **kws)
-        self._etcd = etcd # type: Etcd3Client
-        self._kafka = kafka # type: Producer
-        self._workflow_id = workflow_id # type: str
-        self._kafka_topic = kafka_topic # type: str
+        self._etcd: Etcd3Client = etcd
+        self._kafka: Producer = kafka
+        self._workflow_id: str = workflow_id
+        self._kafka_topic: str = kafka_topic
         self.manager = EtcdInstanceWatcher(
             self._etcd,
             self._kafka,

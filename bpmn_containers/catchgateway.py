@@ -388,7 +388,6 @@ class EventCatchApp(QuartApp):
             response_payload = json.dumps(flow_result(
                 -1,
                 "WF Instance Timed Out",
-                success=False,
             ))
             content_type = 'application/json'
         elif instance_result.get('state') in [States.ERROR, States.STOPPED]:
@@ -418,7 +417,6 @@ class EventCatchApp(QuartApp):
             response_payload = json.dumps(flow_result(
                 -1,
                 "WF Instance Failed.",
-                success=False,
                 **error_data,
             ))
 

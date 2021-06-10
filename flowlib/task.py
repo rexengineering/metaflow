@@ -179,7 +179,7 @@ class BPMNTask(BPMNComponent):
             envoyfilter_name += '-' + self.workflow_properties.id_hash
 
         namespace = self._namespace  # namespace in which the k8s objects live.
-        if self._global_props.traffic_shadow_service_props:
+        if self._global_props.notification_kafka_topic:
             shadow_svc = self._global_props.traffic_shadow_service_props
             shadow_call = self._global_props.traffic_shadow_call_props
             host = f'{shadow_svc.host}.{shadow_svc.namespace}.svc.cluster.local'
