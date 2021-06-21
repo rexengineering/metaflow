@@ -1,6 +1,6 @@
-'''
+"""
 Implements the BPMNCatchEvent object, which inherits BPMNComponent.
-'''
+"""
 
 from collections import OrderedDict
 from flowlib.timer_util import TimedEventManager
@@ -32,8 +32,8 @@ CATCH_GATEWAY_SVC_PREFIX = "catch"
 
 class BPMNCatchEvent(BPMNComponent):
     MAX_RECURRANCE = 1024
-    '''Wrapper for BPMN service event metadata.
-    '''
+    """Wrapper for BPMN service event metadata.
+    """
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
         self._kafka_topic = None
@@ -121,6 +121,10 @@ class BPMNCatchEvent(BPMNComponent):
             {
                 "name": "FAIL_URL",
                 "value": INSTANCE_FAIL_ENDPOINT,
+            },
+            {
+                "name": "TID",
+                "value": self.id,
             },
         ]
         if self._kafka_topic is not None:

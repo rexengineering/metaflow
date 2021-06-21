@@ -51,13 +51,14 @@ class WrappedTimer:
         logging.info(f'{time.time()} Timer created with duration {interval}')
 
     def do_action(self, *args):
-        token_stack = self._context.token_stack
         if self._context.token_pool_id is not None:
+            token_stack = self._context.token_stack
             # need to pass the token_pool_id as an x header
             token_stack = self._context.token_pool_id if token_stack is None else f'{token_stack},{self._context.token_pool_id}'
             token_api.token_alloc(self._context.token_pool_id)
-
-        self._action(token_stack,*args)
+            self._action(token_stack,*args)
+        else:
+            self._action(*args)
 
         self.done()
 
@@ -89,13 +90,14 @@ class TimedEventManager:
     TIME_DURATION  = 1
     TIME_CYCLE     = 2
 
-    def __init__(self, timer_description_json : str, callback : typing.Callable[[list], None]):
+    def __init__(self, timer_description_json : str, callback : typing.Callable[[list], None], is_start_event:bool = False):
         # TODO: load and schedule any persisted timed events
         self.events = dict()
         self.json = timer_description_json
         #[timer_type, timer_spec]
         self.timer_type, self.spec = json.loads(timer_description_json) 
         self.callback = callback
+        self.is_start_event = is_start_event
         # if validate_spec returns None, then the spec has dynamic references
         # i.e. {substitutions} and/or FUNCTIONS(), so we will resolve dynamically
         # in create_timer().
@@ -283,10 +285,11 @@ class TimedEventManager:
             exec_time = time_now + self.aspects.interval
             assert exec_time <= context.end_date, "Execution terminated - execution time exceeds specified end time."
         if self.aspects.timer_type == self.TIME_CYCLE:
-            # cycle types need a token pool for remote collectors/end events to keep track of the number
-            # of recurrences seen.
-            context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
-            logging.info(f'Created token pool {context.token_pool_id}')
+            if not self.is_start_event:
+                # cycle types need a token pool for remote collectors/end events to keep track of the number
+                # of recurrences seen.
+                context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
+                logging.info(f'Created token pool {context.token_pool_id}')
 
         self.completed = False
         duration = context.start_date - time_now + self.aspects.interval

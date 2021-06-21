@@ -1,6 +1,6 @@
-'''
+"""
 Implements the BPMNThrowEvent object, which inherits BPMNComponent.
-'''
+"""
 
 from collections import OrderedDict, namedtuple
 import os
@@ -28,8 +28,8 @@ THROW_GATEWAY_SVC_PREFIX = "throw"
 
 
 class BPMNThrowEvent(BPMNComponent):
-    '''Wrapper for BPMN service event metadata.
-    '''
+    """Wrapper for BPMN service event metadata.
+    """
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
 
@@ -108,6 +108,10 @@ class BPMNThrowEvent(BPMNComponent):
             {
                 "name": "FORWARD_TASK_ID",
                 "value": task_id,
+            },
+            {
+                "name": "TID",
+                "value": self.id,
             },
         ]
         if self._global_props.traffic_shadow_url:

@@ -1,8 +1,8 @@
-'''
+"""
 This file runs as a daemon in the background. It constantly polls a kinesis
 stream for events that are published into the WF instance and calls the next
 step in the workflow with that data.
-'''
+"""
 import logging
 
 import asyncio
@@ -53,11 +53,15 @@ KAFKA_POLLING_PERIOD = 10
 FORWARD_TASK_ID = os.environ['FORWARD_TASK_ID']
 
 WF_ID = os.getenv('WF_ID', None)
+assert WF_ID is not None, 'Config error - WF_ID not in env!'
+TID = os.getenv('TID', None)
+assert TID is not None, 'Config error - TID not in env!'
+
 API_WRAPPER_ENABLED = os.getenv("REXFLOW_API_WRAPPER_ENABLED") != "FALSE"
 API_WRAPPER_TIMEOUT = int(os.getenv("REXFLOW_API_WRAPPER_TIMEOUT", "10"))
 KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
 
-'''
+"""
 The TIMER_DESCRIPTION will contain pertainent data for the timer defined
 by the BPMN. This consists of a JSON string formatted as follows:
 ["time_type","timer_spec"]
@@ -71,8 +75,11 @@ Where timer_type is timeDate, timeCycle, or timeDuration
                     Infinite recurrences are not permitted, hence
                     R/<duration> or R0/<duration> are invalid.
 
-'''
-TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, '')
+"""
+TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, None)
+IS_TIMED_EVENT          = TIMED_EVENT_DESCRIPTION is not None
+IS_TIMED_START_EVENT    = IS_TIMED_EVENT and FUNCTION == FUNCTION_START
+IS_TIMED_CATCH_EVENT    = IS_TIMED_EVENT and FUNCTION == FUNCTION_CATCH
 
 kafka = None
 KAFKA_CONFIG = get_kafka_config()
@@ -92,9 +99,10 @@ class EventCatchPoller:
         self.future = None
         self.executor = get_executor()
         self.timed_manager = None
-        if TIMED_EVENT_DESCRIPTION:
-            logging.info(f'Timed event {TIMED_EVENT_DESCRIPTION}')
-            self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, self.make_call_impl)
+        if IS_TIMED_EVENT:
+            callback, name = (self.create_instance, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
+            logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION}')
+            self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, callback, IS_TIMED_START_EVENT)
 
     def start(self):
         assert self.future is None
@@ -108,6 +116,11 @@ class EventCatchPoller:
     def get_event(self):
         msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
+    
+    def create_timed_instance(self, incoming_data:str, content_type:str) -> NoReturn:
+        # create_timer(self, wf_inst_id, token_stack, args)
+        # --> proxies call to create_instance(incoming_data, content_type, instance_id)
+        self.timed_manager.create_timer(None, None, [incoming_data, content_type, None])
 
     def run_instance(self, keys, incoming_data, instance_id, content_type, etcd):
         logging.info(f'Running instance {instance_id}')
@@ -118,12 +131,18 @@ class EventCatchPoller:
             WF_ID,
             content_type,
         )
-        if first_task_response is not None:
-            if not etcd.replace(keys.state, States.STARTING, BStates.RUNNING):
-                logging.error(f'Failed to transition {keys.state} from STARTING -> RUNNING.')
+        # it is possible for the the workflow instance to COMPLETE before we even
+        # get here. If so, let it be.
+        cur_state,_ = etcd.get(keys.state)
+        if cur_state == BStates.COMPLETED:
+            logging.info(f'{keys.state} already completed')
         else:
-            if not etcd.replace(keys.state, States.STARTING, States.ERROR):
-                logging.error(f'Failed to transition {keys.state} from STARTING -> ERROR.')
+            if first_task_response is not None:
+                if not etcd.replace(keys.state, States.STARTING, BStates.RUNNING):
+                    logging.error(f'Failed to transition {keys.state} from STARTING -> RUNNING.')
+            else:
+                if not etcd.replace(keys.state, States.STARTING, States.ERROR):
+                    logging.error(f'Failed to transition {keys.state} from STARTING -> ERROR.')
 
     def create_instance(self, incoming_data, content_type, instance_id=None) -> Dict[str, object]:
         # Allow instance_id to be passed into this function in case a caller needs
@@ -137,8 +156,7 @@ class EventCatchPoller:
         if not etcd.put_if_not_exists(keys.state, BStates.STARTING):
             # Should never happen...unless there's a collision in uuid1
             logging.error(f'{keys.state} already defined in etcd!')
-            return flow_result(-1, f"Internal Error: ID {instance_id} already "
-                "exists", id=None)
+            return flow_result(-1, f"Internal Error: ID {instance_id} already exists", id=None)
 
         self.executor.submit(
             self.run_instance, keys, incoming_data, instance_id, content_type, etcd
@@ -177,17 +195,17 @@ class EventCatchPoller:
         except Exception:
             logging.warning("Failed shadowing traffic to Kafka")
 
-    def _make_call(self, data : str, flow_id : str, wf_id : str, content_type : str, token_stack : str = None):
-        # Note: Python is fun; so don't set `{}` as a default argument to a function. Because a dict is
+    def _make_call(self, data:str, flow_id:str, wf_id:str, content_type:str, token_stack:str = None):
+        # Note: Python is garbage; so don't set `{}` as a default argument to a function. Because a dict is
         # an object, it only gets instantiated once, which means repeated calls to the same function could
         # have WEIRD side effects.
-        if self.timed_manager:
+        if IS_TIMED_CATCH_EVENT:
             self.timed_manager.create_timer(flow_id, token_stack, [data, flow_id, wf_id, content_type])
             return jsonify(flow_result(0, ""))
-        else:
-            return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
 
-    def make_call_impl(self, token_stack : str, data : str, flow_id : str, wf_id : str, content_type : str):
+        return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
+
+    def make_call_impl(self, token_stack:str, data:str, flow_id:str, wf_id:str, content_type:str):
         next_headers = {
             Headers.X_HEADER_FLOW_ID: str(flow_id),
             Headers.X_HEADER_WORKFLOW_ID: str(wf_id),
@@ -217,8 +235,8 @@ class EventCatchPoller:
         o = urlparse(FORWARD_URL)
 
         # Same TODO: See REXFLOW-188
-        next_headers['x-rexflow-original-host'] = o.netloc
-        next_headers['x-rexflow-original-path'] = o.path
+        next_headers[Headers.X_REXFLOW_ORIGINAL_HOST] = o.netloc
+        next_headers[Headers.X_REXFLOW_ORIGINAL_PATH] = o.path
         try:
             response = requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=next_headers)
             logging.info(response)
@@ -230,7 +248,7 @@ class EventCatchPoller:
             )
             return None
         finally:
-            next_headers['x-rexflow-failure'] = True
+            next_headers[Headers.X_REXFLOW_FAILURE] = True
             self._shadow_to_kafka(data, next_headers)
 
     def __call__(self):
@@ -255,11 +273,11 @@ class EventCatchPoller:
                         data.decode(),
                         flow_id=headers[Headers.X_HEADER_FLOW_ID].decode(),
                         wf_id=headers[Headers.X_HEADER_WORKFLOW_ID].decode(),
-                        content_type=headers['content-type'].decode(),
+                        content_type=headers[Headers.CONTENT_TYPE.lower()].decode(),
                         token_stack=token_header
                     )
                 else:
-                    self.create_instance(data, headers['content-type'])
+                    self.create_instance(data, headers[Headers.CONTENT_TYPE.lower()])
             except Exception as exn:
                 logging.exception("Failed processing event", exc_info=exn)
 
@@ -272,11 +290,16 @@ class EventCatchApp(QuartApp):
         self.app = cors(self.app)
 
         self.app.route('/', methods=['GET'])(self.health_check)
-        self.app.route('/', methods=['POST'])(self.catch_event)
-        if FUNCTION == FUNCTION_START and API_WRAPPER_ENABLED:
+        if FUNCTION == FUNCTION_CATCH or not IS_TIMED_EVENT:
+            self.app.route('/', methods=['POST'])(self.catch_event)
+            if FUNCTION == FUNCTION_START and API_WRAPPER_ENABLED:
                 self.app.route('/wrapper', methods=['POST'])(self.synchronous_wrapper)
-        if TIMED_EVENT_DESCRIPTION:
+        if IS_TIMED_EVENT:
             self.app.route('/timer', methods=['GET','POST'])(self.timer_query)
+        if IS_TIMED_START_EVENT:
+            # start running timed start events immediately
+            logging.info('Starting timed instance')
+            self.manager.create_timed_instance('[]','application/json')
 
     def health_check(self):
         if FUNCTION == FUNCTION_START:
@@ -307,7 +330,7 @@ class EventCatchApp(QuartApp):
         return response
 
     async def timer_query(self):
-        '''
+        """
         Provide an API to query and modify timer description
         GET returns the timer specification
         POST sets the timer specification and takes a JSON packet:
@@ -316,7 +339,7 @@ class EventCatchApp(QuartApp):
 
         The type and spec are identical to those specified in the
         BPMN.
-        '''
+        """
         data = await request.data
         if request.method == 'GET':
             # return information about the existing timers
@@ -331,6 +354,9 @@ class EventCatchApp(QuartApp):
                 # the following raises if the current timer is not finished
                 self.manager.timed_manager.reset(results)
                 logging.info(f'Timer reset to {req["timer_type"]}, {req["timer_spec"]}')
+                if IS_TIMED_START_EVENT:
+                    logging.info('start timed instances')
+                    self.manager.create_timed_instance('[]','applicaton/json')
                 response = flow_result(0, 'Ok')
             except (ISO8601Error,Exception) as ex:
                 response = flow_result(-1, str(ex))
