@@ -25,7 +25,7 @@ from .config import (
     K8S_DEFAULT_REPLICAS,
 )
 from .reliable_wf_utils import create_kafka_transport
-from .constants import BPMN_INTERMEDIATE_CATCH_EVENT
+from .constants import BPMN_MESSAGE_EVENT_DEFINITION
 
 CATCH_GATEWAY_SVC_PREFIX = "catch"
 
@@ -37,22 +37,36 @@ class BPMNCatchEvent(BPMNComponent):
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
         self._kafka_topic = None
+        self._correlation = None
+        self._catch_event_expiration = global_props.catch_event_expiration
 
         # if this is a timed catch event, verify that the timer aspects are valid
-        if self._timer_aspects or self._timer_dynamic:
+        if self._is_timer:
             # dynamic timer specifications contain substitutions and/or functions, so the validation
             # actually happens in-context when the timer is created by the wf.
-            if not self._timer_dynamic and self._timer_aspects.timer_type == TimedEventManager.TIME_CYCLE:
+            if not self._timer_dynamic and self._timer_aspects is not None \
+                    and self._timer_aspects.timer_type == TimedEventManager.TIME_CYCLE:
                 assert self._timer_aspects.recurrance > 0, f'Unbounded recurrance is not allowed for timed catch events'
                 assert self._timer_aspects.recurrance <= self.MAX_RECURRANCE, f'Recurrance must be between 1 and {self.MAX_RECURRANCE}, inclusive'
         else:
-            assert self._annotation and 'service' not in self._annotation, \
-                "Service Properties auto-inferred for Catch Gateways."
-            assert self._annotation and 'kafka_topic' in self._annotation, \
-                "Must annotate Catch/Start Event with `kafka_topic` name or provide timer definition."
+            if BPMN_MESSAGE_EVENT_DEFINITION not in event:
+                raise ValueError(
+                    f"Catch event {self.id} is neither timer nor message catch event.")
 
-            self._kafka_topic = self._annotation['kafka_topic']
+            if (self._annotation is None or
+                'topic' not in self._annotation or
+                'correlation' not in self._annotation
+            ):
+                raise ValueError(
+                    "Until REXFlow writes its own modeler, you must annotate catch " + \
+                    "events with `topic` and `correlation`."
+                )
+
+            self._kafka_topic = self._annotation['topic']
             self.kafka_topics.append(self._kafka_topic)
+            self._correlation = self._annotation['correlation']
+            if 'catch_event_expiration' in self._annotation:
+                self._catch_event_expiration = self._annotation['catch_event_expiration']
 
         self._service_properties.update({
             "host": self.name,
@@ -123,9 +137,17 @@ class BPMNCatchEvent(BPMNComponent):
                 "value": INSTANCE_FAIL_ENDPOINT,
             },
             {
+                "name": "REXFLOW_CATCH_EVENT_CORRELATION",
+                "value": self._correlation,
+            },
+            {
                 "name": "TID",
                 "value": self.id,
             },
+            {
+                "name": "CATCH_EVENT_EXPIRATION",
+                "value": str(self._catch_event_expiration),
+            }
         ]
         if self._kafka_topic is not None:
             env_config.append({

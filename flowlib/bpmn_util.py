@@ -6,7 +6,11 @@ import yaml
 from hashlib import sha1, sha256
 import re
 import json
-from flowlib.constants import BPMN_TIMER_EVENT_DEFINITION, TIMER_DESCRIPTION, to_valid_k8s_name
+from flowlib.constants import (
+    BPMN_TIMER_EVENT_DEFINITION,
+    TIMER_DESCRIPTION,
+    to_valid_k8s_name,
+)
 from flowlib.timer_util import TimedEventManager
 from flowlib.config import WORKFLOW_PUBLISHER_LISTEN_PORT
 
@@ -298,6 +302,7 @@ class WorkflowProperties:
         self._user_opaque_metadata = {}
         self._passthrough_target = None
         self._prefix_passthrough_with_namespace = False
+        self._catch_event_expiration = 72
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -340,21 +345,30 @@ class WorkflowProperties:
 
     @property
     def traffic_shadow_call_props(self):
-        return CallProperties()
+        if self._notification_kafka_topic is None:
+            return None
+        else:
+            return CallProperties()
 
     @property
     def traffic_shadow_service_props(self):
-        return ServiceProperties({
-            'host': f'wf-publisher-{self.id}',
-            'namespace': self.namespace,
-            'port': WORKFLOW_PUBLISHER_LISTEN_PORT,
-        })
+        if self._notification_kafka_topic is None:
+            return None
+        else:
+            return ServiceProperties({
+                'host': f'wf-publisher-{self.id}',
+                'namespace': self.namespace,
+                'port': WORKFLOW_PUBLISHER_LISTEN_PORT,
+            })
 
     @property
     def traffic_shadow_url(self):
-        url = f'http://{self.traffic_shadow_service_props.host}.'
-        url += self.traffic_shadow_service_props.namespace + "/"
-        return url
+        if not self.notification_kafka_topic:
+            return None
+        else:
+            url = f'http://{self.traffic_shadow_service_props.host}.'
+            url += self.traffic_shadow_service_props.namespace + "/"
+            return url
 
     @property
     def notification_kafka_topic(self):
@@ -398,6 +412,10 @@ class WorkflowProperties:
     @property
     def prefix_passthrough_with_namespace(self):
         return self._prefix_passthrough_with_namespace
+
+    @property
+    def catch_event_expiration(self):
+        return self._catch_event_expiration
 
     def update(self, annotations):
         if 'priority_class' in annotations:
@@ -463,6 +481,9 @@ class WorkflowProperties:
             if annotations.get('prefix_passthrough_with_namespace', False):
                 self._prefix_passthrough_with_namespace = True
 
+        if 'catch_event_expiration' in annotations:
+            self._catch_event_expiration = annotations['catch_event_expiration']
+
 
 class BPMNComponent:
     '''
@@ -513,11 +534,13 @@ class BPMNComponent:
         self._timer_description = []
         self._timer_aspects: Optional[TimedEventManager.ValidationResults] = None
         self._timer_dynamic = False
+        self._is_timer = False
 
         if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
 
         if BPMN_TIMER_EVENT_DEFINITION in spec:
+            self._is_timer = True
             for key in ['timeDate', 'timeDuration', 'timeCycle']:
                 tag = f'bpmn:{key}'
                 if tag in spec[BPMN_TIMER_EVENT_DEFINITION]:

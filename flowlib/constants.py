@@ -12,6 +12,7 @@ constants everywhere.
 BPMN_INTERMEDIATE_CATCH_EVENT = 'bpmn:intermediateCatchEvent'
 BPMN_START_EVENT = 'bpmn:startEvent'
 BPMN_TIMER_EVENT_DEFINITION = 'bpmn:timerEventDefinition'
+BPMN_MESSAGE_EVENT_DEFINITION = 'bpmn:messageEventDefinition'
 
 TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
 
@@ -148,6 +149,10 @@ class WorkflowKeys:
     @classmethod
     def field_key(cls,did,tid):
         return f'{cls.key_of(did)}/fields/{tid}'
+
+    @classmethod
+    def catch_event_key(cls, did, correlation_id):
+        return f'{cls.key_of(did)}/catchEvents/{correlation_id}'
 
 
 # TODO: There seems to be a proliferation of instance-related keys in ETCD.
