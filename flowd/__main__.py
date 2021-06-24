@@ -1,6 +1,6 @@
 import asyncio
 import logging
-
+from flowlib.postgres_db_schema import create_tables
 import argparse
 import importlib
 from typing import Union
@@ -49,4 +49,5 @@ def build_app():
 
 if __name__ == '__main__':
     # The following must run in the main thread.
+    create_tables()
     build_app().run()

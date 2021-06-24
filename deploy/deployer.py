@@ -50,12 +50,25 @@ class Deployer:
             self.custom_api.create_namespaced_custom_object)
         self.delete_namespaced_custom_object = wrap_api_call(
             self.custom_api.delete_namespaced_custom_object)
+        self.create_namespaced_config_map    = wrap_api_call(
+            self.core_v1.create_namespaced_config_map)
+        self.create_namespaced_persistent_volume_claim = wrap_api_call(
+            self.core_v1.create_namespaced_persistent_volume_claim)
+        self.delete_namespaced_config_map    = wrap_api_call(
+            self.core_v1.delete_namespaced_config_map)
+        self.delete_namespaced_persistent_volume_claim  = wrap_api_call(
+            self.core_v1.delete_namespaced_persistent_volume_claim)
+        self.create_persistent_volume        = wrap_api_call(
+            self.core_v1.create_persistent_volume)
+        self.delete_persistent_volume        = wrap_api_call(
+            self.core_v1.delete_persistent_volume)
 
     def create(self, namespace):
         print("The deploy module is used for dev deployments. As such, we are now "
               "setting the kube context to docker-desktop.", flush=True)
         subprocess.check_output("kubectl config use-context docker-desktop".split())
         self.create_namespace(specs.rexflow_namespace_spec)
+
         # ETCD
         self.create_namespaced_service_account(
             'rexflow', specs.etcd_service_acct_spec)
@@ -63,7 +76,8 @@ class Deployer:
             'rexflow', specs.etcd_service_specs)
         self.create_namespaced_deployment(
             'rexflow', specs.etcd_deployment_spec)
-        # flowd
+
+        # flowd 
         self.create_namespaced_service_account(
             'rexflow', specs.flowd_service_acct_spec)
         self.create_namespaced_service(
@@ -76,6 +90,7 @@ class Deployer:
         ))
         self.create_namespaced_role_binding(
             'default', specs.flowd_edit_default_spec)
+
         # healthd
         self.create_namespaced_service_account(
             'rexflow', specs.healthd_service_acct_spec)
@@ -87,6 +102,31 @@ class Deployer:
         ))
         self.create_namespaced_role_binding(
             'default', specs.healthd_edit_default_spec)
+
+        # rex-flow-constructor
+        self.create_namespaced_persistent_volume_claim(
+            'rexflow', specs.postgres_pvc)
+        self.create_persistent_volume(
+            specs.postgres_pv)
+        self.create_namespaced_config_map(
+            'rexflow', specs.postgres_configmap )
+        self.create_namespaced_service(
+            'rexflow', specs.postgres_service)
+        self.create_namespaced_deployment(
+            'rexflow', specs.postgres_deployment)
+        
+        # rexflow_db_constructor
+        self.create_namespaced_service(
+            'rexflow', specs.rexflow_db_constructor_svc)
+        self.create_namespaced_deployment(
+            'rexflow', specs.rexflow_db_constructor_deployment)
+        self.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways',
+            specs.rexflow_db_constructor_gateway)
+        self.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
+            specs.rexflow_db_constructor_vc)
+
         # Gateway and virtual services
         self.create_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'gateways',
@@ -97,6 +137,7 @@ class Deployer:
         self.create_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'virtualservices',
             specs.healthd_virtual_service_spec)
+        
 
         if namespace.kafka:
             os.system("kubectl create ns kafka")
@@ -117,6 +158,21 @@ class Deployer:
         self.delete_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'gateways',
             'rexflow-gateway')
+        # rexflow-constructor delete
+        self.delete_namespaced_deployment('rexflow-db-constructor', 'rexflow')
+        self.delete_namespaced_service('rexflow-db-constructor' ,'rexflow')
+        self.delete_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways',
+            'rexflow-db-constructor')
+        self.delete_namespaced_custom_object(
+        'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
+        'rexflow-db-constructor')
+        #postgres delete
+        self.delete_namespaced_deployment('postgres', 'rexflow')
+        self.delete_namespaced_service('postgres', 'rexflow')
+        self.delete_namespaced_config_map('postgres', 'rexflow')
+        self.delete_namespaced_persistent_volume_claim('postgres', 'rexflow')
+        self.delete_persistent_volume('postgres')
         self.delete_namespaced_service('flowd', 'default')
         self.delete_namespaced_service('flowd', 'rexflow')
         self.delete_namespaced_deployment('flowd', 'rexflow')

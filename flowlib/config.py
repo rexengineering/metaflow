@@ -7,6 +7,7 @@ your system via `python -m deploy`, the defaults will be overriden.
 See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
+from pdb import post_mortem
 
 DEFAULT_REXFLOW_ROOT_PREFIX = "/rexflow"
 REXFLOW_ROOT_PREFIX = os.getenv('REXFLOW_ROOT_PREFIX', DEFAULT_REXFLOW_ROOT_PREFIX)
@@ -26,6 +27,9 @@ INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
 WF_MAP_ENDPOINT_PATH = '/wf_map'
 WF_MAP_ENDPOINT = f'{FLOWD_URL}{WF_MAP_ENDPOINT_PATH}'
 
+# Postgres Database Config
+DEFAULT_POSTGRES_DB_URI = 'postgresql://postgresadmin:admin123@postgres.rexflow:5432/postgresdb'
+POSTGRES_DB_URI = os.getenv('REXFLOW_POSTGRES_DB_URI', DEFAULT_POSTGRES_DB_URI)
 
 # Gateway Configuration
 PGATEWAY_SVC_PREFIX = "pgateway"
