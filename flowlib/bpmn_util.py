@@ -12,7 +12,12 @@ from flowlib.constants import (
     to_valid_k8s_name,
 )
 from flowlib.timer_util import TimedEventManager
-from flowlib.config import WORKFLOW_PUBLISHER_LISTEN_PORT
+from flowlib.config import (
+    DEFAULT_NOTIFICATION_KAFKA_TOPIC,
+    DEFAULT_USE_CLOSURE_TRANSPORT,
+    WORKFLOW_PUBLISHER_LISTEN_PORT,
+    DEFAULT_USE_SHARED_NAMESPACE
+)
 
 
 def get_edge_transport(edge, default_transport):
@@ -288,16 +293,16 @@ class WorkflowProperties:
         self._orchestrator = 'istio'  # default to istio...
         self._id = ''
         self._namespace = None
-        self._namespace_shared = False
+        self._namespace_shared = DEFAULT_USE_SHARED_NAMESPACE
         self._id_hash = None
         self._retry_total_attempts = 1  # retry is opt-in feature: default no retry
         self._is_recoverable = False
         self._transport = 'rpc'
-        self._notification_kafka_topic = None
+        self._notification_kafka_topic = DEFAULT_NOTIFICATION_KAFKA_TOPIC
         self._xgw_expression_type = 'feel'
         self._deployment_timeout = 180
         self._synchronous_wrapper_timeout = 10
-        self._use_closure_transport = False
+        self._use_closure_transport = DEFAULT_USE_CLOSURE_TRANSPORT
         self._priority_class = None
         self._user_opaque_metadata = {}
         self._passthrough_target = None
@@ -504,7 +509,9 @@ class BPMNComponent:
     def __init__(self,
                  spec: OrderedDict,
                  process: OrderedDict,
-                 workflow_properties: WorkflowProperties):
+                 workflow_properties: WorkflowProperties,
+                 default_is_preexisting: bool = False,
+    ):
         self.id = spec['@id']
 
         annotations = [a for _,a in list(get_annotations(process, self.id)) if 'rexflow' in a]
@@ -522,7 +529,7 @@ class BPMNComponent:
         # Set default values. The constructors of child classes may override these values.
         # For example, a BPMNTask that calls a preexisting microservice should override
         # the value `self._is_preexisting`.
-        self._is_preexisting = False
+        self._is_preexisting = default_is_preexisting
         self._is_in_shared_ns = workflow_properties.namespace_shared
         self._namespace = workflow_properties.namespace
         self._health_properties = HealthProperties()
