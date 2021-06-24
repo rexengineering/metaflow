@@ -1,6 +1,6 @@
-'''
+"""
 Implements BPMNStartEvent object, which for now is just a pass-through to Flowd.
-'''
+"""
 
 from collections import OrderedDict
 from typing import Mapping
@@ -21,6 +21,7 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     CREATE_DEV_INGRESS,
+    K8S_DEFAULT_REPLICAS,
 )
 
 
@@ -29,8 +30,8 @@ ATTEMPTS = 2
 
 
 class BPMNStartEvent(BPMNComponent):
-    '''Wrapper for BPMN service task metadata.
-    '''
+    """Wrapper for BPMN service task metadata.
+    """
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
@@ -119,6 +120,10 @@ class BPMNStartEvent(BPMNComponent):
                 "name": "API_WRAPPER_TIMEOUT",
                 "value": str(self._global_props.synchronous_wrapper_timeout),
             },
+            {
+                "name": "TID",
+                "value": self.id,
+            }
         ]
         if self._global_props.traffic_shadow_url:
             deployment_env_config.append({
@@ -141,6 +146,10 @@ class BPMNStartEvent(BPMNComponent):
         namespace = self._namespace
         k8s_objects.append(create_serviceaccount(namespace, self.service_name))
         k8s_objects.append(create_service(namespace, self.service_name, port))
+        if self._timer_aspects or self._timer_dynamic:
+            replicas = 1
+        else:
+            replicas = K8S_DEFAULT_REPLICAS
         k8s_objects.append(create_deployment(
             namespace,
             self.service_name,
@@ -151,6 +160,7 @@ class BPMNStartEvent(BPMNComponent):
             kafka_access=True,
             priority_class=self.workflow_properties.priority_class,
             health_props=self.health_properties,
+            replicas=replicas,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(

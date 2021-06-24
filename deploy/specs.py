@@ -298,3 +298,271 @@ healthd_edit_default_spec = {
         'apiGroup': 'rbac.authorization.k8s.io'
     }
 }
+
+postgres_deployment = {
+    'apiVersion': 'apps/v1',
+    'kind': 'Deployment',
+    'metadata': {'creationTimestamp': None, 
+    'labels': {'app': 'postgres'}, 
+    'name': 'postgres'}, 
+    'spec': {
+        'progressDeadlineSeconds': 2147483647, 
+        'replicas': 1, 
+        'revisionHistoryLimit': 2147483647, 
+        'selector': {
+            'matchLabels': {
+                'app': 'postgres'}}, 
+        'strategy': {
+            'rollingUpdate': {
+                'maxSurge': 1, 
+                'maxUnavailable': 1
+            }, 
+            'type': 'RollingUpdate'
+        }, 
+        'template': {
+            'metadata': {
+                'creationTimestamp': None, 
+                'labels': {'app': 'postgres'}}, 
+            'spec': {
+                'containers': [
+                    {
+                        'envFrom': [
+                            {
+                                'configMapRef': {'name': 'postgres'}
+                            }], 
+                        'image': 'postgres:10.4', 
+                        'imagePullPolicy': 'IfNotPresent', 
+                        'name': 'postgres', 
+                        'ports': [
+                             {
+                                 'containerPort': 5432, 
+                                 'protocol': 'TCP'
+                             }], 
+                        'resources': {}, 
+                        'terminationMessagePath': '/dev/termination-log', 
+                        'terminationMessagePolicy': 'File', 
+                        'volumeMounts': [
+                            {
+                                'mountPath': '/var/lib/postgresql/data', 
+                                'name': 'postgredb'
+                            }
+                        ]
+                    }
+                ], 
+                        'dnsPolicy': 'ClusterFirst', 
+                        'restartPolicy': 'Always', 
+                        'schedulerName': 'default-scheduler', 
+                        'securityContext': {}, 
+                        'terminationGracePeriodSeconds': 30, 
+                        'volumes': [
+                            {'name': 'postgredb', 
+                            'persistentVolumeClaim': {
+                                'claimName': 'postgres'
+                                }
+                            }
+                        ]
+                        }
+                    }
+                }
+            }
+
+postgres_configmap  = {
+    'apiVersion': 'v1', 
+    'kind': 'ConfigMap', 
+    'metadata': {
+        'name': 'postgres', 
+        'labels': {
+            'app': 'postgres'}
+            }, 
+        'data': {
+            'POSTGRES_DB': 'postgresdb', 
+            'POSTGRES_USER': 'postgresadmin', 
+            'POSTGRES_PASSWORD': 'admin123'
+            }
+        }
+
+postgres_service    = {
+    'apiVersion': 'v1', 
+    'kind': 'Service', 
+    'metadata': {
+        'name': 'postgres', 
+        'labels': {
+            'app': 'postgres'
+            }
+        }, 
+    'spec': {
+        'type': 'NodePort', 
+        'ports': [
+            {
+                'port': 5432
+                }
+            ], 
+            'selector': {
+                'app': 'postgres'
+                }
+            }
+        }
+
+postgres_pv    = {
+    'kind': 'PersistentVolume', 
+    'apiVersion': 'v1', 
+    'metadata': {
+        'name': 'postgres', 
+        'labels': {
+            'type': 'local', 
+            'app': 'postgres'
+            }
+        }, 
+    'spec': {
+        'storageClassName': 'manual', 
+        'capacity': {
+            'storage': '5Gi'
+        }, 
+        'accessModes': ['ReadWriteMany'], 
+        'hostPath': {
+            'path': '/mnt/data'
+            }
+        }
+    }
+
+postgres_pvc   = {
+    'kind': 'PersistentVolumeClaim', 
+    'apiVersion': 'v1', 
+    'metadata': {
+        'name': 'postgres', 
+        'labels': {
+            'app': 'postgres'
+            }
+        }, 
+    'spec': {
+        'storageClassName': 'manual', 
+        'accessModes': ['ReadWriteMany'], 
+        'resources': {
+            'requests': 
+            {'storage': '5Gi'}
+            }
+        }
+    }
+
+rexflow_db_constructor_vc = {
+    'apiVersion': 'networking.istio.io/v1alpha3', 
+    'kind': 'VirtualService', 
+    'metadata': {
+        'name': 'rexflow-db-constructor' 
+        }, 
+    'spec': {
+        'hosts': ['*'], 
+        'gateways': ['rexflow-db-constructor'], 
+        'http': [
+            {
+                'match': [
+                    {
+                        'uri': {'prefix': '/rexflow-db-constructor'}
+                    }
+                ], 
+                'rewrite': {
+                    'uri': '/'
+                    }, 
+                'route': [
+                    {
+                        'destination': {
+                            'port': {'number': 5000}, 
+                            'host': 'rexflow-db-constructor'}
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+rexflow_db_constructor_svc = {
+    'apiVersion': 'v1', 
+    'kind': 'Service', 
+    'metadata': {
+        'name': 'rexflow-db-constructor', 
+        'labels': {
+            'app': 'rexflow-db-constructor'
+            }
+        }, 
+        'spec': {
+            'ports': [
+                {
+                    'port': 5000, 
+                    'protocol': 'TCP'
+                }
+            ], 
+            'selector': {
+                'app': 
+                'rexflow-db-constructor'
+                }
+            }
+        }
+
+rexflow_db_constructor_gateway = {
+    'apiVersion': 'networking.istio.io/v1alpha3', 
+    'kind': 'Gateway', 
+    'metadata': {
+        'name': 'rexflow-db-constructor'
+                }, 
+    'spec': {
+        'selector': {
+            'istio': 'ingressgateway'}, 
+            'servers': [
+                {
+                    'port': {
+                        'number': 80, 
+                        'name': 'http', 
+                        'protocol': 'HTTP'
+                        }, 
+                    'hosts': ['*']
+                }
+            ]
+        }
+    }
+    
+rexflow_db_constructor_deployment = {
+    'apiVersion': 'apps/v1', 
+    'kind': 'Deployment', 
+    'metadata': {
+        'name': 'rexflow-db-constructor',
+        'labels': {
+            'app': "rexflow-db-constructor",
+        }
+    }, 
+    'spec': {
+        'selector': {
+            'matchLabels': {
+                'app': 'rexflow-db-constructor'
+                            }
+                }, 
+        'replicas': 1, 
+        'template': {
+            'metadata': 
+            {
+                'labels': {
+                    'app': 'rexflow-db-constructor'
+                    }
+            }, 
+            'spec': {
+                'containers': [
+                    {
+                        'name': 'hellothere', 
+                        'image': 'rexflow-db-manager', 
+                        'imagePullPolicy': 'Never', 
+                        'env': [
+                            {
+                                'name': 'REXFLOW_KAFKA_HOST', 
+                                'value': 'my-cluster-kafka-bootstrap.kafka:9092'
+                            }
+                        ], 
+                        'ports': [
+                            {
+                                'containerPort': 5000
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

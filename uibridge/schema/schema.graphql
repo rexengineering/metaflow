@@ -67,8 +67,8 @@ enum OperationStatus {
 """Client side constraints for user input"""
 enum ValidationType {
     BOOLEAN
+    INTERVAL
     REQUIRED
-    REQUIRED_IF
     PERCENTAGE
     POSITIVE
     REGEX
@@ -76,12 +76,28 @@ enum ValidationType {
 
 """Data request types that will be mapped to UI components"""
 enum DataType {
+    COPY
     TEXT
     CURRENCY
     INTEGER
     FLOAT
     BOOLEAN
     PERCENTAGE
+    TABLE
+}
+
+"""Values for field.variant"""
+enum TextVariant {
+    BODY1
+    BODY2
+    H1
+    H2
+    H3
+    H4
+    H5
+    H6
+    SUBTITLE1
+    SUBTITLE2
 }
 
 """Types of methods to initialize a field's default"""
@@ -105,6 +121,7 @@ type TaskFieldData {
     order: Int!
     label: String
     data: String
+    variant: TextVariant
     default: FieldInitializer
     encrypted: Boolean!
     validators: [Validator!]!

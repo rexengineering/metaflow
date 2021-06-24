@@ -1,9 +1,20 @@
-'''
-Concenience methods to create objects received from and sent to graphql queries and mutations
-'''
+"""
+Convenience methods to create objects received from and sent to graphql 
+queries and mutations
+"""
 import typing
-from typing import Dict, List
+from typing import Any, Dict, List
 
+# validator types
+BOOLEAN = 'BOOLEAN'
+INTERVAL = 'INTERVAL'
+PERCENTAGE = 'PERCENTAGE'
+POSITIVE = 'POSITIVE'
+REGEX = 'REGEX'
+REQUIRED = 'REQUIRED'
+
+# graphql field names
+BODY1      = 'BODY1'
 CONSTRAINT = 'constraint'
 DATA       = 'data'
 DATA_ID    = 'dataId'
@@ -33,19 +44,20 @@ TYPE       = 'type'
 VALIDATOR  = 'validator'
 VALIDATORS = 'validators'
 VALUE      = 'value'
+VARIANT    = 'variant'
 WORKFLOW   = 'workflow'
 UNKNOWN    = 'UNKNOWN'
 
 SUCCESS = 'SUCCESS'
 FAILURE = 'FAILURE'
 
-def validator(type:str, constraint:str) -> Dict[str,any]:
+def validator(type:str, constraint:str) -> Dict[str,Any]:
     return {
         TYPE:type,
         CONSTRAINT:constraint,
     }
 
-def validator_result(validator:Dict[str,any], passed:bool, message:str):
+def validator_result(validator:Dict[str,Any], passed:bool, message:str):
     return {
         VALIDATOR: validator,
         PASSED: passed,
@@ -131,14 +143,17 @@ def field_validator(type:str, constraint:str):
         CONSTRAINT: constraint,
     }
 
-def task_field_data(data_id:str, type:str, order:int, label:str, data:str, deefault:dict, encrypted:bool, validators:List):
+def task_field_data(data_id:str, type:str, order:int, label:str, data:str, defval:dict, encrypted:bool, validators:List, variant:str = None):
+    if type == TEXT and variant is None:
+        variant = BODY1
     return {
         DATA_ID: data_id,
         TYPE: type,
         ORDER: order,
         LABEL: label,
         DATA: data,
-        DEFAULT: deefault,
+        DEFAULT: defval,
+        VARIANT: variant,
         ENCRYPTED: encrypted,
         VALIDATORS: validators,
     }

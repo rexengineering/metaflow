@@ -1,14 +1,23 @@
 '''Utilities used in bpmn.py.
 '''
 from collections import OrderedDict
-from typing import Any, Generator, Mapping, List, Set, Union
+from typing import Any, Generator, Mapping, List, Set, Union, Optional
 import yaml
 from hashlib import sha1, sha256
 import re
 import json
-from flowlib.constants import BPMN_TIMER_EVENT_DEFINITION, TIMER_DESCRIPTION, to_valid_k8s_name
+from flowlib.constants import (
+    BPMN_TIMER_EVENT_DEFINITION,
+    TIMER_DESCRIPTION,
+    to_valid_k8s_name,
+)
 from flowlib.timer_util import TimedEventManager
-from flowlib.config import WORKFLOW_PUBLISHER_LISTEN_PORT
+from flowlib.config import (
+    DEFAULT_NOTIFICATION_KAFKA_TOPIC,
+    DEFAULT_USE_CLOSURE_TRANSPORT,
+    WORKFLOW_PUBLISHER_LISTEN_PORT,
+    DEFAULT_USE_SHARED_NAMESPACE
+)
 
 
 def get_edge_transport(edge, default_transport):
@@ -284,20 +293,21 @@ class WorkflowProperties:
         self._orchestrator = 'istio'  # default to istio...
         self._id = ''
         self._namespace = None
-        self._namespace_shared = False
+        self._namespace_shared = DEFAULT_USE_SHARED_NAMESPACE
         self._id_hash = None
         self._retry_total_attempts = 1  # retry is opt-in feature: default no retry
         self._is_recoverable = False
         self._transport = 'rpc'
-        self._notification_kafka_topic = None
+        self._notification_kafka_topic = DEFAULT_NOTIFICATION_KAFKA_TOPIC
         self._xgw_expression_type = 'feel'
         self._deployment_timeout = 180
         self._synchronous_wrapper_timeout = 10
-        self._use_closure_transport = False
+        self._use_closure_transport = DEFAULT_USE_CLOSURE_TRANSPORT
         self._priority_class = None
         self._user_opaque_metadata = {}
         self._passthrough_target = None
         self._prefix_passthrough_with_namespace = False
+        self._catch_event_expiration = 72
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -340,21 +350,30 @@ class WorkflowProperties:
 
     @property
     def traffic_shadow_call_props(self):
-        return CallProperties()
+        if self._notification_kafka_topic is None:
+            return None
+        else:
+            return CallProperties()
 
     @property
     def traffic_shadow_service_props(self):
-        return ServiceProperties({
-            'host': f'wf-publisher-{self.id}',
-            'namespace': self.namespace,
-            'port': WORKFLOW_PUBLISHER_LISTEN_PORT,
-        })
+        if self._notification_kafka_topic is None:
+            return None
+        else:
+            return ServiceProperties({
+                'host': f'wf-publisher-{self.id}',
+                'namespace': self.namespace,
+                'port': WORKFLOW_PUBLISHER_LISTEN_PORT,
+            })
 
     @property
     def traffic_shadow_url(self):
-        url = f'http://{self.traffic_shadow_service_props.host}.'
-        url += self.traffic_shadow_service_props.namespace + "/"
-        return url
+        if not self.notification_kafka_topic:
+            return None
+        else:
+            url = f'http://{self.traffic_shadow_service_props.host}.'
+            url += self.traffic_shadow_service_props.namespace + "/"
+            return url
 
     @property
     def notification_kafka_topic(self):
@@ -398,6 +417,10 @@ class WorkflowProperties:
     @property
     def prefix_passthrough_with_namespace(self):
         return self._prefix_passthrough_with_namespace
+
+    @property
+    def catch_event_expiration(self):
+        return self._catch_event_expiration
 
     def update(self, annotations):
         if 'priority_class' in annotations:
@@ -463,6 +486,9 @@ class WorkflowProperties:
             if annotations.get('prefix_passthrough_with_namespace', False):
                 self._prefix_passthrough_with_namespace = True
 
+        if 'catch_event_expiration' in annotations:
+            self._catch_event_expiration = annotations['catch_event_expiration']
+
 
 class BPMNComponent:
     '''
@@ -483,7 +509,9 @@ class BPMNComponent:
     def __init__(self,
                  spec: OrderedDict,
                  process: OrderedDict,
-                 workflow_properties: WorkflowProperties):
+                 workflow_properties: WorkflowProperties,
+                 default_is_preexisting: bool = False,
+    ):
         self.id = spec['@id']
 
         annotations = [a for _,a in list(get_annotations(process, self.id)) if 'rexflow' in a]
@@ -501,7 +529,7 @@ class BPMNComponent:
         # Set default values. The constructors of child classes may override these values.
         # For example, a BPMNTask that calls a preexisting microservice should override
         # the value `self._is_preexisting`.
-        self._is_preexisting = False
+        self._is_preexisting = default_is_preexisting
         self._is_in_shared_ns = workflow_properties.namespace_shared
         self._namespace = workflow_properties.namespace
         self._health_properties = HealthProperties()
@@ -511,12 +539,15 @@ class BPMNComponent:
         self._proc = process
         self._kafka_topics = []
         self._timer_description = []
-        self._timer_aspects = None
+        self._timer_aspects: Optional[TimedEventManager.ValidationResults] = None
+        self._timer_dynamic = False
+        self._is_timer = False
 
         if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
 
         if BPMN_TIMER_EVENT_DEFINITION in spec:
+            self._is_timer = True
             for key in ['timeDate', 'timeDuration', 'timeCycle']:
                 tag = f'bpmn:{key}'
                 if tag in spec[BPMN_TIMER_EVENT_DEFINITION]:

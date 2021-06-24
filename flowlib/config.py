@@ -7,6 +7,7 @@ your system via `python -m deploy`, the defaults will be overriden.
 See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
+from pdb import post_mortem
 
 DEFAULT_REXFLOW_ROOT_PREFIX = "/rexflow"
 REXFLOW_ROOT_PREFIX = os.getenv('REXFLOW_ROOT_PREFIX', DEFAULT_REXFLOW_ROOT_PREFIX)
@@ -26,6 +27,9 @@ INSTANCE_FAIL_ENDPOINT = f"{FLOWD_URL}{INSTANCE_FAIL_ENDPOINT_PATH}"
 WF_MAP_ENDPOINT_PATH = '/wf_map'
 WF_MAP_ENDPOINT = f'{FLOWD_URL}{WF_MAP_ENDPOINT_PATH}'
 
+# Postgres Database Config
+DEFAULT_POSTGRES_DB_URI = 'postgresql://postgresadmin:admin123@postgres.rexflow:5432/postgresdb'
+POSTGRES_DB_URI = os.getenv('REXFLOW_POSTGRES_DB_URI', DEFAULT_POSTGRES_DB_URI)
 
 # Gateway Configuration
 PGATEWAY_SVC_PREFIX = "pgateway"
@@ -209,3 +213,19 @@ UI_BRIDGE_PORT = int(os.getenv('REXFLOW_UI_BRIDGE_PORT', DEFAULT_UI_BRIDGE_PORT)
 
 DEFAULT_UI_BRIDGE_INIT_PATH = 'task/init'
 UI_BRIDGE_INIT_PATH = os.getenv('REXFLOW_UI_BRIDGE_INIT_PATH', DEFAULT_UI_BRIDGE_INIT_PATH)
+
+K8S_DEFAULT_REPLICAS = int(os.getenv('REXFLOW_DEFAULT_K8S_DEPLOYMENT_REPLICAS', '1'))
+
+DEFAULT_USE_PREEXISTING_SERVICES = (
+    os.getenv('DEFAULT_USE_PREEXISTING_SERVICES', 'false').lower() == 'true'
+)
+
+DEFAULT_NOTIFICATION_KAFKA_TOPIC = os.getenv('DEFAULT_NOTIFICATION_KAFKA_TOPIC')
+
+DEFAULT_USE_CLOSURE_TRANSPORT = (
+    os.getenv('DEFAULT_USE_CLOSURE_TRANSPORT', 'false').lower() == 'true'
+)
+
+DEFAULT_USE_SHARED_NAMESPACE = (
+    os.getenv('DEFAULT_USE_SHARED_NAMESPACE', 'false').lower() == 'true'
+)

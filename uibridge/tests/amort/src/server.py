@@ -38,31 +38,41 @@ def serve():
         logger.info(req_json)
 
         if mode == 'amort-calc':
-            P = round(ast.literal_eval(req_json['principal']),2)
-            R = round(ast.literal_eval(req_json['interest']),5)
-            T = ast.literal_eval(req_json['term'])
+            P = round(ast.literal_eval(req_json['principal']),2) # Principle!
+            R = round(ast.literal_eval(req_json['interest']),5)  # interest Rate!
+            T = ast.literal_eval(req_json['term'])               # Term!
 
-            dR     = R / 100.0        # interest rate as proper fraction
+            dR     = R / 100.0     # interest rate as proper fraction
             mR     = dR / 12.0     # monthly interest rate
-            mRp1   = mR + 1.0
-            mRp1xT = mRp1 ** T
-            PMT    = round(P / ((mRp1xT-1.0)/(mR * mRp1xT)), 2)
+            mRp1   = mR + 1.0      # monthly interest rate plus 1.0
+            mRp1eT = mRp1 ** T     # (monthly rate + 1) ^ term
+            PMT    = round(P * (mR * mRp1eT) / (mRp1eT - 1.0), 2) # PayMenT!
 
-            data = {"payment":PMT}
-            data.update(req_json)
             
-            table = {}
+            # build a TABLE data structure as per REXFLOW-215
+            table = []
+            TI, TP = 0.0, 0.0   # total interest, total payments
 
             B = P
             for month in range(int(T)):
                 # payment = total monthly payment - (outstanding balance * (interest / 12))
-                PI = round(B * mR, 2)
-                PP = round(PMT - PI, 2)
-                B  = round(B - PP, 2)
-                table[month+1] = [PP, PI, B]
+                PI = round(B * mR, 2)                       # Principal Interest
                 if B < PMT:
-                    PMT = B
-            data["table"] = table
+                    # this is the last payment
+                    PP  = B
+                    PMT = round(PI + PP, 2)
+                    B   = 0.0
+                else:
+                    PP  = round(PMT - PI, 2)
+                    B   = round(B - PP, 2)
+                TI = round(TI + PI, 2)  
+                TP = round(TP + PMT, 2)
+                table.append([month+1, PMT, PP, PI, B])
+
+            data = {"payment":PMT, "total_interest":TI, "total_payments":TP}
+            data.update(req_json)
+            data['table'] = {"heading":["Period", "Payment", "Principal", "Interest", "Balance"], "body": table}
+            
             response = make_response(data, 200)
             for hdr in FORWARD_HEADERS:
                 if hdr in request.headers:
@@ -71,8 +81,9 @@ def serve():
             logging.info(response)
         elif mode == 'amort-best-rate':
             # essentially "pick" a random interest rate between
+            # 0.01 and 1.99
             random.seed(time.time())
-            r = round( random.triangular(0.1,12.0), 2)
+            r = round( random.triangular(0.01,2.00), 2)
             req_json['interest'] = str(r)
             logger.info(req_json)
             response = make_response(req_json, 200)

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_0khpfbn" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_1fk61h5" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_0q15bci</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0q15bci" sourceRef="StartEvent_1" targetRef="Activity_17qjkgl" />
+    <bpmn:endEvent id="Event_156e5y7">
+      <bpmn:incoming>Flow_0xr1kiq</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0xr1kiq" sourceRef="Activity_17qjkgl" targetRef="Event_156e5y7" />
+    <bpmn:userTask id="Activity_17qjkgl">
+      <bpmn:incoming>Flow_0q15bci</bpmn:incoming>
+      <bpmn:outgoing>Flow_0xr1kiq</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:textAnnotation id="all_vldr">
+      <bpmn:text>rexflow:
+  fields:
+    file: all_vldr_form.json</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1ymrnk2" sourceRef="Activity_17qjkgl" targetRef="all_vldr" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1fk61h5">
+      <bpmndi:BPMNShape id="TextAnnotation_0ybghwe_di" bpmnElement="all_vldr">
+        <dc:Bounds x="370" y="50" width="100" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0q15bci_di" bpmnElement="Flow_0q15bci">
+        <di:waypoint x="215" y="177" />
+        <di:waypoint x="270" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xr1kiq_di" bpmnElement="Flow_0xr1kiq">
+        <di:waypoint x="370" y="177" />
+        <di:waypoint x="432" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="159" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_156e5y7_di" bpmnElement="Event_156e5y7">
+        <dc:Bounds x="432" y="159" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0sgm0ds_di" bpmnElement="Activity_17qjkgl">
+        <dc:Bounds x="270" y="137" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_1ymrnk2_di" bpmnElement="Association_1ymrnk2">
+        <di:waypoint x="356" y="137" />
+        <di:waypoint x="373" y="118" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

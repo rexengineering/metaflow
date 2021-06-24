@@ -1,8 +1,9 @@
-'''
+"""
 Implements the BPMNThrowEvent object, which inherits BPMNComponent.
-'''
+"""
 
 from collections import OrderedDict, namedtuple
+import json
 import os
 from typing import Mapping
 
@@ -28,16 +29,16 @@ THROW_GATEWAY_SVC_PREFIX = "throw"
 
 
 class BPMNThrowEvent(BPMNComponent):
-    '''Wrapper for BPMN service event metadata.
-    '''
+    """Wrapper for BPMN service event metadata.
+    """
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
         super().__init__(event, process, global_props)
 
         assert 'service' not in self._annotation, "Service properties auto-inferred for Throw Event"
-        assert 'kafka_topic' in self._annotation, \
-            "Must annotate Throw Event with `kafka_topic` name."
+        assert 'topic' in self._annotation, \
+            "Must annotate Throw Event with `topic` name."
 
-        self._kafka_topic = self._annotation['kafka_topic']
+        self._kafka_topic = self._annotation['topic']
         self._kafka_topics.append(self._kafka_topic)
 
         self._service_properties.update({
@@ -53,17 +54,19 @@ class BPMNThrowEvent(BPMNComponent):
         assert KAFKA_HOST is not None, "Kafka Installation required for Throw Events."
 
         k8s_objects = []
-        total_attempts = ''
-        target_url = ''
-        task_id = ''
+        targets = []
 
         outgoing_edges = list(edge_map.get(self.id, set()))
-        assert len(outgoing_edges) <= 1, "Throw Event must have zero or one outgoing edges."
-        if len(outgoing_edges):
+        for edge in outgoing_edges:
             edge = outgoing_edges[0]
             transport_type = get_edge_transport(edge, self.workflow_properties.transport)
             assert edge['@sourceRef'] == self.id, "Got an invalid edge map."
             next_task = component_map[edge['@targetRef']]
+
+            target_url = None
+            method = None
+            task_id = None
+            total_attempts = None
 
             if transport_type == 'kafka':
                 transport = create_kafka_transport(self, next_task)
@@ -72,12 +75,21 @@ class BPMNThrowEvent(BPMNComponent):
                 task_id = self.id
                 total_attempts = transport.total_attempts
                 k8s_objects.extend(transport.k8s_specs)
+                method = transport.method
             elif transport_type == 'rpc':
                 target_url = next_task.k8s_url
                 total_attempts = next_task.call_properties.total_attempts
                 task_id = next_task.id
+                method = next_task.call_properties.method
             else:
-                assert False, f"Transport '{transport_type}' is not implemented."
+                raise ValueError(f"Transport '{transport_type}' is not implemented.")
+
+            targets.append({
+                'method': method,
+                'target_url': target_url,
+                'task_id': task_id,
+                'total_attempts': str(total_attempts),
+            })
 
         # k8s ServiceAccount
         service_name = self.service_name
@@ -98,21 +110,17 @@ class BPMNThrowEvent(BPMNComponent):
                 "value": self._kafka_topic,
             },
             {
-                "name": "FORWARD_URL",
-                "value": target_url,
+                "name": "FORWARD_TARGETS",
+                "value": json.dumps(targets),
             },
             {
-                "name": "TOTAL_ATTEMPTS",
-                "value": str(total_attempts),
-            },
-            {
-                "name": "FORWARD_TASK_ID",
-                "value": task_id,
+                "name": "TID",
+                "value": self.id,
             },
         ]
         if self._global_props.traffic_shadow_url:
             env_config.append({
-                "name": "KAFKA_SHADOW_URL",
+                "name": "TRAFFIC_SHADOW_URL",
                 "value": self._global_props.traffic_shadow_url,
             })
 
