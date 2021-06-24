@@ -1,0 +1,41 @@
+[
+    {"dataId":"req_pos", "type":"CURRENCY", "order":1, "label":"Positive Required", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"perc_reqif", "type":"PERCENTAGE", "order":2, "label":"Percent", "data":"", "encrypted":"False", "validators":[
+            {"type" : "PERCENTAGE"},
+            {"type" : "REQUIRED", "constraint":"findrate == 'False'"}
+        ]
+    },
+    {"dataId":"findrate", "type":"BOOLEAN", "order":3, "label":"Find best rate?", "data":"False", "encrypted":"False", "validators":[
+            {"type" : "BOOLEAN"}
+        ]
+    },
+    {"dataId":"term", "type":"INTEGER", "order":4, "label":"Term (months)", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"int_closed", "type":"INTEGER", "order":1, "label":"Closed Interval", "data":"", "encrypted":"False", "validators":[
+            {"type" : "INTERVAL", "constraint":"[1,10]"}
+        ]
+    },
+    {"dataId":"int_left", "type":"INTEGER", "order":1, "label":"Open Left", "data":"", "encrypted":"False", "validators":[
+            {"type" : "INTERVAL", "constraint":"(1,10]"}
+        ]
+    },
+    {"dataId":"int_right", "type":"INTEGER", "order":1, "label":"Open Right", "data":"", "encrypted":"False", "validators":[
+            {"type" : "INTERVAL", "constraint":"[1,10)"}
+        ]
+    },
+    {"dataId":"int_open", "type":"INTEGER", "order":1, "label":"Open Interval", "data":"", "encrypted":"False", "validators":[
+            {"type" : "INTERVAL", "constraint":"(1,10)"}
+        ]
+    },
+    {"dataId":"regex", "type":"INTEGER", "order":1, "label":"Rexex", "data":"", "encrypted":"False", "validators":[
+            {"type" : "REGEX", "constraint":"^[0-9A-Z]{3}$"}
+        ]
+    }
+]

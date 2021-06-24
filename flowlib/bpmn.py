@@ -103,7 +103,7 @@ class BPMNProcess:
         self._sequence_flow_table = outgoing_sequence_flow_table(process)
 
         # Maps an Id (eg. "Event_25dst7" or "Gateway_2sh38s") to a BPMNComponent Object.
-        self.component_map = {} # type: Mapping[str, BPMNComponent]
+        self.component_map: Mapping[str, BPMNComponent] = {}
 
         # NOTE: As per `README.namespacing.md`, if we are in a shared namespace then we
         # append a small hash to the end of every k8s object in order to avoid conflicts.
@@ -112,28 +112,28 @@ class BPMNProcess:
 
         # Now, create all of the BPMN Components.
         # Start with Tasks:
-        self.tasks = [] # type: List[BPMNTask]
+        self.tasks: List[BPMNTask] = []
         for task in iter_xmldict_for_key(process, 'bpmn:serviceTask'):
             bpmn_task = BPMNTask(task, process, self.properties)
             self.tasks.append(bpmn_task)
             self.component_map[task['@id']] = bpmn_task
 
         # Exclusive Gateways (conditional)
-        self.xgateways = [] # type: List[BPMNXGateway]
+        self.xgateways: List[BPMNXGateway] = []
         for gw in iter_xmldict_for_key(process, 'bpmn:exclusiveGateway'):
             bpmn_gw = BPMNXGateway(gw, process, self.properties)
             self.xgateways.append(bpmn_gw)
             self.component_map[gw['@id']] = bpmn_gw
 
         # Parallel Gateways
-        self.pgateways = [] # type: List[BPMNParallelGateway]
+        self.pgateways: List[BPMNParallelGateway] = []
         for gw in iter_xmldict_for_key(process, 'bpmn:parallelGateway'):
             bpmn_gw = BPMNParallelGateway(gw, process, self.properties)
             self.pgateways.append(bpmn_gw)
             self.component_map[gw['@id']] = bpmn_gw
 
         # Don't forget BPMN Start Event!
-        self.start_events = [] # type: List[BPMNStartEvent]
+        self.start_events: List[BPMNStartEvent] = []
         for entry_point in self.entry_points:
             bpmn_start_event = BPMNStartEvent(entry_point, process, self.properties)
             self.start_events.append(bpmn_start_event)
@@ -142,21 +142,21 @@ class BPMNProcess:
             self.component_map[entry_point['@id']] = bpmn_start_event
 
         # Don't forget BPMN End Events!
-        self.end_events = [] # type: List[BPMNEndEvent]
+        self.end_events: List[BPMNEndEvent] = []
         for eev in iter_xmldict_for_key(process, 'bpmn:endEvent'):
             end_event = BPMNEndEvent(eev, process, self.properties)
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
 
         # Throw Events.
-        self.throws = [] # type: List[BPMNThrowEvent]
+        self.throws: List[BPMNThrowEvent] = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
             assert 'bpmn:incoming' in event, "Must have incoming edge to Throw Event."
             bpmn_throw = BPMNThrowEvent(event, process, self.properties)
             self.throws.append(bpmn_throw)
             self.component_map[event['@id']] = bpmn_throw
 
-        self.catches = [] # type: List[BPMNCatchEvent]
+        self.catches: List[BPMNCatchEvent] = []
         for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
             bpmn_catch = BPMNCatchEvent(event, process, self.properties)
             self.catches.append(bpmn_catch)
@@ -189,7 +189,7 @@ class BPMNProcess:
             self._ui_bridge_call_properties.update({
                 'path': UI_BRIDGE_INIT_PATH,
             })
-        self.user_tasks = [] # type: List[BPMNUserTask]
+        self.user_tasks: List[BPMNUserTask] = []
         for defn in self.user_task_definitions:
             bpmn_user_task = BPMNUserTask(
                 defn, process, self.properties, self._ui_bridge_service_properties,
@@ -198,7 +198,7 @@ class BPMNProcess:
             self.user_tasks.append(bpmn_user_task)
             self.component_map[defn['@id']] = bpmn_user_task
 
-        self.all_components = [] # type: List[BPMNComponent]
+        self.all_components: List[BPMNComponent] = []
         self.all_components.extend(self.tasks)
         self.all_components.extend(self.xgateways)
         self.all_components.extend(self.pgateways)

@@ -79,7 +79,7 @@ class EventCatchApp(QuartApp):
         self.app.route('/<instance_id>/<task_id>/<request_id>', methods=['POST'])(self.callback)
 
     def health_check(self):
-        return jsonify(flow_result(0, ""))
+        return jsonify(flow_result(0, "Ok."))
 
     async def start_work(self):
         headers = sanitize_headers(request.headers)
@@ -342,9 +342,6 @@ class EventCatchApp(QuartApp):
 
     def _shutdown(self):
         pass
-
-    def run(self):
-        super().run()
 
 
 if __name__ == '__main__':

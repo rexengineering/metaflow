@@ -74,7 +74,7 @@ class ExclusiveGatewayApp(QuartApp):
                     target_component_id = path['component_id']
                     break
             else:
-                assert False, "unsupported expression type."
+                raise ValueError("unsupported expression type.")
 
         if not target_url and not total_attempts and not target_component_id:
             total_attempts = DEFAULT_PATH['total_attempts']
@@ -102,9 +102,9 @@ class ExclusiveGatewayApp(QuartApp):
                     f"failed making a call to {target_url} on wf {request.headers['x-rexflow-iid']}"
                 )
 
-        o = urlparse(target_url)
-        headers[Headers.X_HEADER_ORIGINAL_HOST] = o.netloc
-        headers[Headers.X_HEADER_ORIGINAL_PATH] = o.path
+        parsed_url = urlparse(target_url)
+        headers[Headers.X_HEADER_ORIGINAL_HOST] = parsed_url.netloc
+        headers[Headers.X_HEADER_ORIGINAL_PATH] = parsed_url.path
 
         if not success:
             # Notify Flowd that we failed.
@@ -117,7 +117,7 @@ class ExclusiveGatewayApp(QuartApp):
             except Exception:
                 logging.warning("Failed shadowing traffic to Kafka")
 
-        resp = jsonify({"status": 200, "msg": ""})
+        resp = jsonify(flow_result(0, "Ok."))
         if Headers.TRACEID_HEADER.lower() in request.headers:
             resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
         return resp

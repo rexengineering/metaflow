@@ -24,6 +24,7 @@ from .k8s_utils import (
 )
 from .config import (
     CREATE_DEV_INGRESS,
+    DEFAULT_USE_PREEXISTING_SERVICES,
     FLOWD_HOST,
     FLOWD_PORT,
     INSTANCE_FAIL_ENDPOINT_PATH,
@@ -89,8 +90,13 @@ def form_param_config(param):
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
-        super().__init__(task, process, global_props)
+    def __init__(self,
+        task: OrderedDict,
+        process: OrderedDict,
+        global_props: WorkflowProperties,
+        default_is_preexisting: bool = DEFAULT_USE_PREEXISTING_SERVICES,
+    ):
+        super().__init__(task, process, global_props, default_is_preexisting=default_is_preexisting)
         self._task = task
 
         self._target_port = self.service_properties.port
@@ -142,9 +148,7 @@ class BPMNTask(BPMNComponent):
             })
 
         if self._is_preexisting and self._annotation is not None:
-            assert 'namespace' in self._annotation['service'], \
-                "Must provide namespace of preexisting service."
-            self._namespace = self._annotation['service']['namespace']
+            self._namespace = self._annotation['service'].get('namespace', global_props.namespace)
             if 'health' not in self._annotation:
                 # Can't make guarantee about where the service implementor put
                 # their health endpoint, so (for now) require it to be specified.
@@ -179,7 +183,7 @@ class BPMNTask(BPMNComponent):
             envoyfilter_name += '-' + self.workflow_properties.id_hash
 
         namespace = self._namespace  # namespace in which the k8s objects live.
-        if self._global_props.traffic_shadow_service_props:
+        if self._global_props.notification_kafka_topic:
             shadow_svc = self._global_props.traffic_shadow_service_props
             shadow_call = self._global_props.traffic_shadow_call_props
             host = f'{shadow_svc.host}.{shadow_svc.namespace}.svc.cluster.local'

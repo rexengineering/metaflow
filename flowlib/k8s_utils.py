@@ -18,6 +18,7 @@ from .config import (
     REXFLOW_ROOT_PREFIX,
     FLOWD_HOST,
     FLOWD_PORT,
+    K8S_DEFAULT_REPLICAS,
 )
 
 ETCD_ENV_MAP = {
@@ -37,8 +38,8 @@ def to_base64(file_loc):
 
 def create_deployment(
     namespace, dns_safe_name, container, container_port, env, etcd_access=False,
-    kafka_access=False, use_service_account=True, replicas=1, priority_class=None,
-    health_props=None
+    kafka_access=False, use_service_account=True, replicas=K8S_DEFAULT_REPLICAS,
+    priority_class=None, health_props=None,
 ):
     deployment = {
         'apiVersion': 'apps/v1',
