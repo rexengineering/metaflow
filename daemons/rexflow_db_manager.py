@@ -13,7 +13,7 @@ from sqlalchemy import *
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from flowlib.executor import get_executor
-from flowlib.config import POSTGRES_DB_URI
+from flowlib.config import POSTGRES_DB_URI, DEFAULT_NOTIFICATION_KAFKA_TOPIC
 
 Base = declarative_base()
 engine = sqlalchemy.create_engine(POSTGRES_DB_URI)
@@ -23,7 +23,7 @@ Base.metadata.create_all(engine)
 
 #Kafka Setup
 KAFKA_GROUP_ID = "workflow-kafka-consumer"
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "rexflow-all-traffic")
+KAFKA_TOPIC = DEFAULT_NOTIFICATION_KAFKA_TOPIC
 config = {
         'group.id': KAFKA_GROUP_ID,
         'auto.offset.reset': 'earliest'
@@ -55,11 +55,14 @@ class State_Log:
                 continue
             msg_dict = json.loads(msg.value().decode()) # Turn message into dict formate
             if msg_dict["event_type"] == "ETCD_PUT": # If the message is an ETCD_PUT we insert it into the state logs since it signals as state change so we store in state_logs
-                engine.execute(insert(state_log).values(instance_id = msg_dict["instance_id"], timestamp = datetime.now(), state = msg_dict["instance_state"], workflow_id = msg_dict["workflow_id"]))
+                engine.execute(insert(state_log).values(instance_id = msg_dict["instance_id"], 
+                timestamp = datetime.now(), 
+                state = msg_dict["instance_state"], workflow_id = msg_dict["workflow_id"]))
             if msg_dict["event_type"] == "REQUEST_SENT": # If the message is a request_sent it contains the info sent by the envoy proxy so we store it in request_data
                 json_data = msg_dict['request_data']
                 query = "INSERT INTO request_data (instance_id, timestamp, data, workflow_id, headers) VALUES(%s, %s, %s, %s, %s);"
-                my_data = [msg_dict["instance_id"], datetime.now(), json.dumps(json_data), msg_dict['workflow_id'], json.dumps(msg_dict['request_headers'])]
+                my_data = [msg_dict["instance_id"], datetime.now(), 
+                json.dumps(json_data), msg_dict['workflow_id'], json.dumps(msg_dict['request_headers'])]
                 engine.execute(query, my_data)
 
 
@@ -67,8 +70,8 @@ class DB_Manager(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.manager = State_Log()
-        self.app.route('/<instance_id>', methods=['GET'])(self.latest_id)
-        self.app.route("/instances", methods=['GET'])(self.instance_query)
+        self.app.route('/instance/<instance_id>', methods=['GET'])(self.latest_id)
+        self.app.route("/instance", methods=['GET'])(self.instance_query)
     
     def instance_query(self):
         args = dict(request.args)

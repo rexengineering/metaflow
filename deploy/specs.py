@@ -140,6 +140,14 @@ def mk_flowd_deployment_spec(etcd_host, kafka_enabled):
             'name': 'REXFLOW_KAFKA_HOST',
             'value': DEV_KAFKA_HOST if kafka_enabled else None
         })
+        config['spec']['template']['spec']['containers'][0]['env'].append({
+            'name': 'DEFAULT_NOTIFICATION_KAFKA_TOPIC',
+            'value': "rexflow-all-traffic" if kafka_enabled else None
+        })
+        config['spec']['template']['spec']['containers'][0]['env'].append({
+            'name': 'REXFLOW_POSTGRES_DB_URI',
+            'value': 'postgresql://postgresadmin:admin123@postgres.rexflow:5432/postgresdb' if kafka_enabled else None
+        })
     return config
 
 flowd_edit_default_spec = {
@@ -553,6 +561,10 @@ rexflow_db_constructor_deployment = {
                             {
                                 'name': 'REXFLOW_KAFKA_HOST', 
                                 'value': 'my-cluster-kafka-bootstrap.kafka:9092'
+                            },
+                            {
+                                'name': "REXFLOW_POSTGRES_DB_URI",
+                                "value": 'postgresql://postgresadmin:admin123@postgres.rexflow:5432/postgresdb',
                             }
                         ], 
                         'ports': [

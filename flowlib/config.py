@@ -28,8 +28,7 @@ WF_MAP_ENDPOINT_PATH = '/wf_map'
 WF_MAP_ENDPOINT = f'{FLOWD_URL}{WF_MAP_ENDPOINT_PATH}'
 
 # Postgres Database Config
-DEFAULT_POSTGRES_DB_URI = 'postgresql://postgresadmin:admin123@postgres.rexflow:5432/postgresdb'
-POSTGRES_DB_URI = os.getenv('REXFLOW_POSTGRES_DB_URI', DEFAULT_POSTGRES_DB_URI)
+POSTGRES_DB_URI = os.getenv('REXFLOW_POSTGRES_DB_URI')
 
 # Gateway Configuration
 PGATEWAY_SVC_PREFIX = "pgateway"
