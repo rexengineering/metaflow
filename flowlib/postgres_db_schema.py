@@ -10,7 +10,7 @@ Base = declarative_base()
 
 class StateLog(Base):
 
-    __tablename__ = "StateLogs"
+    __tablename__ = "state_log"
     # instance id from the kafka message
     instance_id = Column(String(255))
     # the time the message was received
@@ -22,7 +22,7 @@ class StateLog(Base):
 
 
 class RequestData(Base):
-    __tablename__ = "RequestData"
+    __tablename__ = "request_data"
     instance_id = Column(String(255))
     workflow_id = Column(String(255))
     # store data sent by the envoy proxy
@@ -33,7 +33,7 @@ class RequestData(Base):
     headers = Column(JSONB)
 
 
-# Creates RequestData and StateLogs if the don't exist
+# Creates RequestData and StateLogif the don't exist
 def create_tables():
     engine = sqlalchemy.create_engine(POSTGRES_DB_URI)
     Base.metadata.create_all(engine)

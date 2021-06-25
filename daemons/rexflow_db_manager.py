@@ -6,6 +6,7 @@ from flowlib.config import get_kafka_config
 import json
 from confluent_kafka import Consumer
 import sqlalchemy
+from sqlalchemy import *
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from flowlib.executor import get_executor
@@ -29,7 +30,7 @@ config.update(get_kafka_config())
 kafka = Consumer(config)
 kafka.subscribe([KAFKA_TOPIC])
 
-# StateLog to run in the background and insert all
+# StateLogto run in the background and insert all
 # kafka messages into the database
 
 
@@ -45,30 +46,34 @@ class StateLogger:
         self.running = False
 
     def __call__(self):
-        while True:
-            if not self.running:
-                break
-            msg = kafka.poll(1)    # Get Messages
-            if msg is None:
-                continue
-            if msg.error():
-                continue
-            msg_dict = json.loads(msg.value().decode())
-            if msg_dict["event_type"] == "ETCD_PUT":
-                query = insert(StateLog).values(instance_id=msg_dict["instance_id"],
-                                                timestamp=datetime.now(),
-                                                state=msg_dict["instance_state"],
-                                                workflow_id=msg_dict["workflow_id"])
-                engine.execute(query)
-            if msg_dict["event_type"] == "REQUEST_SENT":
-                json_data = msg_dict['RequestData']
-                query = "INSERT INTO "
-                query += "RequestData (instance_id, timestamp, data, workflow_id, headers) "
-                query += "VALUES(%s, %s, %s, %s, %s);"
-                my_data = [msg_dict["instance_id"], datetime.now(),
-                           json.dumps(json_data), msg_dict['workflow_id'],
-                           json.dumps(msg_dict['request_headers'])]
-                engine.execute(query, my_data)
+        try:
+            while True:
+                if not self.running:
+                    break
+                msg = kafka.poll(1)   # Get Messages
+                if msg is None:
+                    continue
+                if msg.error():
+                    continue
+                msg_dict = json.loads(msg.value().decode())
+                if msg_dict["event_type"] == "ETCD_PUT":
+                    query = insert(StateLog).values(instance_id=msg_dict["instance_id"],
+                                                    timestamp=datetime.now(),
+                                                    state=msg_dict["instance_state"],
+                                                    workflow_id=msg_dict["workflow_id"])
+                    engine.execute(query)
+                if msg_dict["event_type"] == "REQUEST_SENT":
+                    json_data = msg_dict['request_data']
+                    query = "INSERT INTO "
+                    query += "request_data (instance_id, timestamp, data, workflow_id, headers) "
+                    query += "VALUES(%s, %s, %s, %s, %s);"
+                    my_data = [msg_dict["instance_id"], datetime.now(),
+                               json.dumps(json_data), msg_dict['workflow_id'],
+                               json.dumps(msg_dict['request_headers'])]
+                    engine.execute(query, my_data)
+        except Exception as exn:
+            import logging
+            logging.exception("ooph", exc_info=exn)
 
 
 class DBManager(QuartApp):
@@ -77,6 +82,7 @@ class DBManager(QuartApp):
         self.manager = StateLogger()
         self.app.route('/instance/<instance_id>', methods=['GET'])(self.current_state)
         self.app.route("/instance", methods=['GET'])(self.instance_query)
+        self.app.route('/instance_time/<instance_id>', methods=['GET'])(self.instance_time)
 
     def instance_query(self):
         args = dict(request.args)
@@ -95,7 +101,7 @@ class DBManager(QuartApp):
             query_params.append(itm)
             query_params.append(args[itm])
         if conditions != "":
-            query = "SELECT instance_id FROM RequestData " + conditions + ";"
+            query = "SELECT instance_id FROM request_data " + conditions + ";"
             resultproxy = engine.execute(query, query_params)
             d, a = {}, []
             for rowproxy in resultproxy:
@@ -110,7 +116,7 @@ class DBManager(QuartApp):
         return res
 
     def current_state(self, instance_id):
-        query = "SELECT * FROM StateLogs WHERE instance_id=%s ORDER BY timestamp DESC LIMIT 1;"
+        query = "SELECT * FROM state_log WHERE instance_id=%s ORDER BY timestamp DESC LIMIT 1;"
         query_params = [instance_id]
         resultproxy = engine.execute(query, query_params)
         d, a = {}, []
@@ -121,6 +127,33 @@ class DBManager(QuartApp):
                 d = {**d, **{column: value}}
             a.append(d)
         return str(a)
+    
+    def instance_time(self, instance_id):
+        query = "SELECT * FROM state_log WHERE instance_id=%s ORDER BY timestamp DESC LIMIT 1;"
+        query_params = [instance_id]
+        resultproxy = engine.execute(query, query_params)
+        d, a = {}, []
+        for rowproxy in resultproxy:
+            # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+            for column, value in rowproxy.items():
+                # build up the dictionary
+                d = {**d, **{column: value}}
+            a.append(d)
+        latest = a
+        query = "SELECT * FROM state_log WHERE instance_id=%s ORDER BY timestamp ASC LIMIT 1;"
+        query_params = [instance_id]
+        resultproxy = engine.execute(query, query_params)
+        d, a = {}, []
+        for rowproxy in resultproxy:
+            # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+            for column, value in rowproxy.items():
+                # build up the dictionary
+                d = {**d, **{column: value}}
+            a.append(d)
+        earliest = a
+        print(earliest)
+        print(latest)
+        return
 
     def run(self):
         self.manager.start()
@@ -128,6 +161,7 @@ class DBManager(QuartApp):
 
     def shutdown(self):
         self.manager.stop()
+
 
 
 if __name__ == '__main__':

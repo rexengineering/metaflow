@@ -563,6 +563,10 @@ rexflow_db_constructor_deployment = {
                             {
                                 'name': "REXFLOW_POSTGRES_DB_URI",
                                 "value": 'postgresql://postgresadmin:admin123@postgres.rexflow:5432/postgresdb',
+                            },
+                            {
+                                'name': 'DEFAULT_NOTIFICATION_KAFKA_TOPIC',
+                                'value': 'rexflow-all-traffic',
                             }
                         ], 
                         'ports': [
