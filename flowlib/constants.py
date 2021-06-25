@@ -258,6 +258,14 @@ class WorkflowInstanceKeys:
     def async_callback_response_key(cls, iid, tid, request_id):
         return f'{cls.key_of(iid)}/async_service_task/{tid}/{request_id}/response'
 
+    @classmethod
+    def pgw_count_key(cls, iid, gateway_id):
+        return f'{cls.key_of(iid)}/pgw/{gateway_id}/count'
+
+    @classmethod
+    def pgw_value_key(cls, iid, gateway_id):
+        return f'{cls.key_of(iid)}/pgw/{gateway_id}/value'
+
 def split_key(iid: str):
     """
     Accept a key in the form of <workflow_id>-<guid>
@@ -307,6 +315,7 @@ class IngressHostKeys:
     def component_name_key(cls, host):
         return f'{cls.key_of(host)}/component_name'
 
+
 class Parallel:
 
     @enum.unique
@@ -314,14 +323,18 @@ class Parallel:
         '''Enumeration of the data merge modes supported by the parallel gateway.
 
         ARRAY - Merge incoming data into a JSON array.
+
         OBJECT - Merge incoming data into a JSON object.
-        UPDATE - Merge incoming data into a Python dictionary using the update() method.
+
+        UPDATE - Merge incoming data into a Python dictionary (aka JSON object) using the
+        `update()` method.
         '''
         ARRAY = 1
         OBJECT = 2
         UPDATE = 3
 
     class GatewayVars:
+        PGW_ID = 'REXFLOW_PGW_ID'
         INCOMING_IDS = 'REXFLOW_PGW_INCOMING_IDS'
         INCOMING_URLS = 'REXFLOW_PGW_INCOMING_URLS'
         FORWARD_IDS = 'REXFLOW_PGW_FORWARD_IDS'

@@ -63,6 +63,7 @@ def init_etcd(*args, **kws):
         etcd_opts = {
             k: config_map[k] for k in config_map.keys() if config_map[k] is not None
         }
+        result = None
         # TODO: add option for ADVERTISE_CILENT_URLS in config.py. On hold because
         # not necessary for initial REX-internal release.
         # Try each endpoint and see if it works...
@@ -87,7 +88,6 @@ def init_etcd(*args, **kws):
                     time.sleep(0.5)
             if success:
                 break # out of endpoint loop
-            result = None
             logging.info(f"Unsuccessful connecting to etcd on endpoint {endpoint}.")
 
         assert result is not None, "Unable to connect to etcd."

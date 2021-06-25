@@ -6,8 +6,8 @@ from typing import Any
 from flask import Flask, request, make_response
 import requests
 
-from flowlib import connectors, executor
-from flowlib.constants import flow_result, Headers, Parallel
+from flowlib import connectors, executor, stores
+from flowlib.constants import flow_result, Headers, Parallel, WorkflowInstanceKeys
 
 
 app = Flask(__name__)
@@ -20,14 +20,16 @@ def post(target: str, response: Any) -> None:
 
 def make_connector() -> connectors.Connector:
     mode = Parallel.MergeModes(int(os.getenv(Parallel.GatewayVars.MERGE_MODE, 1)))
+    pgw_id = str(os.environ[Parallel.GatewayVars.PGW_ID])
     in_ids = json.loads(os.getenv(Parallel.GatewayVars.INCOMING_IDS, '[]'))
     in_urls = json.loads(os.getenv(Parallel.GatewayVars.INCOMING_URLS, '[]'))
     out_ids = json.loads(os.getenv(Parallel.GatewayVars.FORWARD_IDS, '[]'))
     out_urls = json.loads(os.getenv(Parallel.GatewayVars.FORWARD_URLS, '[]'))
-    in_edges = [connectors.Connection(in_id, in_url, None) for in_id, in_url in zip(in_ids, in_urls)]
+    in_edges = [connectors.Connection(in_id, in_url, {}) for in_id, in_url in zip(in_ids, in_urls)]
     # TODO: Use the HTTP method appropriate to each destination.
-    out_edges = [connectors.Connection(out_id, out_url, 'POST') for out_id, out_url in zip(out_ids, out_urls)]
-    return connectors.ParallelConnector(in_edges, out_edges, {'post': post}, mode)
+    out_edges = [connectors.Connection(out_id, out_url, {'method': 'POST'}) for out_id, out_url in zip(out_ids, out_urls)]
+    store = stores.Etcd3Store()
+    return connectors.ParallelConnector(pgw_id, in_edges, out_edges, {'post': post}, mode, store)
 
 
 connector = make_connector()
