@@ -138,7 +138,7 @@ class WorkflowPublisher(QuartApp):
             'content-type': 'application/json',
         }
         payload = {
-            'request_data': FlowPost.jsonify_or_encode_data(data),
+            'RequestData': FlowPost.jsonify_or_encode_data(data),
             'request_headers': dict(request.headers),
             **message_headers,
         }

@@ -76,7 +76,6 @@ class Deployer:
             'rexflow', specs.etcd_service_specs)
         self.create_namespaced_deployment(
             'rexflow', specs.etcd_deployment_spec)
-
         # flowd 
         self.create_namespaced_service_account(
             'rexflow', specs.flowd_service_acct_spec)
@@ -125,7 +124,7 @@ class Deployer:
             specs.rexflow_db_constructor_gateway)
         self.create_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
-            specs.rexflow_db_constructor_vc)
+            specs.rexflow_db_constructor_vs)
 
         # Gateway and virtual services
         self.create_namespaced_custom_object(
@@ -167,7 +166,7 @@ class Deployer:
         self.delete_namespaced_custom_object(
         'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
         'rexflow-db-constructor')
-        #postgres delete
+        # postgres delete
         self.delete_namespaced_deployment('postgres', 'rexflow')
         self.delete_namespaced_service('postgres', 'rexflow')
         self.delete_namespaced_config_map('postgres', 'rexflow')

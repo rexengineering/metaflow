@@ -314,9 +314,7 @@ postgres_deployment = {
     'labels': {'app': 'postgres'}, 
     'name': 'postgres'}, 
     'spec': {
-        'progressDeadlineSeconds': 2147483647, 
         'replicas': 1, 
-        'revisionHistoryLimit': 2147483647, 
         'selector': {
             'matchLabels': {
                 'app': 'postgres'}}, 
@@ -452,7 +450,7 @@ postgres_pvc   = {
         }
     }
 
-rexflow_db_constructor_vc = {
+rexflow_db_constructor_vs = {
     'apiVersion': 'networking.istio.io/v1alpha3', 
     'kind': 'VirtualService', 
     'metadata': {
