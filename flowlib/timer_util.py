@@ -29,10 +29,11 @@ import logging
 import threading
 import time
 import typing
+import uuid
 
 from datetime import datetime, timezone
-from flowlib import token_api
 from flowlib.substitution import Substitutor
+from flowlib.token_api import TokenPool
 
 from typing import Tuple
 
@@ -43,6 +44,7 @@ class WrappedTimer:
     once the timer matures.
     """
     def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context : typing.Any):
+        self._guid = uuid.uuid4().hex
         self._interval = interval
         self._done_action = done_action
         self._action = action
@@ -51,16 +53,23 @@ class WrappedTimer:
         logging.info(f'{time.time()} Timer created with duration {interval}')
 
     def do_action(self, *args):
+        largs = list(args)[:]
         if self._context.token_pool_id is not None:
-            token_stack = self._context.token_stack
+            TokenPool.from_pool_name(self._context.token_pool_id).alloc()
             # need to pass the token_pool_id as an x header
-            token_stack = self._context.token_pool_id if token_stack is None else f'{token_stack},{self._context.token_pool_id}'
-            token_api.token_alloc(self._context.token_pool_id)
-            self._action(token_stack,*args)
-        else:
-            self._action(*args)
+            if self._context.token_stack is None:
+                token_stack = []
+            else:
+                token_stack = list(self._context.token_stack.split(','))
+            token_stack.append(self._context.token_pool_id)
+            largs.insert(0, ','.join(token_stack))
 
-        self.done()
+        abort = not self._action(*largs)
+        if abort:
+            # the call to the outside edge failed. Hence we need to
+            # end any attempt at more timers.
+            logging.error(f'{self._guid} failed to notify outbound edge - aborting')
+        self.done(abort)
 
     def start(self):
         self._timer.start()
@@ -70,9 +79,9 @@ class WrappedTimer:
         self._timer.cancel()
         self.done()
 
-    def done(self):
+    def done(self, abort:bool = False):
         logging.info(f'{time.time()} Timer done')
-        self._done_action(self._context)
+        self._done_action(self._context, abort)
 
 class TimedEventManager:
     SUBS_BEG = '{'
@@ -95,7 +104,7 @@ class TimedEventManager:
         self.events = dict()
         self.json = timer_description_json
         #[timer_type, timer_spec]
-        self.timer_type, self.spec = json.loads(timer_description_json) 
+        self.timer_type, self.spec = json.loads(timer_description_json)
         self.callback = callback
         self.is_start_event = is_start_event
         # if validate_spec returns None, then the spec has dynamic references
@@ -105,8 +114,8 @@ class TimedEventManager:
         self.token_pool_id = None
         self.completed = True
         self._substitutor = Substitutor() \
-            .add_handler(self.ADD_FUNC, self._func_add) \
-            .add_handler(self.SUB_FUNC, self._func_sub)
+            .add_handler(self.ADD_FUNC, self.__func_add) \
+            .add_handler(self.SUB_FUNC, self.__func_sub)
 
     class ValidationResults:
         def __init__(self, timer_type : str, spec : str):
@@ -129,7 +138,7 @@ class TimedEventManager:
     @classmethod
     def validate_spec(cls, timer_type : str, spec : str) -> Tuple[ValidationResults, bool]:
         logging.info(f'Validating {timer_type} {spec}')
-        # check here if spec contains any substitution or function markers. 
+        # check here if spec contains any substitution or function markers.
         # if so, return None
         if any( marker in [cls.FUNC_BEG, cls.SUBS_BEG] for marker in spec):
             logging.info('Deferring spec validation as spec has substitution/function markers')
@@ -288,18 +297,16 @@ class TimedEventManager:
             if not self.is_start_event:
                 # cycle types need a token pool for remote collectors/end events to keep track of the number
                 # of recurrences seen.
-                context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
+                context.token_pool_id = TokenPool.create(wf_inst_id, self.aspects.recurrance).get_name()
                 logging.info(f'Created token pool {context.token_pool_id}')
+            context.recurrance = context.recurrance - 1
 
         self.completed = False
         duration = context.start_date - time_now + self.aspects.interval
-        timer = WrappedTimer(duration, self.timer_done_action, self.timer_action, context)
+        timer = WrappedTimer(duration, self.__timer_done_action, self.__timer_action, context)
         timer.start()
 
-        if self.aspects.timer_type == self.TIME_CYCLE:
-            context.recurrance = context.recurrance - 1
-
-    def timer_action(self, *data):
+    def __timer_action(self, *args):
         """
         Called when a timer fires. This calls the callback provided when the
         timer was enqueued.
@@ -307,17 +314,14 @@ class TimedEventManager:
         Note that the callback is expected to handle any problems with communicating
         with other services, POST's, GET's, whatever so we just make the call here.
         """
-        logging.info(f'timer_action - calling back with {data}')
-        try:
-            resp = self.callback(*data)
-            logging.info(f'Timer callback returned {resp}')
-        except Exception as ex:
-            logging.exception('Callback threw exception, which was ignored', exc_info=ex)
+        logging.info(f'__timer_action - calling back with {args}')
+        resp = self.callback(*args)
+        logging.info(f'Timer callback returned {resp}')
 
-    def timer_done_action(self, context):
+    def __timer_done_action(self, context, abort:bool = False):
         """
         Called after a timer has fired. In this implementation, this could be
-        combined with timer_action, but keep it separate to give us more
+        combined with __timer_action, but keep it separate to give us more
         flexibility should we want separate done actions evoked for different
         scenarios.
 
@@ -326,17 +330,17 @@ class TimedEventManager:
         Otherwise, calculate the maturity time for the next cycle and enqueue
         that timer.
         """
-        if self.aspects.timer_type == self.TIME_CYCLE and context.recurrance > 0:
+        if not abort and self.aspects.timer_type == self.TIME_CYCLE and context.recurrance > 0:
             if context.end_date is not None:
                 exec_time = int(time.time()) + self.aspects.interval
                 assert exec_time <= context.end_date, "Recursion terminated - execution time exceeds specified end time."
-            timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context)
+            timer = WrappedTimer(self.aspects.interval, self.__timer_done_action, self.__timer_action, context)
             timer.start()
             context.recurrance -= 1
         else:
             self.completed = True
 
-    def _time_preproc(self, parms:str) -> list:
+    def __time_preproc(self, parms:str) -> list:
         args = []
         for arg in parms.split(','):
             if arg == 'NOW':
@@ -346,14 +350,14 @@ class TimedEventManager:
             args.append(val)
         return args
 
-    def _func_add(self, parms:str):
-        args = self._time_preproc(parms)
+    def __func_add(self, parms:str):
+        args = self.__time_preproc(parms)
         assert len(args) == 2, f'{self.ADD_FUNC} takes 2 parameters, {len(args)} provided'
         args[0] += args[1]
         return datetime.fromtimestamp(args[0]).strftime(self.ISO_8601_FORMAT)
 
-    def _func_sub(self, parms:str):
-        args = self._time_preproc(parms)
+    def __func_sub(self, parms:str):
+        args = self.__time_preproc(parms)
         assert len(args) == 2, f'{self.SUB_FUNC} takes 2 parameters, {len(args)} provided'
         args[0] -= args[1]
         return datetime.fromtimestamp(args[0]).strftime(self.ISO_8601_FORMAT)

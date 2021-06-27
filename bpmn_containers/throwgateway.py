@@ -19,7 +19,7 @@ from flowlib.etcd_utils import (
     transition_state,
 )
 from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
-from flowlib import token_api
+from flowlib.token_api import TokenPool
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
 
@@ -71,8 +71,10 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
         alldone = True
         toks = timer_header.split(',')[::-1]  # sort in reverse order so newest first
         for token in toks:
-            if not token_api.token_release(token):
+            pool = TokenPool.from_pool_name(token)
+            if not pool.release_as_complete():
                 alldone = False
+                logging.info(str(pool))
                 break
         with etcd.lock(keys.timed_results):
             results = etcd.get(keys.timed_results)[0]
@@ -91,9 +93,9 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
             if not alldone:
                 etcd.put(keys.timed_results, payload)
                 return
+            logging.info('All timers accounted for')
             # else fall through and complete the workflow instance
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
-    logging.info("Either no timers or all timers are done - COMPLETING")
     if etcd.put_if_not_exists(keys.result, payload):
 
         if not etcd.put_if_not_exists(keys.content_type, content_type):
@@ -133,6 +135,7 @@ class EventThrowApp(QuartApp):
 
     async def throw_event(self):
         headers = dict(request.headers)
+        logging.info(headers)
         try:
             data = await request.data
             if kafka is not None:
@@ -149,7 +152,7 @@ class EventThrowApp(QuartApp):
                     request.headers[Headers.X_HEADER_WORKFLOW_ID],
                     data,
                     request.headers.get(Headers.CONTENT_TYPE, 'application/json'),
-                    request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID),
+                    request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower()),
                 )
             for target in FORWARD_TARGETS:
                 method = target['method']

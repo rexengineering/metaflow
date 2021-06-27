@@ -87,7 +87,6 @@ Where timer_type is timeDate, timeCycle, or timeDuration
                     Infinite recurrences are not permitted, hence
                     R/<duration> or R0/<duration> are invalid.
 
-'''
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION)
 """
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, None)
@@ -227,7 +226,7 @@ class EventCatchPoller:
 
         # return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
 
-    def make_call_impl(self, token_stack:str, data:str, flow_id:str, wf_id:str, content_type:str):
+    def make_call_impl(self, token_stack:str, data:str, flow_id:str, wf_id:str, content_type:str) -> bool:
         next_headers = {
             Headers.X_HEADER_FLOW_ID: str(flow_id),
             Headers.X_HEADER_WORKFLOW_ID: str(wf_id),
@@ -245,7 +244,8 @@ class EventCatchPoller:
             retries=TOTAL_ATTEMPTS - 1,
             headers=next_headers,
         )
-        poster.send()
+        resp:FlowPostResult = poster.send()
+        return resp.message == FlowPostStatus.SUCCESS
 
 
     def __call__(self):
@@ -318,7 +318,7 @@ class IntermediateCatchEventManager:
         self._cleanup_period = cleanup_period_seconds
         self._etcd_cleanup_timer = threading.Timer(self._cleanup_period, self._cleanup)
         self._etcd_cleanup_timer.start()
-    
+
     def _cleanup(self):
         """To avoid polluting etcd with lots of unused events, we delete the data for
         un-matured events after they've sat for more than two days."""
