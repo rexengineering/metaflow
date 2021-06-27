@@ -17,9 +17,10 @@ from flowlib.constants import (
 from flowlib.etcd_utils import (
     get_etcd,
     transition_state,
+    locked_call,
 )
 from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
-from flowlib import token_api
+from flowlib.token_api import TokenPool
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
 
@@ -71,10 +72,15 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
         alldone = True
         toks = timer_header.split(',')[::-1]  # sort in reverse order so newest first
         for token in toks:
-            if not token_api.token_release(token):
+            logging.info(f'Releasing token for pool {token}')
+            pool = TokenPool.from_pool_name(token)
+            if not pool.release_as_complete():
                 alldone = False
+                logging.info(str(pool))
                 break
-        with etcd.lock(keys.timed_results):
+            logging.info(str(pool))
+
+        def __logic(etcd, payload):
             results = etcd.get(keys.timed_results)[0]
             if results:
                 results = json.loads(results)
@@ -87,13 +93,35 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
                 'payload': base64.b64encode(payload) if content_type != 'application/json' else payload.decode()
             })
             payload = json.dumps(results)
-            content_type = 'application/json'
-            if not alldone:
-                etcd.put(keys.timed_results, payload)
-                return
-            # else fall through and complete the workflow instance
+            etcd.put(keys.timed_results, payload)
+
+        locked_call(keys.timed_results, __logic, [payload])
+
+        if not alldone:
+            return
+        logging.info('All tokens accounted for')
+        # else fall through and complete the workflow instance
+
+        # with etcd.lock(keys.timed_results):
+        #     results = etcd.get(keys.timed_results)[0]
+        #     if results:
+        #         results = json.loads(results)
+        #     else:
+        #         results = []
+        #     results.append({
+        #         'token-pool-id': toks,
+        #         'content-type': content_type,
+        #         'end-event-name': END_EVENT_NAME,
+        #         'payload': base64.b64encode(payload) if content_type != 'application/json' else payload.decode()
+        #     })
+        #     payload = json.dumps(results)
+        #     content_type = 'application/json'
+        #     if not alldone:
+        #         etcd.put(keys.timed_results, payload)
+        #         return
+        #     logging.info('All tokens accounted for')
+        #     # else fall through and complete the workflow instance
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
-    logging.info("Either no timers or all timers are done - COMPLETING")
     if etcd.put_if_not_exists(keys.result, payload):
 
         if not etcd.put_if_not_exists(keys.content_type, content_type):
@@ -133,6 +161,7 @@ class EventThrowApp(QuartApp):
 
     async def throw_event(self):
         headers = dict(request.headers)
+        logging.info(headers)
         try:
             data = await request.data
             if kafka is not None:
@@ -149,7 +178,7 @@ class EventThrowApp(QuartApp):
                     request.headers[Headers.X_HEADER_WORKFLOW_ID],
                     data,
                     request.headers.get(Headers.CONTENT_TYPE, 'application/json'),
-                    request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID),
+                    request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower()),
                 )
             for target in FORWARD_TARGETS:
                 method = target['method']

@@ -11,7 +11,7 @@ from flowlib.constants import (
     TIMER_DESCRIPTION,
     to_valid_k8s_name,
 )
-from flowlib.timer_util import TimedEventManager
+from flowlib.timer_util import TimedEventManager, ValidationResults
 from flowlib.config import (
     DEFAULT_NOTIFICATION_KAFKA_TOPIC,
     DEFAULT_USE_CLOSURE_TRANSPORT,
@@ -539,7 +539,7 @@ class BPMNComponent:
         self._proc = process
         self._kafka_topics = []
         self._timer_description = []
-        self._timer_aspects: Optional[TimedEventManager.ValidationResults] = None
+        self._timer_aspects: Optional[ValidationResults] = None
         self._timer_dynamic = False
         self._is_timer = False
 

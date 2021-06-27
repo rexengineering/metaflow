@@ -67,10 +67,10 @@ Functions
             # ADD means what it says
             args[0] += args[1]
             # return the string timestamp in ISO 8601 format.
-            return datetime.fromtimestamp(args[0]).strftime(ISO_8601_FORMAT)
+            return datetime.fromtimestamp(args[0], tz=timezone.utc).strftime(ISO_8601_FORMAT)
 
 Functions can be nested.
-    input:  "ADD(SUB(NOW, PT3H),PT1W"
+    input:  "ADD(SUB(NOW, PT3H),PT1W)"
 
 Function arguments can contain substitutions, nested or otherwise.
     input:  "ADD(NOW, PT{hour_cnt}H)"
@@ -80,14 +80,15 @@ Function arguments can contain substitutions, nested or otherwise.
 import logging
 import typing
 
-SEPARATOR = '/'
-SUBS_BEG  = '{'
-SUBS_END  = '}'
-FUNC_BEG  = '('
-FUNC_END  = ')'
+class Tokens:
+    SEPARATOR = '/'
+    SUBS_BEG  = '{'
+    SUBS_END  = '}'
+    FUNC_BEG  = '('
+    FUNC_END  = ')'
 
 class Substitutor:
-    def __init__(self, separator:str = SEPARATOR):
+    def __init__(self, separator:str = Tokens.SEPARATOR):
         self._funcs = {}
         self._separator = separator
         self._has_funcs = False
@@ -121,22 +122,21 @@ class Substitutor:
     def _sub_json_token(self, itr:enumerate, level:int) -> str:
         trg = ''
         for _,c in itr:
-            if c == SUBS_BEG:
+            if c == Tokens.SUBS_BEG:
                 # found a subs reference - so resolve it
                 trg += self._sub_json_token(itr, level + 1)
-            elif c == SUBS_END:
+            elif c == Tokens.SUBS_END:
                 assert level > 0, 'Mis-matched bracket'
-                assert trg in self._locals, f'Unknown key {trg}'
-                # trg contains a JSON path to be resolved, and its
-                # value used in place of the identified path
-                return self._locals[trg]
-            elif self._has_funcs and c == FUNC_BEG:
+                if trg in self._locals:
+                    return self._locals[trg]
+                return trg
+            elif self._has_funcs and c == Tokens.FUNC_BEG:
                 # trg contains the name of a function
                 trg = trg.upper()
                 assert trg in self._funcs.keys(), f'Unknown function: {trg}'
                 self._func_stack.append(trg)
                 trg = self._sub_json_token(itr, level + 1)
-            elif self._has_funcs and c == FUNC_END:
+            elif self._has_funcs and c == Tokens.FUNC_END:
                 # trg contains parms to the function
                 assert len(self._func_stack) > 0, 'Mis-matched parentheses'
                 fname = self._func_stack.pop(-1)
