@@ -51,15 +51,17 @@ class WrappedTimer:
         logging.info(f'{time.time()} Timer created with duration {interval}')
 
     def do_action(self, *args):
+        largs = list(args)[:]
         if self._context.token_pool_id is not None:
-            token_stack = self._context.token_stack
-            # need to pass the token_pool_id as an x header
-            token_stack = self._context.token_pool_id if token_stack is None else f'{token_stack},{self._context.token_pool_id}'
             token_api.token_alloc(self._context.token_pool_id)
-            self._action(token_stack,*args)
-        else:
-            self._action(*args)
-
+            # need to pass the token_pool_id as an x header
+            if self._context.token_stack is None:
+                token_stack = []
+            else:
+                token_stack = list(self._context.token_stack.split(','))
+            token_stack.append(self._context.token_pool_id)
+            largs.insert(0, ','.join(token_stack))
+        self._action(*largs)
         self.done()
 
     def start(self):
@@ -105,8 +107,8 @@ class TimedEventManager:
         self.token_pool_id = None
         self.completed = True
         self._substitutor = Substitutor() \
-            .add_handler(self.ADD_FUNC, self._func_add) \
-            .add_handler(self.SUB_FUNC, self._func_sub)
+            .add_handler(self.ADD_FUNC, self.__func_add) \
+            .add_handler(self.SUB_FUNC, self.__func_sub)
 
     class ValidationResults:
         def __init__(self, timer_type : str, spec : str):
@@ -313,6 +315,9 @@ class TimedEventManager:
             logging.info(f'Timer callback returned {resp}')
         except Exception as ex:
             logging.exception('Callback threw exception, which was ignored', exc_info=ex)
+            # now, since the call failed, we need to cancel any allotted token as failed
+            if self.aspects.timer_type == self.TIME_CYCLE:
+                token_api.token_fail(self.aspects.token_pool_id)
 
     def timer_done_action(self, context):
         """
@@ -336,7 +341,7 @@ class TimedEventManager:
         else:
             self.completed = True
 
-    def _time_preproc(self, parms:str) -> list:
+    def __time_preproc(self, parms:str) -> list:
         args = []
         for arg in parms.split(','):
             if arg == 'NOW':
@@ -346,14 +351,14 @@ class TimedEventManager:
             args.append(val)
         return args
 
-    def _func_add(self, parms:str):
-        args = self._time_preproc(parms)
+    def __func_add(self, parms:str):
+        args = self.__time_preproc(parms)
         assert len(args) == 2, f'{self.ADD_FUNC} takes 2 parameters, {len(args)} provided'
         args[0] += args[1]
         return datetime.fromtimestamp(args[0]).strftime(self.ISO_8601_FORMAT)
 
-    def _func_sub(self, parms:str):
-        args = self._time_preproc(parms)
+    def __func_sub(self, parms:str):
+        args = self.__time_preproc(parms)
         assert len(args) == 2, f'{self.SUB_FUNC} takes 2 parameters, {len(args)} provided'
         args[0] -= args[1]
         return datetime.fromtimestamp(args[0]).strftime(self.ISO_8601_FORMAT)

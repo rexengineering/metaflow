@@ -243,7 +243,7 @@ class EventCatchPoller:
             data=data,
             url=FORWARD_URL,
             retries=TOTAL_ATTEMPTS - 1,
-            headers=next_headers,
+            headers=next_headers
         )
         poster.send()
 
@@ -267,9 +267,8 @@ class EventCatchPoller:
                     assert Headers.X_HEADER_FLOW_ID in headers
                     assert Headers.X_HEADER_WORKFLOW_ID in headers
                     assert headers[Headers.X_HEADER_WORKFLOW_ID].decode() == WF_ID
-                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower())
-                    if token_header:
-                        token_header = token_header.decode()
+                    logging.info(headers)
+                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower(), b'').decode()
 
                     self._make_call(
                         data.decode(),
