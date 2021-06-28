@@ -70,7 +70,7 @@ Functions
             return datetime.fromtimestamp(args[0]).strftime(ISO_8601_FORMAT)
 
 Functions can be nested.
-    input:  "ADD(SUB(NOW, PT3H),PT1W"
+    input:  "ADD(SUB(NOW, PT3H),PT1W)"
 
 Function arguments can contain substitutions, nested or otherwise.
     input:  "ADD(NOW, PT{hour_cnt}H)"
