@@ -71,8 +71,10 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
         alldone = True
         toks = timer_header.split(',')[::-1]  # sort in reverse order so newest first
         for token in toks:
-            if not TokenPool.read(token).set_complete():
+            pool = TokenPool.read(token)
+            if not pool.set_complete():
                 alldone = False
+                logging.info(str(pool))
                 break
         with etcd.lock(keys.timed_results):
             results = etcd.get(keys.timed_results)[0]
@@ -91,7 +93,7 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
             if not alldone:
                 etcd.put(keys.timed_results, payload)
                 return
-            logging.info("All timers accounted for")
+            logging.info('All timers accounted for')
             # else fall through and complete the workflow instance
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
     if etcd.put_if_not_exists(keys.result, payload):

@@ -61,7 +61,18 @@ class WrappedTimer:
                 token_stack = list(self._context.token_stack.split(','))
             token_stack.append(self._context.token_pool_id)
             largs.insert(0, ','.join(token_stack))
-        self._action(*largs)
+
+        try:            
+            import random   # killme
+            if random.randint(0,10) < 7: # killme
+                raise ValueError('some bogus error') # killme
+            self._action(*largs)
+        except Exception as ex:
+            logging.exception('Callback threw exception, which was ignored', exc_info=ex)
+            if self._context.timer_type == TimedEventManager.TIME_CYCLE:
+                # now, since the call failed, we need to cancel any allotted token as failed
+                TokenPool.read(self._context.token_pool_id).set_fail()
+
         self.done()
 
     def start(self):
@@ -295,13 +306,13 @@ class TimedEventManager:
 
         self.completed = False
         duration = context.start_date - time_now + self.aspects.interval
-        timer = WrappedTimer(duration, self.timer_done_action, self.timer_action, context)
+        timer = WrappedTimer(duration, self.__timer_done_action, self.__timer_action, context)
         timer.start()
 
         if self.aspects.timer_type == self.TIME_CYCLE:
             context.recurrance = context.recurrance - 1
 
-    def timer_action(self, *data):
+    def __timer_action(self, *args):
         """
         Called when a timer fires. This calls the callback provided when the
         timer was enqueued.
@@ -309,20 +320,14 @@ class TimedEventManager:
         Note that the callback is expected to handle any problems with communicating
         with other services, POST's, GET's, whatever so we just make the call here.
         """
-        logging.info(f'timer_action - calling back with {data}')
-        try:
-            resp = self.callback(*data)
-            logging.info(f'Timer callback returned {resp}')
-        except Exception as ex:
-            logging.exception('Callback threw exception, which was ignored', exc_info=ex)
-            # now, since the call failed, we need to cancel any allotted token as failed
-            if self.aspects.timer_type == self.TIME_CYCLE:
-                TokenPool.read(self.aspects.token_pool_id).set_fail()
+        logging.info(f'__timer_action - calling back with {args}')
+        resp = self.callback(*args)
+        logging.info(f'Timer callback returned {resp}')
 
-    def timer_done_action(self, context):
+    def __timer_done_action(self, context):
         """
         Called after a timer has fired. In this implementation, this could be
-        combined with timer_action, but keep it separate to give us more
+        combined with __timer_action, but keep it separate to give us more
         flexibility should we want separate done actions evoked for different
         scenarios.
 
@@ -335,7 +340,7 @@ class TimedEventManager:
             if context.end_date is not None:
                 exec_time = int(time.time()) + self.aspects.interval
                 assert exec_time <= context.end_date, "Recursion terminated - execution time exceeds specified end time."
-            timer = WrappedTimer(self.aspects.interval, self.timer_done_action, self.timer_action, context)
+            timer = WrappedTimer(self.aspects.interval, self.__timer_done_action, self.__timer_action, context)
             timer.start()
             context.recurrance -= 1
         else:
