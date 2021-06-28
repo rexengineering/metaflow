@@ -31,7 +31,7 @@ import time
 import typing
 
 from datetime import datetime, timezone
-from flowlib import token_api
+from flowlib.token_api import TokenPool
 from flowlib.substitution import Substitutor
 
 from typing import Tuple
@@ -53,7 +53,7 @@ class WrappedTimer:
     def do_action(self, *args):
         largs = list(args)[:]
         if self._context.token_pool_id is not None:
-            token_api.token_alloc(self._context.token_pool_id)
+            TokenPool.read(self._context.token_pool_id).alloc()
             # need to pass the token_pool_id as an x header
             if self._context.token_stack is None:
                 token_stack = []
@@ -290,7 +290,7 @@ class TimedEventManager:
             if not self.is_start_event:
                 # cycle types need a token pool for remote collectors/end events to keep track of the number
                 # of recurrences seen.
-                context.token_pool_id = token_api.token_create_pool(wf_inst_id, self.aspects.recurrance)
+                context.token_pool_id = TokenPool.create(wf_inst_id, self.aspects.recurrance).get_name()
                 logging.info(f'Created token pool {context.token_pool_id}')
 
         self.completed = False
@@ -317,7 +317,7 @@ class TimedEventManager:
             logging.exception('Callback threw exception, which was ignored', exc_info=ex)
             # now, since the call failed, we need to cancel any allotted token as failed
             if self.aspects.timer_type == self.TIME_CYCLE:
-                token_api.token_fail(self.aspects.token_pool_id)
+                TokenPool.read(self.aspects.token_pool_id).set_fail()
 
     def timer_done_action(self, context):
         """

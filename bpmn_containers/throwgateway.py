@@ -19,7 +19,7 @@ from flowlib.etcd_utils import (
     transition_state,
 )
 from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
-from flowlib import token_api
+from flowlib.token_api import TokenPool
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow
 
@@ -71,7 +71,7 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
         alldone = True
         toks = timer_header.split(',')[::-1]  # sort in reverse order so newest first
         for token in toks:
-            if not token_api.token_release(token):
+            if not TokenPool.read(token).set_complete():
                 alldone = False
                 break
         with etcd.lock(keys.timed_results):

@@ -21,7 +21,7 @@ from flowlib.constants import (
     WorkflowInstanceKeys,
     Headers,
 )
-from flowlib import token_api
+from flowlib.token_api import TokenPool
 
 
 TIMEOUT_SECONDS = 10
@@ -138,7 +138,7 @@ class FlowApp(QuartApp):
                     )
 
             if timer_pool_id is not None:
-                token_api.token_fail(timer_pool_id)
+                TokenPool.read(timer_pool_id).set_fail()
 
             incoming_data = None
             try:

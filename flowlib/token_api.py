@@ -49,8 +49,8 @@ for token in tokens:
 if alldone:
     # okay to proceed/complete the workflow
 """
+from enum import Enum
 from etcd3.events import DeleteEvent, PutEvent
-from .executor import get_executor
 from concurrent import futures
 import json
 import logging
@@ -59,7 +59,7 @@ import threading
 import typing
 from .constants import REXFLOW_ROOT
 from .etcd_utils import get_etcd, locked_call
-from .executor import get_executor
+# from .executor import get_executor
 
 """
 workflow id is akin to conditional-8c6be6a5
@@ -80,137 +80,119 @@ token_release - moves 1 from alloc to complete
 token_error - moves 1 from alloc to error
 
 """
-TOKEN_POOL_NAME = 'pool_name'
-TOKEN_SIZE = 'size'
-TOKEN_AVAIL = 'avail'
-TOKEN_ACTIVE = 'active'
-TOKEN_ERROR = 'error'
-TOKEN_COMPLETE = 'complete'
-TOKEN_DONE = 'done'
 
-def token_pool_key(pool_name : str) -> str:
-    """{REXFLOW_ROOT}/tokens/{self.wf_inst_id}"""
-    return f'{REXFLOW_ROOT}/tokens/{pool_name}'
+class TokenPoolBucket(Enum):
+    BUCKET_COMPLETE = 0
+    BUCKET_LOST     = 1
+    BUCKET_ERROR    = 2
 
-def token_make_pool_name(wf_inst_id : str) -> str:
-    return f'tk-{wf_inst_id}-{uuid.uuid4().hex[:12]}'
+class TokenPool:
+    def __init__(self, name:str, size:int):
+        self.name = name
+        self.size = size
+        self.avail = size
+        self.active = 0
+        self.lost = 0
+        self.error = 0
+        self.complete = 0
 
-def token_create_pool(wf_instance_id : str, size : int) -> str:
-    """
-    Creates a new token pool, and returns the name of the token pool. The name is
-    prefixed with wf_instance_id with sufficient characters appended to make it
-    unique among all other thread pools. The pool is initialized with the indicated
-    number of tokens with the PENDING state.
-    """
-    assert wf_instance_id is not None, 'workflow instance id is required'
-    assert size > 0, 'pool size must be positive'
-    pool_name = token_make_pool_name(wf_instance_id)
-    key = token_pool_key(pool_name)
+    def get_name(self) -> str:
+        return self.name
+    
+    def is_done(self) -> bool:
+        return self.size == self.lost + self.error + self.complete
 
-    def __logic(etcd):
-        # size - the number of tokens originvally created
-        # avail - the number of token available
-        # active - the number of tokens currently active
-        # error - the number of tokens errored out
-        # complete - the number of complete tokens
-        # done - True if error + complete == size
-        hive = {TOKEN_POOL_NAME: pool_name, TOKEN_SIZE: size, TOKEN_AVAIL:size, TOKEN_ACTIVE:0, TOKEN_ERROR:0, TOKEN_COMPLETE:0, TOKEN_DONE:False}
-        etcd.put(key, json.dumps(hive))
-        return pool_name
+    def alloc(self):
+        assert self.avail > 0, f'{self.name} has no available tokens'
+        self.avail  -= 1
+        self.active += 1
+        self.write()
 
-    return locked_call(key, __logic)
+    def __release(self, bucket:TokenPoolBucket = TokenPoolBucket.BUCKET_COMPLETE) -> bool:
+        assert self.active > 0, f'{self.name} has no active tokens'
+        self.active -= 1
+        if bucket == TokenPoolBucket.BUCKET_COMPLETE:
+            self.complete += 1
+        elif bucket == TokenPoolBucket.BUCKET_LOST:
+            self.lost += 1
+        else: #bucket == TokenPoolBucket.BUCKET_ERROR:
+            self.error += 1
+        self.write()
+        return self.is_done()
 
-def token_get_pool(pool_name:str) -> typing.Dict[str,typing.Any]:
-    key = token_pool_key(pool_name)
+    def set_lost(self) -> bool:
+        return self.__release(TokenPoolBucket.BUCKET_LOST)
+    
+    def set_complete(self) -> bool:
+        return self.__release(TokenPoolBucket.BUCKET_COMPLETE)
 
-    def __logic(etcd):
-        hive = etcd.get(key)[0]
-        return json.loads(hive)
+    def set_error(self) -> bool:
+        return self.__release(TokenPoolBucket.BUCKET_ERROR)
+    
+    def to_json(self) -> str:
+        return json.dumps(self.__dict__)
 
-    return locked_call(key, __logic)
+    def __str__(self):
+        return f'{self.name} size:{self.size} avail:{self.avail} ' \
+            f'activ:{self.active} lost:{self.lost} err:{self.error} ' \
+            f'cplt:{self.complete} done:{self.is_done()}'
+    
+    @classmethod
+    def create(cls, iid:str, size:int):
+        name = cls.pool_name(iid)
+        pool = TokenPool(name, size)
+        pool.write()
+        return pool
 
-def token_alloc(pool_name : str) -> None:
-    key = token_pool_key(pool_name)
+    @classmethod
+    def from_json(cls, jayson:str):
+        obj = TokenPool(None,0)
+        hive = json.loads(jayson)
+        for k,v in hive.items():
+            setattr(obj, k, v)
+        return obj
+    
+    @classmethod
+    def key(cls, name:str) -> str:
+        """{REXFLOW_ROOT}/tokens/{self.wf_inst_id}"""
+        return f'{REXFLOW_ROOT}/tokens/{name}'
 
-    def __logic(etcd):
-        hive = json.loads(etcd.get(key)[0])
-        if hive[TOKEN_AVAIL] == 0:
-            raise ValueError(f'No tokens availble for pool {pool_name}')
-        hive[TOKEN_AVAIL]  -=  1
-        hive[TOKEN_ACTIVE] +=  1
-        logging.debug(f'Token alloced {pool_name} {hive}')
-        etcd.put(key, json.dumps(hive))
+    @classmethod
+    def pool_name(cls, iid:str) -> str:
+        return f'tk-{iid}-{uuid.uuid4().hex[:12]}'
 
-    return locked_call(key, __logic)
+    @classmethod
+    def read(cls, name:str):
+        key = TokenPool.key(name)
 
-def token_release(pool_name : str, bucket : str = TOKEN_COMPLETE) -> bool:
-    assert bucket in [TOKEN_COMPLETE,TOKEN_ERROR], f'{bucket} is not a valid bucket - must be {TOKEN_ERROR} or {TOKEN_COMPLETE}'
-    key  = token_pool_key(pool_name)
+        def __logic(etcd):
+            return etcd.get(key)[0]
 
-    def __logic(etcd):
-        hive = json.loads(etcd.get(key)[0])
-        assert hive[TOKEN_ACTIVE] > 0, f'{pool_name} has ho active tokens'
-        hive[TOKEN_ACTIVE] -= 1
-        hive[bucket]       += 1
-        hive[TOKEN_DONE] = hive[TOKEN_ERROR] + hive[TOKEN_COMPLETE] == hive[TOKEN_SIZE]
-        etcd.put(key, json.dumps(hive))
-        logging.debug(f'Token released {pool_name} {bucket} {hive}')
-        return hive[TOKEN_DONE]
-        
-    return locked_call(key, __logic)
+        hive = locked_call(key, __logic)
+        return TokenPool.from_json(hive)
 
-def token_fail(pool_name : str) -> typing.NoReturn:
-    return token_release(pool_name, bucket=TOKEN_ERROR)
+    def write(self):
+        key = self.key(self.name)
+        hive = self.to_json()
 
-class TokenCompletionWatcher:
-    """
-    This is meant to be used by a terminating event (end event, parallel gateway, etc)
-    and will monitor the key pool(s) specified until all tokens are accounted for.
+        def __logic(etcd):
+            return etcd.put(key, hive)
 
-    Usage:
-    w = TokenCompletionWatch(pool_ids)
-    done_flag,results = w.start()  # blocking call - will not return until all events are processed
-    """
-    def __init__(self, pool_ids):
-        self.etcd = get_etcd()
-        self.executor = get_executor()
-        self.pool_ids = pool_ids
-        self.futures = []
-        self.cancels = []
-
-    def start(self):
-        for pool_id in self.pool_ids:
-            self.futures.append(self.executor.submit(self.watch, pool_id))
-        futures.wait(self.futures, return_when=futures.ALL_COMPLETED)
-        results = {}
-        all_done = True
-        for pool_id in self.pool_ids:
-            results[pool_id] = token_get_pool(pool_id)
-            if not results[pool_id][TOKEN_DONE]:
-                all_done = False
-                break
-        return [all_done, results]
-
-    def stop(self):
-        if self.cancels:
-            for cancel_watch in self.cancels:
-                cancel_watch()
-
-    def watch(self, pool_id : str):
-        pool_key = token_pool_key(pool_id)
-        if token_get_pool(pool_id)[TOKEN_DONE]:
-            logging.info(f'Watch on pool {pool_id} aborted because pool is already complete')
-        else:
-            watch_iter, cancel_watch = self.etcd.watch_prefix(pool_key)
-            self.cancels.append(cancel_watch)
-            for event in watch_iter:
-                logging.info(event)
-                cnts = token_get_pool(pool_id)
-                logging.debug(f'{pool_id} Change detected S:{cnts[TOKEN_SIZE]} V:{cnts[TOKEN_AVAIL]} A:{cnts[TOKEN_ACTIVE]} E:{cnts[TOKEN_ERROR]} C:{cnts[TOKEN_COMPLETE]} D:{cnts[TOKEN_DONE]}')
-                if cnts[TOKEN_DONE]:
-                    break
+        return locked_call(key, __logic)
 
 if __name__ == "__main__":
-    pool_name = token_create_pool('test_workflow_id', 10)
-    hive = token_get_pool(pool_name)
-    print(hive)
+    pool = TokenPool.create('test_workflow_id', 10)
+    print(pool)
+    pool.set_error()
+    print(pool)
+    pool.alloc()
+    pool.set_lost()
+    print(pool)
+    pool.alloc()
+    pool.set_complete()
+    print(pool)
+    while not pool.is_done():
+        pool.alloc()
+        pool.set_complete()
+        print(pool)
+    print(pool)
