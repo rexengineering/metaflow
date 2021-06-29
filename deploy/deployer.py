@@ -102,7 +102,7 @@ class Deployer:
         self.create_namespaced_role_binding(
             'default', specs.healthd_edit_default_spec)
 
-        # rex-flow-constructor
+        # postgres for rexflow messages and states
         self.create_namespaced_persistent_volume_claim(
             'rexflow', specs.postgres_pvc)
         self.create_persistent_volume(

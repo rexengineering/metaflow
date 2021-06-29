@@ -6,7 +6,7 @@ from flowlib.config import get_kafka_config
 import json
 from confluent_kafka import Consumer
 import sqlalchemy
-from sqlalchemy import *
+from sqlalchemy import insert
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from flowlib.executor import get_executor
@@ -80,9 +80,22 @@ class DBManager(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.manager = StateLogger()
-        self.app.route('/instance/<instance_id>', methods=['GET'])(self.current_state)
-        self.app.route("/instance", methods=['GET'])(self.instance_query)
-        self.app.route('/instance_time/<instance_id>', methods=['GET'])(self.instance_time)
+        self.app.route('/instances/<instance_id>', methods=['GET'])(self.current_state)
+        self.app.route("/instances", methods=['GET'])(self.instance_query)
+        self.app.route('/instances/<instance_id>/running_time', methods=['GET'])(self.instance_time)
+        self.app.route('/deployments', methods=['GET'])(self.deployments_query)
+    
+    def deployments_query(self):
+        args = dict(request.args)
+        conditions = ""
+        i = 0
+        res = session.query(StateLog).filter_by(**args).all()
+        workflow_ids= []
+        for row in res:
+            workflow_ids.append(row.workflow_id)
+        workflow_ids = list(set(workflow_ids))
+        return workflow_ids
+
 
     def instance_query(self):
         args = dict(request.args)
@@ -100,19 +113,18 @@ class DBManager(QuartApp):
                 conditions += "%s AND "
             query_params.append(itm)
             query_params.append(args[itm])
-        if conditions != "":
-            query = "SELECT instance_id FROM request_data " + conditions + ";"
-            resultproxy = engine.execute(query, query_params)
-            d, a = {}, []
-            for rowproxy in resultproxy:
-                # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
-                for column, value in rowproxy.items():
-                    # build up the dictionary
-                    d = {**d, **{column: value}}
-                a.append(d)
-            for itm in a:
-                res.append(itm['instance_id'])
-            res = list(set(res))
+        query = "SELECT instance_id FROM request_data " + conditions + ";"
+        resultproxy = engine.execute(query, query_params)
+        d, a = {}, []
+        for rowproxy in resultproxy:
+            # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+            for column, value in rowproxy.items():
+                # build up the dictionary
+                d = {**d, **{column: value}}
+            a.append(d)
+        for itm in a:
+            res.append(itm['instance_id'])
+        res = list(set(res))
         return res
 
     def current_state(self, instance_id):
@@ -127,7 +139,7 @@ class DBManager(QuartApp):
                 d = {**d, **{column: value}}
             a.append(d)
         return str(a)
-    
+
     def instance_time(self, instance_id):
         query = "SELECT * FROM state_log WHERE instance_id=%s ORDER BY timestamp DESC LIMIT 1;"
         query_params = [instance_id]
@@ -139,7 +151,7 @@ class DBManager(QuartApp):
                 # build up the dictionary
                 d = {**d, **{column: value}}
             a.append(d)
-        latest = a
+        latest_date = a[0]['timestamp']
         query = "SELECT * FROM state_log WHERE instance_id=%s ORDER BY timestamp ASC LIMIT 1;"
         query_params = [instance_id]
         resultproxy = engine.execute(query, query_params)
@@ -151,9 +163,11 @@ class DBManager(QuartApp):
                 d = {**d, **{column: value}}
             a.append(d)
         earliest = a
-        print(earliest)
-        print(latest)
-        return
+        earliest_date = a[0]['timestamp']
+        if earliest[0]['state'] != 'COMPLETED':
+            return "Instance is not completed yet"
+        diff = latest_date - earliest_date
+        return "Process " + str(instance_id) + " Took " + str(diff.microseconds) + "ms to run \n"
 
     def run(self):
         self.manager.start()
@@ -161,7 +175,6 @@ class DBManager(QuartApp):
 
     def shutdown(self):
         self.manager.stop()
-
 
 
 if __name__ == '__main__':
