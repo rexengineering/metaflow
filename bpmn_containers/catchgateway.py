@@ -243,6 +243,7 @@ class EventCatchPoller:
             data=data,
             url=FORWARD_URL,
             retries=TOTAL_ATTEMPTS - 1,
+            headers=next_headers,
         )
         poster.send()
 
