@@ -93,7 +93,7 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
             if not alldone:
                 etcd.put(keys.timed_results, payload)
                 return
-            logging.info('All timers accounted for')
+            logging.info('All tokens accounted for')
             # else fall through and complete the workflow instance
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
     if etcd.put_if_not_exists(keys.result, payload):
