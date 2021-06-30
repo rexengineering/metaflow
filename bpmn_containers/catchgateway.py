@@ -240,7 +240,7 @@ class EventCatchPoller:
             data=data,
             url=FORWARD_URL,
             retries=TOTAL_ATTEMPTS - 1,
-            headers=next_headers,
+            headers=next_headers
         )
         resp:FlowPostResult = poster.send()
         return resp.message == FlowPostStatus.SUCCESS
