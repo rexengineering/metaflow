@@ -130,7 +130,7 @@ class EventCatchPoller:
     def get_event(self):
         msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
-    
+
     def create_timed_instance(self, incoming_data:str, content_type:str) -> NoReturn:
         # create_timer(self, wf_inst_id, token_stack, args)
         # --> proxies call to create_instance(incoming_data, content_type, instance_id)
@@ -224,8 +224,6 @@ class EventCatchPoller:
             self._catch_manager.handle_incoming, json.loads(data)
             return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
 
-        # return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
-
     def make_call_impl(self, token_stack:str, data:str, flow_id:str, wf_id:str, content_type:str) -> bool:
         next_headers = {
             Headers.X_HEADER_FLOW_ID: str(flow_id),
@@ -247,7 +245,6 @@ class EventCatchPoller:
         resp:FlowPostResult = poster.send()
         return resp.message == FlowPostStatus.SUCCESS
 
-
     def __call__(self):
         while True:  # do forever
             if not self.running:
@@ -267,9 +264,8 @@ class EventCatchPoller:
                     assert Headers.X_HEADER_FLOW_ID in headers
                     assert Headers.X_HEADER_WORKFLOW_ID in headers
                     assert headers[Headers.X_HEADER_WORKFLOW_ID].decode() == WF_ID
-                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower())
-                    if token_header:
-                        token_header = token_header.decode()
+                    logging.info(headers)
+                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower(), b'').decode()
 
                     self._make_call(
                         data.decode(),

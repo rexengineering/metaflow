@@ -140,7 +140,6 @@ class TokenPool:
         for k,v in hive.items():
             setattr(obj, k, v)
         return obj
-
     @classmethod
     def key(cls, name:str) -> str:
         """{REXFLOW_ROOT}/tokens/{self.wf_inst_id}"""

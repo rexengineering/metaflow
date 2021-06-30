@@ -317,6 +317,7 @@ class TimedEventManager:
         logging.info(f'__timer_action - calling back with {args}')
         resp = self.callback(*args)
         logging.info(f'Timer callback returned {resp}')
+        return resp
 
     def __timer_done_action(self, context, abort:bool = False):
         """
