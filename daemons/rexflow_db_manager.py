@@ -1,4 +1,4 @@
-from flowlib.postgres_db_schema import StateLog
+from flowlib.postgres_db_schema import RequestData, StateLog
 from flowlib.quart_app import QuartApp
 from quart import request
 from datetime import datetime
@@ -84,6 +84,7 @@ class DBManager(QuartApp):
         self.app.route("/instances", methods=['GET'])(self.instance_query)
         self.app.route('/instances/<instance_id>/running_time', methods=['GET'])(self.instance_time)
         self.app.route('/deployments', methods=['GET'])(self.deployments_query)
+        self.app.route('/bpmn_traffic/<workflow_id>/<bpmn_id>', methods=['GET'])(self.bpmn_traffic)
     
     def deployments_query(self):
         args = dict(request.args)
@@ -96,6 +97,64 @@ class DBManager(QuartApp):
         workflow_ids = list(set(workflow_ids))
         return workflow_ids
 
+    def bpmn_traffic(self, workflow_id, bpmn_id):
+        args = {'X-Rexflow-Did':workflow_id,'X-Rexflow-Tid':bpmn_id}
+        conditions = ""
+        i = 0
+        query_params = []
+        res = []
+        for i, itm in enumerate(args.keys()):
+            if i == 0:
+                conditions += "WHERE "
+            conditions += " headers  ->> %s ="    # Formatting check if data.itm == args[itm]
+            if i == len(args.keys())-1:
+                conditions += "%s "
+            else:
+                conditions += "%s AND "
+            query_params.append(itm)
+            query_params.append(args[itm])
+        query = "SELECT instance_id FROM request_data " + conditions + ";"
+        resultproxy = engine.execute(query, query_params)
+        d, a = {}, []
+        for rowproxy in resultproxy:
+            # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+            for column, value in rowproxy.items():
+                # build up the dictionary
+                d = {**d, **{column: value}}
+            a.append(d)
+        for itm in a:
+            if itm['instance_id'] not in res:
+                res.append(itm['instance_id'])
+        traffic_through = len(set(res))
+        args = {'X-Rexflow-Did':workflow_id}
+        conditions = ""
+        i = 0
+        query_params = []
+        res = []
+        for i, itm in enumerate(args.keys()):
+            if i == 0:
+                conditions += "WHERE "
+            conditions += " headers  ->> %s ="    # Formatting check if data.itm == args[itm]
+            if i == len(args.keys())-1:
+                conditions += "%s "
+            else:
+                conditions += "%s AND "
+            query_params.append(itm)
+            query_params.append(args[itm])
+        query = "SELECT instance_id FROM request_data " + conditions + ";"
+        resultproxy = engine.execute(query, query_params)
+        d, a = {}, []
+        for rowproxy in resultproxy:
+            # rowproxy.items() returns an array like [(key0, value0), (key1, value1)]
+            for column, value in rowproxy.items():
+                # build up the dictionary
+                d = {**d, **{column: value}}
+            a.append(d)
+        for itm in a:
+            if itm['instance_id'] not in res:
+                res.append(itm['instance_id'])
+        traffic_total = len(set(res))
+        return str(traffic_through*100/traffic_total) + "% of traffic goes through " + bpmn_id + " in " + workflow_id  + "\n"
 
     def instance_query(self):
         args = dict(request.args)
