@@ -1,6 +1,7 @@
 from io import StringIO
 import json
 import logging
+from typing import Mapping, Optional
 
 from flowlib import flow_pb2
 from flowlib import etcd_utils
@@ -68,21 +69,31 @@ class PSHandlers:
                 result = splat_result
             except Exception as exn:
                 logging.exception('unexpected error loading json of error instance:', exc_info=exn)
-
+        if 'metadata' in result:
+            result.update(metadata=json.loads(result['metadata']))
         return result
 
-    def handle_some_instances(self, ids):
+    def handle_some_instances(self, ids, metadata: Optional[Mapping[str, str]]=None):
         result = dict()
-        for instance_id in ids:
-            result[instance_id] = self.handle_single_instance(instance_id)
+        if metadata is None:
+            for instance_id in ids:
+                result[instance_id] = self.handle_single_instance(instance_id)
+        else:
+            for instance_id in ids:
+                instance = self.handle_single_instance(instance_id)
+                if 'metadata' in instance:
+                    instance_md = instance['metadata']
+                    if all(instance_md.get(key) == metadata[key] for key in metadata.keys()):
+                        result[instance_id] = instance
         return result
 
-    def handle_all_instances(self):
+
+    def handle_all_instances(self, metadata=None):
         all_ids = set(
             key.split('/')[3]
             for key in etcd_utils.get_keys_from_prefix(WorkflowInstanceKeys.ROOT)
         )
-        return self.handle_some_instances(all_ids)
+        return self.handle_some_instances(all_ids, metadata)
 
 
 def handler(request):
@@ -96,10 +107,14 @@ def handler(request):
         else:
             result = handlers.handle_all_deployments(include_kubernetes)
     elif request_kind == flow_pb2.RequestKind.INSTANCE:
+        metadata = (
+            {obj.key: obj.value for obj in request.metadata}
+            if len(request.metadata) > 0 else None
+        )
         if request.ids:
-            result = handlers.handle_some_instances(request.ids)
+            result = handlers.handle_some_instances(request.ids, metadata)
         else:
-            result = handlers.handle_all_instances()
+            result = handlers.handle_all_instances(metadata)
     else:
         raise ValueError(f'Unknown PS request kind ({request_kind})!')
     return result

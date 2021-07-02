@@ -1,16 +1,14 @@
 import logging
-
+import json
 from flowlib import workflow
 from flowlib.etcd_utils import get_etcd, EtcdDict
 from flowlib.constants import BStates
-
 
 def handler(request):
     workflow_id = request.workflow_id
 
     # for developer convenience, attempt to find a workflow ID based on a simple substring match;
     # if the match is ambiguous (more than one), silently fall back to exact matching
-
     wf_keys = []
 
     for wf_key, wf_data in EtcdDict.from_root(f'/rexflow/workflows').items():
@@ -27,7 +25,6 @@ def handler(request):
     # workflow must be in RUNNING state to run an instance of it.
 
     state = etcd.get(wf_deployment.keys.state)[0]
-
     if state != BStates.RUNNING:
         message = f'Deployment {wf_deployment.id} is not RUNNING. {state}'
         logging.warn(message)
@@ -35,5 +32,9 @@ def handler(request):
     else:
         instance = workflow.WorkflowInstance(parent=wf_deployment)
         result = instance.start(start_event_id=request.start_event_id)
-
+        if 'id' in result:
+            iid = result['id']
+            instance = workflow.WorkflowInstance(parent=wf_deployment, id=iid)
+            metadata = json.dumps({obj.key: obj.value for obj in request.metadata})
+            etcd.put(instance.keys.metadata, metadata.encode())
     return result
