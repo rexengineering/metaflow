@@ -76,6 +76,11 @@ def create_workflow_instance_input(iid: str, graphql_uri: str):
         GRAPHQL_URI: graphql_uri,
     }
 
+def cancel_workflow_instance_input(iid:str):
+    return {
+        IID: iid,
+    }
+
 def task_mutations_form_input(iid:str, tid:str):
     return {
         IID:iid,
@@ -114,6 +119,14 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         IID: iid,
         STATUS: status,
         TASKS: tasks,
+    }
+
+def cancel_instance_payload(did:str, iid:str, state:str, status:str):
+    return {
+        DID: did,
+        IID: iid,
+        IID_STATUS: state,
+        STATUS: status,
     }
 
 def workflow_instance_info(iid:str, iid_status:str, graphql_uri:str):

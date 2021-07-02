@@ -70,6 +70,7 @@ class ErrorCodes:
     The BAVS code sends these error codes to the flowd /instancefail endpoint
     when a failure occurs.
     """
+    CANCELED_INSTANCE = "CANCELED_INSTANCE"
     FAILED_TASK = "FAILED_TASK"
     FAILED_CONNECTION = "FAILED_CONNECTION"
     FAILED_CONTEXT_INPUT_PARSING = "FAILED_CONTEXT_INPUT_PARSING"

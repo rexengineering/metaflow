@@ -193,6 +193,25 @@ class FlowPost:
         }
         return self._send_error_payload(payload)
 
+    def cancel_instance(self) -> FlowPostResult:
+        """Call this method to cancel a workflow instance.
+
+        The implementation of marking a workflow instance as failed is currently
+        handled by making a POST to the /instancefail endpoint of flowd. See
+        `flowd/flow_app.py` for the code.
+        """
+        payload = {
+            'from_envoy': False,
+            'input_data': {},
+            'input_headers': {},
+            'output_data': {},
+            'output_headers': {},
+            'failed_instance_id': self.instance_id,
+            'error_code': ErrorCodes.CANCELED_INSTANCE,
+            'error_msg': f'Instance {self.instance_id} cancelled.',
+        }
+        return self._send_error_payload(payload)
+
     def raise_connection_error(self) -> FlowPostResult:
         """This method is called when flowpost tries to make a call to the target service
         but cannot connect. In this case, we must transition the WF Instance to the
