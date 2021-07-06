@@ -45,8 +45,8 @@ def mutation_get_instance(_,info, input=None):
     iid_info = []
     for iid in iid_list:
         uri = workflow.get_instance_graphql_uri(iid)
-        status = workflow.get_instance_status(iid)
-        iid_info.append(gql.workflow_instance_info(iid, status, uri))
+        iid_status = workflow.get_instance_status(iid)
+        iid_info.append(gql.workflow_instance_info(iid, iid_status, uri))
     return gql.get_instances_payload(workflow.did, status, iid_info, workflow.get_task_ids())
 
 # Workflow Mutations
@@ -57,6 +57,18 @@ def mutation_create_instance(_,info,input):
     #data: {"id": "process-0p1yoqw-aa16211c-9f5251689f1811eba4489a05f2a68bd3", "message": "Ok", "status": 0}
     data = workflow.create_instance(input[GRAPHQL_URI])
     return gql.create_instance_payload(workflow.did, data['id'], SUCCESS, workflow.get_task_ids())
+
+@mutation.field('cancelInstance')
+def mutation_stop_instance(_, info, input):
+    workflow = info.context[WORKFLOW]
+    iid = input[IID]
+    status = SUCCESS
+    state = ''
+    try:
+        state = workflow.cancel_instance(iid)
+    except ValueError:
+        status = FAILURE
+    return gql.cancel_instance_payload(workflow.did, iid, state, status)
 
 # Task Mutations
 

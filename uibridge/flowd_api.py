@@ -12,6 +12,7 @@ from typing import Any, Dict, List, NoReturn, Tuple
 from etcd3.events import DeleteEvent, PutEvent
 
 from flowlib import flow_pb2, etcd_utils, executor
+from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
@@ -119,6 +120,17 @@ class Workflow:
                 iid = data['id']
                 self.etcd.put(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
             return data
+
+    def cancel_instance(self, iid:str):
+        if iid in self.get_instances():
+            status = self.get_instance_status(iid)
+            if status not in ['STOPPED','ERROR']:
+                poster = FlowPost(iid, None, '{}')
+                response = poster.cancel_instance()
+                logging.info(response)
+                status = self.get_instance_status(iid)
+            return status
+        raise ValueError(f'{iid} is not a known instance')
 
     def get_instances(self):
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
