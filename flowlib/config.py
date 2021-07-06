@@ -7,7 +7,6 @@ your system via `python -m deploy`, the defaults will be overriden.
 See the flowd deployment spec in `deploy/specs.py`.
 '''
 import os
-from pdb import post_mortem
 
 DEFAULT_REXFLOW_ROOT_PREFIX = "/rexflow"
 REXFLOW_ROOT_PREFIX = os.getenv('REXFLOW_ROOT_PREFIX', DEFAULT_REXFLOW_ROOT_PREFIX)
