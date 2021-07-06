@@ -18,6 +18,7 @@ setuptools.setup(**rex_setup_args(
         'isodate',
         'pyyaml',
         'quart',
+        'requests',
         'xmltodict',
         'sqlalchemy',
         'psycopg2-binary',

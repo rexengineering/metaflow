@@ -139,7 +139,9 @@ class BPMNTask(BPMNComponent):
                 'namespace': self.namespace,
                 'port': ASYNC_BRIDGE_LISTEN_PORT,
                 'container': self._service_properties.container,
-                'host': f'bridge-{self._worker_service_name}'
+                'host': f'bridge-{self._worker_service_name}',
+                'hash_used': self.workflow_properties.namespace_shared,
+                'id_hash': self.workflow_properties.id_hash,
             })
             self._call_properties = CallProperties()
             self._call_properties.update({
