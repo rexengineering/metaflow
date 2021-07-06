@@ -19,6 +19,8 @@ setuptools.setup(**rex_setup_args(
         'pyyaml',
         'quart',
         'xmltodict',
+        'sqlalchemy',
+        'psycopg2-binary',
     ],
     long_description_content_type='text/markdown',
     # TODO: call this "rex-flowlib"/"rex.flowlib" instead of waffling
