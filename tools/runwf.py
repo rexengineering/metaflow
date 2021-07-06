@@ -11,7 +11,7 @@ from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys
 
 flowd_host = os.environ.get('FLOWD_HOST', 'localhost')
-flowd_port = os.environ.get('FLOWD_PORT', 9001)
+flowd_port = os.environ.get('FLOWD_PORT', '9001')
 if ':' in flowd_port:
     # inside k8s, FLOWD_PORT has format xxx://xx.xx.xx.xx:xxxx
     # extract the IP and PORT using regex magic
@@ -101,5 +101,5 @@ if __name__ == "__main__":
     data = flowd_run_workflow_instance("conditional-b4e83f41")
     print(data)
     x = Workflow("conditional-b4e83f41")
-        
+
 

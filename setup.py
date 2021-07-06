@@ -18,6 +18,7 @@ setuptools.setup(**rex_setup_args(
         'isodate',
         'pyyaml',
         'quart',
+        'requests',
         'xmltodict',
     ],
     long_description_content_type='text/markdown',

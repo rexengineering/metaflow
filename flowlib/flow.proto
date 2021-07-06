@@ -20,6 +20,11 @@ service FlowDaemon {
     rpc ValidateWorkflow (ValidateRequest) returns (FlowdResult); // flowctl update
 }
 
+message StringPair {
+    string key = 1;
+    string value = 2;
+}
+
 message FlowdResult {
     int64 status = 1;
     string message = 2;
@@ -46,6 +51,7 @@ message PSRequest {
     RequestKind kind = 1;
     repeated string ids = 2;
     bool include_kubernetes = 3;
+    repeated StringPair metadata = 4;
     // FIXME: Figure out any additional flags and/or arguments.
 }
 
@@ -58,6 +64,7 @@ message RunRequest {
     repeated string args = 2;
     bool stopped = 3;
     string start_event_id = 4;
+    repeated StringPair metadata = 5;
     // FIXME: Figure out any additional flags and/or arguments.
 }
 

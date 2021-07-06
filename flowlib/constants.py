@@ -173,6 +173,7 @@ class WorkflowInstanceKeys:
         self.content_type   = self.content_type_key(iid)
         self.timed_events   = self.timed_events_key(iid)
         self.timed_results  = self.timed_results_key(iid)
+        self.metadata       = self.metadata_key(iid)
 
     @classmethod
     def iid_from_key(cls, key):
@@ -246,6 +247,10 @@ class WorkflowInstanceKeys:
     @classmethod
     def async_callback_response_key(cls, iid, tid, request_id):
         return f'{cls.key_of(iid)}/async_service_task/{tid}/{request_id}/response'
+    
+    @classmethod
+    def metadata_key(cls, iid):
+        return f'{cls.key_of(iid)}/metadata'
 
 def split_key(iid: str):
     """
