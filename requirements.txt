@@ -14,8 +14,8 @@ retry
 ariadne
 gql[aiohttp]==3.0.0a5
 pydantic==1.8.*
-requests
 isodate
+requests
 sqlalchemy
 psycopg2-binary
 # Optional development dependency
