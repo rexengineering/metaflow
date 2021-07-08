@@ -1,5 +1,5 @@
-Welcome to Jon's Prototype(s)
-=============================
+REXFlow
+=======
 
 Architecture
 ============
