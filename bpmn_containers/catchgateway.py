@@ -115,7 +115,7 @@ class EventCatchPoller:
         self.timed_manager = None
         self._catch_manager = catch_manager
         if IS_TIMED_EVENT:
-            callback, name = (self.create_instance, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
+            callback, name = (self.create_instance_timer_callback, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
             logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION}')
             self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, callback, IS_TIMED_START_EVENT)
 
@@ -131,7 +131,7 @@ class EventCatchPoller:
     def get_event(self):
         msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
-    
+
     def create_timed_instance(self, incoming_data:str, content_type:str) -> NoReturn:
         # create_timer(self, wf_inst_id, token_stack, args)
         # --> proxies call to create_instance(incoming_data, content_type, instance_id)
@@ -160,6 +160,10 @@ class EventCatchPoller:
         else:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error(f'Failed to transition {keys.state} from STARTING -> ERROR.')
+
+    def create_instance_timer_callback(self, token_stack, incoming_data, content_type, instance_id=None):
+        """Callback passed to timer manager that accepts a (unused) token_stack"""
+        return self.create_instance(incoming_data, content_type, instance_id)
 
     def create_instance(self, incoming_data, content_type, instance_id=None) -> Dict[str, object]:
         # Allow instance_id to be passed into this function in case a caller needs

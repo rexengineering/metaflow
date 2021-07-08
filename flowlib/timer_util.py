@@ -51,15 +51,14 @@ class WrappedTimer:
         logging.info(f'{time.time()} Timer created with duration {interval}')
 
     def do_action(self, *args):
+        token_stack = None
         if self._context.token_pool_id is not None:
             token_stack = self._context.token_stack
             # need to pass the token_pool_id as an x header
             token_stack = self._context.token_pool_id if token_stack is None else f'{token_stack},{self._context.token_pool_id}'
             token_api.token_alloc(self._context.token_pool_id)
-            self._action(token_stack,*args)
-        else:
-            self._action(*args)
 
+        self._action(token_stack,*args)
         self.done()
 
     def start(self):
