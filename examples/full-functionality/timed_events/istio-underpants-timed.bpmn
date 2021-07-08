@@ -17,7 +17,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="profit" />
       </bpmn:extensionElements>
-      <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
+      <bpmn:incoming>Flow_0o2g7mu</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_16qxrei</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_1pxdd1k" name="end-underpants">
@@ -30,16 +30,16 @@
       </bpmn:extensionElements>
       <bpmn:incoming>SequenceFlow_0y9yafp</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_0wlepjp</bpmn:outgoing>
-      <bpmn:outgoing>Flow_0t7gu09</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="SequenceFlow_0wlepjp" sourceRef="Task_1nyu98k" targetRef="Task_1mrtiy4" />
-    <bpmn:sequenceFlow id="Flow_0t7gu09" sourceRef="Task_1nyu98k" targetRef="Event_0825rw4" />
+    <bpmn:sequenceFlow id="SequenceFlow_0wlepjp" sourceRef="Task_1nyu98k" targetRef="Event_0825rw4" />
     <bpmn:intermediateCatchEvent id="Event_0825rw4">
-      <bpmn:incoming>Flow_0t7gu09</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
+      <bpmn:outgoing>Flow_0o2g7mu</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_0370jag">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1M</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_0o2g7mu" sourceRef="Event_0825rw4" targetRef="Task_1mrtiy4" />
     <bpmn:textAnnotation id="TextAnnotation_1vjflrc">
       <bpmn:text>rexflow:
     service:
@@ -66,7 +66,7 @@
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
       <bpmndi:BPMNEdge id="SequenceFlow_0wlepjp_di" bpmnElement="SequenceFlow_0wlepjp">
         <di:waypoint x="530" y="237" />
-        <di:waypoint x="690" y="237" />
+        <di:waypoint x="592" y="237" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="SequenceFlow_16qxrei_di" bpmnElement="SequenceFlow_16qxrei">
         <di:waypoint x="790" y="237" />
@@ -80,9 +80,9 @@
         <di:waypoint x="215" y="237" />
         <di:waypoint x="270" y="237" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0t7gu09_di" bpmnElement="Flow_0t7gu09">
-        <di:waypoint x="530" y="237" />
-        <di:waypoint x="592" y="237" />
+      <bpmndi:BPMNEdge id="Flow_0o2g7mu_di" bpmnElement="Flow_0o2g7mu">
+        <di:waypoint x="628" y="237" />
+        <di:waypoint x="690" y="237" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="179" y="219" width="36" height="36" />
@@ -92,6 +92,15 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0ogjpx6_di" bpmnElement="Task_1dqvybv">
         <dc:Bounds x="270" y="197" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ServiceTask_0hj12ju_di" bpmnElement="Task_1mrtiy4">
+        <dc:Bounds x="690" y="197" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
+        <dc:Bounds x="842" y="219" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="821" y="262" width="78" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="ServiceTask_0n790cu_di" bpmnElement="Task_1nyu98k">
         <dc:Bounds x="430" y="197" width="100" height="80" />
@@ -104,15 +113,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
         <dc:Bounds x="640" y="87" width="128" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="ServiceTask_0hj12ju_di" bpmnElement="Task_1mrtiy4">
-        <dc:Bounds x="690" y="197" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_1pxdd1k_di" bpmnElement="EndEvent_1pxdd1k">
-        <dc:Bounds x="842" y="219" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="821" y="262" width="78" height="14" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_0btveyq_di" bpmnElement="Event_0825rw4">
         <dc:Bounds x="592" y="219" width="36" height="36" />
