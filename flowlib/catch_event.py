@@ -114,7 +114,7 @@ class BPMNCatchEvent(BPMNComponent):
         [
             {
                 "name": "KAFKA_GROUP_ID",
-                "value": service_name,
+                "value": f'rexflow_{service_name}',
             },
             {
                 "name": "FORWARD_URL",
