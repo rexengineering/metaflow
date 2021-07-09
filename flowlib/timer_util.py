@@ -216,6 +216,135 @@ class TimerContext(ValidationResults):
             setattr(obj,k,v)
         return obj
 
+def now_utc():
+    return int(datetime.now(timezone.utc).timestamp())
+
+class TimerType(Enum):
+    TIME_DATE      = 'timeDate'
+    TIME_DURATION  = 'timeDuration'
+    TIME_CYCLE     = 'timeCycle'
+
+class Recurrence:
+    NOREPEAT  =  0
+    UNBOUNDED = -1
+    UNBOUNDED_INTERVAL = 60 # seconds
+
+class Literals:
+    ADD_FUNC = 'ADD'
+    SUB_FUNC = 'SUB'
+    NOW_FUNC = 'NOW'
+    ISO_8601_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+
+class Functions:
+    """
+    Functions for Substitutor defined here in global scope
+    """
+    @classmethod
+    def _time_preproc(cls, parms:str) -> list:
+        args = []
+        for arg in parms.split(','):
+            val = TimedEventManager.parse_spec(arg)[1][0]
+            args.append(val)
+        return args
+
+    @classmethod
+    def func_add(cls, parms:str) -> str:
+        """Add two time elements"""
+        args = cls._time_preproc(parms)
+        assert len(args) == 2, f'{Literals.ADD_FUNC} takes 2 parameters, {len(args)} provided'
+        args[0] += args[1]
+        return datetime.fromtimestamp(args[0], tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+
+    @classmethod
+    def func_sub(cls, parms:str) -> str:
+        """Subtract two time elements"""
+        args = cls._time_preproc(parms)
+        assert len(args) == 2, f'{Literals.SUB_FUNC} takes 2 parameters, {len(args)} provided'
+        args[0] -= args[1]
+        return datetime.fromtimestamp(args[0], tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+
+    @classmethod
+    def func_now(cls, parms:str = None) -> str:
+        """Return now utc as ISO-8601 formatted timestamp"""
+        # NOW() takes no arguments, returns the curent date/time as ISO_8601_FORMAT
+        return datetime.now(timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+
+class ValidationResults:
+    def __init__(self, timer_type:str, spec:str):
+        self.timer_type = TimerType(timer_type)
+        self.spec       = spec
+        self.start_date = None
+        self.end_date   = None
+        self.interval   = 0
+        self.recurrance = 0
+
+    @property
+    def unbounded(self):
+        return self.recurrance == Recurrence.UNBOUNDED
+
+    @property
+    def norepeat(self):
+        return self.recurrance == Recurrence.NOREPEAT
+
+    @property
+    def is_cycle(self):
+        return self.timer_type == TimerType.TIME_CYCLE
+
+    @property
+    def is_duration(self):
+        return self.timer_type == TimerType.TIME_DURATION
+
+    @property
+    def is_date(self):
+        return self.timer_type == TimerType.TIME_DATE
+
+    def __str__(self):
+        return str(
+            {
+                "type":self.timer_type.name,
+                "spec":self.spec,
+                "start_date":self.start_date,
+                "end_date":self.end_date,
+                "interval":self.interval,
+                "recurrance":self.recurrance,
+            }
+        )
+
+class TimerContext(ValidationResults):
+    """
+    The context owned by a series of WrappedTimer objects to track its state
+    and progress through the timer life cycle.
+    """
+    def __init__(self, source:ValidationResults, token_stack:str, args:list):
+        self.guid          = uuid.uuid4().hex
+        self.timer_type    = source.timer_type
+        self.start_date    = source.start_date
+        self.end_date      = source.end_date
+        self.interval      = source.interval
+        self.recurrance    = source.recurrance
+        self.token_stack   = token_stack
+        self.exec_time     = 0
+        self.token_pool_id = None
+        self.args          = args
+        self.completed     = False
+
+    @property
+    def continues(self):
+        """
+        Answer whether a timeCycle timer should continue
+        """
+        return self.is_cycle and (self.unbounded or self.recurrance > 0)
+
+    def decrement(self):
+        """
+        Decrement the recurrance counter if apropos for this timer type.
+        Return True if recurrance counter is zero
+        """
+        if self.is_cycle and not self.unbounded and self.recurrance > 0:
+            self.recurrance -= 1
+            return self.recurrance == 0
+        return False
+
 class WrappedTimer:
     """
     Python timers are created, start, and die without any notifications. This
