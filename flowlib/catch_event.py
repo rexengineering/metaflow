@@ -45,7 +45,7 @@ class BPMNCatchEvent(BPMNComponent):
             # dynamic timer specifications contain substitutions and/or functions, so the validation
             # actually happens in-context when the timer is created by the wf.
             if not self._timer_dynamic and self._timer_aspects is not None \
-                    and self._timer_aspects.timer_type == TimedEventManager.TIME_CYCLE:
+                    and self._timer_aspects.is_cycle:
                 assert self._timer_aspects.recurrance > 0, f'Unbounded recurrance is not allowed for timed catch events'
                 assert self._timer_aspects.recurrance <= self.MAX_RECURRANCE, f'Recurrance must be between 1 and {self.MAX_RECURRANCE}, inclusive'
         else:
