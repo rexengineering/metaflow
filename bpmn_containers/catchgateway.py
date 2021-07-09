@@ -44,6 +44,7 @@ from flowlib.constants import (
 )
 from flowlib.timer_util import (
     TimedEventManager,
+    TimerErrorCode,
 )
 
 from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT, CATCH_LISTEN_PORT
@@ -116,7 +117,7 @@ class EventCatchPoller:
         if IS_TIMED_EVENT:
             callback, name = (self.create_instance_timer_callback, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
             logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION}')
-            self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, callback, IS_TIMED_START_EVENT)
+            self.timed_manager = TimedEventManager(WF_ID, TIMED_EVENT_DESCRIPTION, callback, self.timer_error_callback, IS_TIMED_START_EVENT)
 
     def start(self):
         assert self.future is None
@@ -130,6 +131,12 @@ class EventCatchPoller:
     def get_event(self):
         msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
+
+    def timer_error_callback(self, iid:str, code:TimerErrorCode, message:str):
+        if code == TimerErrorCode.TIMER_ERROR_FAIL_IID:
+            # the idd needs to be terminated
+            poster = FlowPost(iid, None, '{}')
+            response = poster.cancel_instance()
 
     def create_timed_instance(self, incoming_data:str, content_type:str) -> NoReturn:
         # create_timer(self, wf_inst_id, token_stack, args)

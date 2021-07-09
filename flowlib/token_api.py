@@ -74,10 +74,6 @@ token_release - moves 1 from alloc to complete
 token_error - moves 1 from alloc to error
 
 """
-
-class TokenPoolBucket(Enum):
-    BUCKET_COMPLETE = 0
-    BUCKET_LOST     = 1
 class TokenPool:
     SIZE_UNBOUNDED = -1
 
@@ -106,21 +102,26 @@ class TokenPool:
         self.active += 1
         self.write()
 
-    def __release(self, bucket:TokenPoolBucket = TokenPoolBucket.BUCKET_COMPLETE) -> bool:
+    def release_as_complete(self) -> bool:
         assert self.active > 0, f'{self.name} has no active tokens'
         self.active -= 1
-        if bucket == TokenPoolBucket.BUCKET_COMPLETE:
-            self.complete += 1
-        else: #if bucket == TokenPoolBucket.BUCKET_LOST:
-            self.lost += 1
+        self.complete += 1
         self.write()
         return self.is_done()
 
     def release_as_lost(self) -> bool:
-        return self.__release(TokenPoolBucket.BUCKET_LOST)
-
-    def release_as_complete(self) -> bool:
-        return self.__release(TokenPoolBucket.BUCKET_COMPLETE)
+        """
+        Lost is special case. This occurs when the timer is not able to fire its
+        outside edge. In this case, a token was never allocated but nevertheless
+        be accounted for. So we move a token from the avail bucket to the lost
+        bucket directly.
+        """
+        if self.bounded:
+            assert self.avail > 0, f'{self.name} has no available tokens'
+            self.avail -= 1
+        self.lost += 1
+        self.write()
+        return self.is_done()
 
     def to_json(self) -> str:
         return json.dumps(self.__dict__)

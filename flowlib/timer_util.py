@@ -23,6 +23,12 @@ The value is a JSON'd list of
     }
 
 """
+from flowlib.etcd_utils import (
+    locked_call, 
+    get_keys_from_prefix,
+    get_etcd,
+)
+from multiprocessing import Lock
 import isodate
 import json
 import logging
@@ -33,10 +39,15 @@ import uuid
 
 from enum import Enum
 from datetime import datetime, timezone
+from flowlib.constants import WorkflowKeys, split_key
+from flowlib.executor import get_executor
 from flowlib.substitution import Substitutor, Tokens
 from flowlib.token_api import TokenPool
 
-from typing import Tuple, Union
+from typing import Callable, Tuple, Union
+
+class TimerErrorCode(Enum):
+    TIMER_ERROR_FAIL_IID = 'timerErrorFailInstance'
 
 class TimeUtc:
     @classmethod
@@ -46,6 +57,10 @@ class TimeUtc:
     @classmethod
     def format_8601(cls,ts):
         return datetime.fromtimestamp(ts, tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+
+    @classmethod
+    def now_str(cls):
+        return cls.format_8601(cls.now())
 
 class TimerType(Enum):
     TIME_DATE      = 'timeDate'
@@ -62,13 +77,13 @@ class TimerRecoveryPolicy(Enum):
     in the past are handled once the timers are loaded from the back store.
     RECOVER_FORGET - ignore past events (mark them as ignored in token pool)
     RECOVER_FIRE   - fire all past events immediately
-    RECOVER_FAIL   - fail the workflow instance
-    RECOVER_FUTURE - schedule them in the future with now() as base time
+    RECOVER_FAIL   - (default) fail the workflow instance
+    RECOVER_FUTURE - (not implemented) schedule them in the future with now() as base time
     """
-    RECOVER_FORGET = 'timerRecoveryPolicyForget'
-    RECOVER_FIRE   = 'timerRecoveryPolicyFire'
-    RECOVER_FAIL   = 'timerRecoveryPolicyFail'
-    RECOVER_FUTURE = 'timerRecoveryPolicyFuture'
+    RECOVER_FORGET = 'forget'
+    RECOVER_FIRE   = 'fire'
+    RECOVER_FAIL   = 'fail'
+    # RECOVER_FUTURE = 'future'
 
 class Recurrence:
     NOREPEAT  =  0
@@ -113,24 +128,24 @@ class Functions:
     def func_now(cls, parms:str = None) -> str:
         """Return now utc as ISO-8601 formatted timestamp"""
         # NOW() takes no arguments, returns the curent date/time as ISO_8601_FORMAT
-        return TimeUtc.format_8601(TimeUtc.now())
+        return TimeUtc.now_str()
 
-class ValidationResults:
+class ValidationResults(Recurrence):
     def __init__(self, timer_type:str, spec:str):
         self.timer_type = TimerType(timer_type)
         self.spec       = spec
         self.start_date = None
         self.end_date   = None
         self.interval   = 0
-        self.recurrance = 0
+        self.recurrence = 0
 
     @property
     def unbounded(self):
-        return self.recurrance == Recurrence.UNBOUNDED
+        return self.recurrence == Recurrence.UNBOUNDED
 
     @property
     def norepeat(self):
-        return self.recurrance == Recurrence.NOREPEAT
+        return self.recurrence == Recurrence.NOREPEAT
 
     @property
     def is_cycle(self):
@@ -157,35 +172,38 @@ class TimerContext(ValidationResults):
     The context owned by a series of WrappedTimer objects to track its state
     and progress through the timer life cycle.
     """
-    def __init__(self, source:ValidationResults, token_stack:str, args:list):
+    def __init__(self, source:ValidationResults, iid:str, token_stack:str, args:list):
         self.guid          = uuid.uuid4().hex
+        self.iid           = iid
         self.timer_type    = source.timer_type
         self.start_date    = source.start_date
         self.end_date      = source.end_date
         self.interval      = source.interval
-        self.recurrance    = source.recurrance
+        self.recurrence    = source.recurrence
         self.spec          = source.spec
         self.token_stack   = token_stack
         self.exec_time     = 0
         self.token_pool_id = None
         self.args          = args
         self.completed     = False
+        self.did,_         = split_key(self.iid)
+        self.key           = f'{WorkflowKeys.timed_events_key(self.did)}/{self.iid}'
 
     @property
     def continues(self):
         """
         Answer whether a timeCycle timer should continue
         """
-        return self.is_cycle and (self.unbounded or self.recurrance > 0)
+        return self.is_cycle and (self.unbounded or self.recurrence > 0)
 
     def decrement(self):
         """
-        Decrement the recurrance counter if apropos for this timer type.
-        Return True if recurrance counter is zero
+        Decrement the recurrence counter if apropos for this timer type.
+        Return True if recurrence counter is zero
         """
-        if self.is_cycle and not self.unbounded and self.recurrance > 0:
-            self.recurrance -= 1
-            return self.recurrance == 0
+        if self.is_cycle and not self.unbounded and self.recurrence > 0:
+            self.recurrence -= 1
+            return self.recurrence == 0
         return False
 
     def to_json(self) -> str:
@@ -198,6 +216,20 @@ class TimerContext(ValidationResults):
             args.append(v)
         ret['args'] = args
         return json.dumps(ret)
+
+    def save(self):
+        logging.info(f'Saving timer {self.guid}')
+        data = self.to_json()
+        def __logic(etcd):
+            etcd.put(self.key,data)
+        locked_call(self.key,__logic)
+
+    @classmethod
+    def erase(cls, key):
+        logging.info(f'Erasing timer {key}')
+        def __logic(etcd):
+            etcd.delete(key)
+        locked_call(key, __logic)
 
     @classmethod
     def from_json(cls, jayson:Union[str, bytes, dict]) -> TimerContext:
@@ -216,134 +248,27 @@ class TimerContext(ValidationResults):
             setattr(obj,k,v)
         return obj
 
-def now_utc():
-    return int(datetime.now(timezone.utc).timestamp())
-
-class TimerType(Enum):
-    TIME_DATE      = 'timeDate'
-    TIME_DURATION  = 'timeDuration'
-    TIME_CYCLE     = 'timeCycle'
-
-class Recurrence:
-    NOREPEAT  =  0
-    UNBOUNDED = -1
-    UNBOUNDED_INTERVAL = 60 # seconds
-
-class Literals:
-    ADD_FUNC = 'ADD'
-    SUB_FUNC = 'SUB'
-    NOW_FUNC = 'NOW'
-    ISO_8601_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
-
-class Functions:
-    """
-    Functions for Substitutor defined here in global scope
-    """
     @classmethod
-    def _time_preproc(cls, parms:str) -> list:
-        args = []
-        for arg in parms.split(','):
-            val = TimedEventManager.parse_spec(arg)[1][0]
-            args.append(val)
-        return args
+    def restore(cls, iid) -> TimerContext:
+        did,_ = split_key(iid)
+        key   = f'{WorkflowKeys.timed_events_key(did)}/{iid}'
+        return cls.restore_from_key(key)
 
     @classmethod
-    def func_add(cls, parms:str) -> str:
-        """Add two time elements"""
-        args = cls._time_preproc(parms)
-        assert len(args) == 2, f'{Literals.ADD_FUNC} takes 2 parameters, {len(args)} provided'
-        args[0] += args[1]
-        return datetime.fromtimestamp(args[0], tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+    def restore_from_key(cls, key):
+        def __logic(etcd):
+            data, _ = etcd.get(key)
+            if data is not None:
+                return cls.from_json(data)
+            return None
 
-    @classmethod
-    def func_sub(cls, parms:str) -> str:
-        """Subtract two time elements"""
-        args = cls._time_preproc(parms)
-        assert len(args) == 2, f'{Literals.SUB_FUNC} takes 2 parameters, {len(args)} provided'
-        args[0] -= args[1]
-        return datetime.fromtimestamp(args[0], tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
-
-    @classmethod
-    def func_now(cls, parms:str = None) -> str:
-        """Return now utc as ISO-8601 formatted timestamp"""
-        # NOW() takes no arguments, returns the curent date/time as ISO_8601_FORMAT
-        return datetime.now(timezone.utc).strftime(Literals.ISO_8601_FORMAT)
-
-class ValidationResults:
-    def __init__(self, timer_type:str, spec:str):
-        self.timer_type = TimerType(timer_type)
-        self.spec       = spec
-        self.start_date = None
-        self.end_date   = None
-        self.interval   = 0
-        self.recurrance = 0
-
-    @property
-    def unbounded(self):
-        return self.recurrance == Recurrence.UNBOUNDED
-
-    @property
-    def norepeat(self):
-        return self.recurrance == Recurrence.NOREPEAT
-
-    @property
-    def is_cycle(self):
-        return self.timer_type == TimerType.TIME_CYCLE
-
-    @property
-    def is_duration(self):
-        return self.timer_type == TimerType.TIME_DURATION
-
-    @property
-    def is_date(self):
-        return self.timer_type == TimerType.TIME_DATE
-
-    def __str__(self):
-        return str(
-            {
-                "type":self.timer_type.name,
-                "spec":self.spec,
-                "start_date":self.start_date,
-                "end_date":self.end_date,
-                "interval":self.interval,
-                "recurrance":self.recurrance,
-            }
-        )
-
-class TimerContext(ValidationResults):
-    """
-    The context owned by a series of WrappedTimer objects to track its state
-    and progress through the timer life cycle.
-    """
-    def __init__(self, source:ValidationResults, token_stack:str, args:list):
-        self.guid          = uuid.uuid4().hex
-        self.timer_type    = source.timer_type
-        self.start_date    = source.start_date
-        self.end_date      = source.end_date
-        self.interval      = source.interval
-        self.recurrance    = source.recurrance
-        self.token_stack   = token_stack
-        self.exec_time     = 0
-        self.token_pool_id = None
-        self.args          = args
-        self.completed     = False
-
-    @property
-    def continues(self):
-        """
-        Answer whether a timeCycle timer should continue
-        """
-        return self.is_cycle and (self.unbounded or self.recurrance > 0)
-
-    def decrement(self):
-        """
-        Decrement the recurrance counter if apropos for this timer type.
-        Return True if recurrance counter is zero
-        """
-        if self.is_cycle and not self.unbounded and self.recurrance > 0:
-            self.recurrance -= 1
-            return self.recurrance == 0
-        return False
+        ctx = locked_call(key,__logic)
+        if ctx is None:
+            logging.info(f'Timer {key} could not be restored')
+            cls.erase(key)
+        else:
+            logging.info(f'Loaded timer {ctx.guid} from storage')
+        return ctx
 
 class WrappedTimer:
     """
@@ -351,7 +276,7 @@ class WrappedTimer:
     class wraps a threading.Timer object so that we can receive a notification
     once the timer matures.
     """
-    def __init__(self, mgr:TimedEventManager, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context:TimerContext):
+    def __init__(self, mgr:TimedEventManager, interval:int, done_action:Callable[[object],None], action:Callable[[list],None], context:TimerContext):
         self.mgr = mgr
         self._interval = interval
         self._done_action = done_action
@@ -383,6 +308,7 @@ class WrappedTimer:
 
     def start(self):
         self._timer.start()
+        self._context.save()
         logging.info(f'{self._context.guid} {TimeUtc.now()} Starting timer will execute {TimeUtc.format_8601(self._context.exec_time)}')
 
     def cancel(self):
@@ -397,13 +323,19 @@ class WrappedTimer:
 class TimedEventManager:
     """
     """
-    def __init__(self, timer_description_json : str, callback : typing.Callable[[list], None], is_start_event:bool = False, recovery_policy:TimerRecoveryPolicy = TimerRecoveryPolicy.RECOVER_FAIL):
-        # TODO: load and schedule any persisted timed events
-        self.events = dict()
-        self.json = timer_description_json
+    def __init__(self,
+            did:str,
+            timer_desc:str,
+            callback:Callable[[list], None],
+            err_cb:Callable[[list],None],
+            is_start_event:bool = False,
+            recovery_policy:TimerRecoveryPolicy = TimerRecoveryPolicy.RECOVER_FAIL):
+        self.did = did
+        self.json = timer_desc
         #[timer_type, timer_spec]
-        self.timer_type, self.spec = json.loads(timer_description_json)
+        self.timer_type, self.spec = json.loads(timer_desc)
         self.callback = callback
+        self.err_callback = err_cb
         self.recovery_policy = recovery_policy
         self.is_start_event = is_start_event
         # if validate_spec returns None, then the spec has dynamic references
@@ -417,16 +349,11 @@ class TimedEventManager:
             .add_handler(Literals.SUB_FUNC, Functions.func_sub) \
             .add_handler(Literals.NOW_FUNC, Functions.func_now)
 
-    class ValidationResults:
-        def __init__(self, timer_type : str, spec : str):
-            self.timer_type_s = timer_type
-            self.spec = spec
-            self.start_date = None
-            self.end_date = None
-            self.interval = 0
-            self.recurrance = 0
+        self.executor = get_executor()
+        self.future = self.executor.submit(self.__restore_latent_timers)
 
-    def reset(self, aspects : ValidationResults) -> None:
+
+    def reset(self, aspects:ValidationResults) -> None:
         """
         Reset the timer manager to the provided timer type and specification.
         This can only happen if the current configuration has already run its
@@ -434,6 +361,15 @@ class TimedEventManager:
         """
         assert self.completed, 'Cannot reset - timer still active'
         self.aspects = aspects
+
+    def signal_error(self, context:TimerContext, code:TimerErrorCode, message:str):
+        """
+        Call the error callback
+        """
+        if self.err_callback:
+            logging.error(f'Raising error {TimeUtc.now_str()} {context.guid} {code.name} {message}')
+            # timer_error_callback(self, iid:str, code:TimerErrorCode, message:str):
+            self.err_callback(context.iid, code, message)
 
     @classmethod
     def validate_spec(cls, timer_type : str, spec : str) -> Tuple[ValidationResults, bool]:
@@ -485,7 +421,7 @@ class TimedEventManager:
             # RP  - recurrence and interval
             # RPD - recurrence, interval, end date
             # RDP - recurrence, start date, and interval
-            # RDD - recurrance, start date, end date
+            # RDD - recurrence, start date, end date
             #
             # For each of the paterns that include dates, we need to determine the
             # start date, end date, and the interval between the two.
@@ -503,42 +439,42 @@ class TimedEventManager:
 
             assert pat in ['RP','RPD','RDP','RDD'], 'Improper cycle definition'
             datum = toks[1]
-            results.recurrance = datum[0]
+            results.recurrence = datum[0]
             if pat == 'RP':
                 results.interval = datum[1]
-                logging.info(f'timeCycle timing event created - {results.recurrance} cycle(s) '
+                logging.info(f'timeCycle timing event created - {results.recurrence} cycle(s) '
                              f'{results.interval} seconds apart')
 
             elif pat == 'RDP':
                 """
-                recurrance/date/period
+                recurrence/date/period
                 """
                 results.start_date = datum[1]
                 results.interval   = datum[2]
-                logging.info(f'timeCycle timing event created - {results.recurrance} cycle(s) '
+                logging.info(f'timeCycle timing event created - {results.recurrence} cycle(s) '
                              f'{results.interval} seconds apart '
                              f'starting on {datetime.fromtimestamp(results.start_date, tz=timezone.utc)}')
 
             elif pat == 'RPD':
                 """
-                recurrance/period/end-date
+                recurrence/period/end-date
                 """
                 results.interval = datum[1]
                 results.end_date = datum[2]
                 if results.unbounded:
                     # for unbounded period/end-date the start date end-date less period
                     results.start_date = results.end_date - results.interval
-                    results.recurrance = int(results.interval / Recurrence.UNBOUNDED_INTERVAL)
+                    results.recurrence = int(results.interval / Recurrence.UNBOUNDED_INTERVAL)
                     results.interval   = Recurrence.UNBOUNDED_INTERVAL
                 else:
                     if results.norepeat:
-                        # for non-repeat recurrances the recurrence count is 2 for start/end
-                        results.recurrance = 2
-                    # otherwise, calculate the number of recurrances and subtract
+                        # for non-repeat recurrences the recurrence count is 2 for start/end
+                        results.recurrence = 2
+                    # otherwise, calculate the number of recurrences and subtract
                     # from end-date to get the start-date
-                    results.start_date = results.end_date - (results.interval * results.recurrance)
+                    results.start_date = results.end_date - (results.interval * results.recurrence)
 
-                logging.info(f'timeCycle timing event created - {results.recurrance} cycle(s) '
+                logging.info(f'timeCycle timing event created - {results.recurrence} cycle(s) '
                              f'{results.interval} seconds apart '
                              f'starting on {datetime.fromtimestamp(results.start_date, tz=timezone.utc)} '
                              f'ending on {datetime.fromtimestamp(results.end_date, tz=timezone.utc)}')
@@ -547,21 +483,23 @@ class TimedEventManager:
                 # first event fires at start date
                 # last event fires at end date
                 # calculate the duration as (end - start) / (recurrence - 1)
-                assert results.recurrance in [Recurrence.NOREPEAT, Recurrence.UNBOUNDED] or results.recurrance > 1, f'Recurrences for RDD must be at least 2'
+                assert results.unbounded or results.norepeat or results.recurrence > 0, \
+                    f'Invalid recurrence specified {results.recurrence}'
                 results.start_date = datum[1]
                 results.end_date   = datum[2]
-                assert results.start_date <= results.end_date, "Error - start date must preceed end date"
+                assert results.start_date < results.end_date, "Error - start date must preceed end date"
                 period = results.end_date - results.start_date
                 # unbounded the granularity is 60 secs.
                 if results.unbounded:
                     results.interval   = Recurrence.UNBOUNDED_INTERVAL
-                    results.recurrance = int(period/results.interval) + 1
+                    results.recurrence = int(period/results.interval) + 1
                 elif results.norepeat:
-                    results.recurrance = 1
+                    # essentually R0 and R1 are identical
+                    results.recurrence = 1
                 else:
-                    results.interval = int(period / (results.recurrance - 1))
+                    results.interval = int(period / (results.recurrence - 1))
 
-                logging.info(f'timeCycle timing event created - {results.recurrance} cycle(s) '
+                logging.info(f'timeCycle timing event created - {results.recurrence} cycle(s) '
                              f'starting on {datetime.fromtimestamp(results.start_date, tz=timezone.utc)} '
                              f'ending on {datetime.fromtimestamp(results.end_date, tz=timezone.utc)} '
                              f'with interval {results.interval}'
@@ -592,7 +530,7 @@ class TimedEventManager:
             elif elem.startswith('R'):
                 # RECURRANCE
                 cat += 'R'
-                val = int(elem[1::]) if len(elem) > 1 else -1
+                val = int(elem[1::]) if len(elem) > 1 else Recurrence.UNBOUNDED 
             else:
                 # DATETIME
                 cat += 'D'
@@ -601,7 +539,7 @@ class TimedEventManager:
 
         return [cat,results]
 
-    def create_timer(self, wf_inst_id : str, token_stack : str, args : list):
+    def create_timer(self, iid : str, token_stack : str, args : list):
         """
         The parms passed to us *must* be passed to the callback when firing the
         timer. Here, we take the timer parameters when the manager was created
@@ -632,7 +570,7 @@ class TimedEventManager:
             adj_spec        = self._substitutor.do_sub(req_json, self.spec)
             self.aspects, _ = self.validate_spec(self.timer_type, adj_spec)
 
-        context = TimerContext(self.aspects, token_stack, args)
+        context = TimerContext(self.aspects, iid, token_stack, args)
 
         time_now = TimeUtc.now()
         # if a start_date was supplied, fire the first event on that date.
@@ -657,7 +595,7 @@ class TimedEventManager:
             if not self.is_start_event:
                 # cycle types need a token pool for remote collectors/end events to keep track of the number
                 # of recurrences seen.
-                context.token_pool_id = TokenPool.create(wf_inst_id, context.recurrance).get_name()
+                context.token_pool_id = TokenPool.create(iid, context.recurrence).get_name()
                 logging.info(f'{context.guid} Created token pool {context.token_pool_id}')
             context.decrement()
 
@@ -667,13 +605,46 @@ class TimedEventManager:
         timer = WrappedTimer(self, duration, self.__timer_done_action, self.__timer_action, context)
         timer.start()
 
+    def __restore_latent_timers(self):
+        """
+        Pull any existing timer context records.
+        """
+        key = WorkflowKeys.timed_events_key(self.did)
+        keys = get_keys_from_prefix(key)
+        if keys is not None and len(keys) > 0:
+            logging.info(f'Attempting to restore {len(keys)} timers from storage')
+            for k in keys:
+                ctx = TimerContext.restore_from_key(k)
+                if ctx is not None:
+                    self.restore_timer(ctx)
+        else:
+            logging.info('No timers found to restore')
+
     def restore_timer(self, context:TimerContext):
         """
+        Process a restored timer. If the exec_time is still in the future, just
+        calculate the new exec time and enqueue as usual. Otherwise, we have to
+        enforce the TimerRecoveryPolicy in affect.
         """
         time_now = TimeUtc.now()
         if context.exec_time < time_now:
             # execution time is in the past ... enforce recoveryPolicy
-            pass
+            if self.recovery_policy == TimerRecoveryPolicy.RECOVER_FAIL:
+                self.signal_error(context, TimerErrorCode.TIMER_ERROR_FAIL_IID, f'Recovered timer expired - IID {context.iid} will be terminated')
+            elif self.recovery_policy == TimerRecoveryPolicy.RECOVER_FIRE:
+                # fire the event immediately
+                context.exec_time = time_now
+                timer = WrappedTimer(self, 0, self.__timer_done_action, self.__timer_action, context)
+                timer.start()
+            elif self.recovery_policy == TimerRecoveryPolicy.RECOVER_FORGET:
+                # mark the timer as lost
+                logging.info(f'Dropped timer {context.guid}')
+                if context.token_pool_id is not None:
+                    tp = TokenPool.from_pool_name(context.token_pool_id)
+                    tp.release_as_lost()
+            # else: # self.recovery_policy == TimerRecoveryPolicy.RECOVER_FUTURE:
+            #     # reschedule using NOW as base time
+            #     pass
         else:
             duration = context.exec_time - time_now
             timer = WrappedTimer(self, duration, self.__timer_done_action, self.__timer_action, context)
@@ -720,10 +691,9 @@ class TimedEventManager:
             context.exec_time += context.interval
             if context.end_date is not None and context.end_date < context.exec_time:
                 context.exec_time = context.end_date
-                # self.completed    = True
             duration = context.exec_time - time_now
             if duration < 0:
-                # TODO: enforce the recurrance recovery policy
+                # TODO: enforce the recurrence recovery policy
                 logging.info(f'{context.guid} Timer occurs in the past - firing immediately')
                 duration = 0
             timer = WrappedTimer(self, duration, self.__timer_done_action, self.__timer_action, context)
@@ -731,16 +701,28 @@ class TimedEventManager:
             context.decrement()
         else:
             logging.info(f'{context.guid} timer exhausted any/all recurrences')
+            TimerContext.erase(context.key)
             self.completed = True
 
 def test_callback(token_stack:str, data:str, iid:str, did:str, content_type:str) -> bool:
     print(f'Fired! {Functions.func_now()} {token_stack} {data} {iid} {did} {content_type}')
     return True # return False to test abort
 
+def test_err_callback(iid:str, code:TimerErrorCode, message:str):
+    print(f'Error! {Functions.func_now()} {iid} {code.name} {message}')
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
+    get_etcd()
 
-    mgr = TimedEventManager('["timeDate","{NOW()}"]', test_callback, False)
+    mgr = TimedEventManager('test_did', '["timeDate","{NOW()}"]', test_callback, test_err_callback, False, TimerRecoveryPolicy.RECOVER_FORGET)
+    restored_json = '{"guid": "15338b7c88e642bbab48793a42bad81f", "iid":"test_did-test_did_iid", "timer_type": "TIME_DURATION", "start_date": 1625846154, "end_date": null, "interval": 300, "recurrence": 0, "spec": "PT5M", "token_stack": "", "exec_time": 1625846454, "token_pool_id": null, "args": ["{}", 1, "hello", "application/json"], "completed": false}'
+    ctx = TimerContext.from_json(restored_json)
+    ctx.save()
+    ctx0 = TimerContext.restore('test_did-test_did_iid')
+
+
+    mgr.restore_timer(ctx0)
     spec = mgr._substitutor.do_sub({}, "{SUB(NOW(),PT1H)}")
     print(spec)
     # results,_ = TimedEventManager.validate_spec('timeDate', spec)
@@ -816,7 +798,7 @@ if __name__ == "__main__":
     # 1. Create a duration timer of 1H in the past
     # mgr = TimedEventManager('["timeDuration", "PT5M"]', test_callback, False)
     # mgr.create_timer('test_iid', '',  [b'{}',1,'hello','application/json'])
-    # restored_json = '{"guid": "15338b7c88e642bbab48793a42bad81f", "timer_type": "TIME_DURATION", "start_date": 1625846154, "end_date": null, "interval": 300, "recurrance": 0, "spec": "PT5M", "token_stack": "", "exec_time": 1625846454, "token_pool_id": null, "args": ["{}", 1, "hello", "application/json"], "completed": false}'
+    # restored_json = '{"guid": "15338b7c88e642bbab48793a42bad81f", "timer_type": "TIME_DURATION", "start_date": 1625846154, "end_date": null, "interval": 300, "recurrence": 0, "spec": "PT5M", "token_stack": "", "exec_time": 1625846454, "token_pool_id": null, "args": ["{}", 1, "hello", "application/json"], "completed": false}'
     # ctx = TimerContext.from_json(restored_json)
     # mgr.restore_timer(ctx)
 

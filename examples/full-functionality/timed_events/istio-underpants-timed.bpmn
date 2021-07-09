@@ -31,15 +31,15 @@
       <bpmn:incoming>SequenceFlow_0y9yafp</bpmn:incoming>
       <bpmn:outgoing>SequenceFlow_0wlepjp</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="SequenceFlow_0wlepjp" sourceRef="Task_1nyu98k" targetRef="Event_0825rw4" />
-    <bpmn:intermediateCatchEvent id="Event_0825rw4">
+    <bpmn:sequenceFlow id="SequenceFlow_0wlepjp" sourceRef="Task_1nyu98k" targetRef="timer_one" />
+    <bpmn:intermediateCatchEvent id="timer_one">
       <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
       <bpmn:outgoing>Flow_0o2g7mu</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_0370jag">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5M</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
-    <bpmn:sequenceFlow id="Flow_0o2g7mu" sourceRef="Event_0825rw4" targetRef="Task_1mrtiy4" />
+    <bpmn:sequenceFlow id="Flow_0o2g7mu" sourceRef="timer_one" targetRef="Task_1mrtiy4" />
     <bpmn:textAnnotation id="TextAnnotation_1vjflrc">
       <bpmn:text>rexflow:
     service:
@@ -114,7 +114,7 @@
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
         <dc:Bounds x="640" y="87" width="128" height="68" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0btveyq_di" bpmnElement="Event_0825rw4">
+      <bpmndi:BPMNShape id="Event_0btveyq_di" bpmnElement="timer_one">
         <dc:Bounds x="592" y="219" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
