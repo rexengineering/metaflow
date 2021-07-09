@@ -400,7 +400,7 @@ class BPMNProcess:
             if CREATE_DEV_INGRESS:
                 results.append(create_rexflow_ingress_vs(
                     self.namespace,
-                    f'/{ui_bridge_service_name}-{self.namespace}',
+                    to_valid_k8s_name(f'{ui_bridge_service_name}-{self.namespace}'),
                     f'/{ui_bridge_service_name}-{self.namespace}',
                     UI_BRIDGE_PORT,
                     f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
