@@ -36,15 +36,39 @@ from datetime import datetime, timezone
 from flowlib.substitution import Substitutor, Tokens
 from flowlib.token_api import TokenPool
 
-from typing import Tuple
+from typing import Tuple, Union
 
-def now_utc():
-    return int(datetime.now(timezone.utc).timestamp())
+class TimeUtc:
+    @classmethod
+    def now(cls):
+        return int(datetime.now(timezone.utc).timestamp())
+
+    @classmethod
+    def format_8601(cls,ts):
+        return datetime.fromtimestamp(ts, tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
 
 class TimerType(Enum):
     TIME_DATE      = 'timeDate'
     TIME_DURATION  = 'timeDuration'
     TIME_CYCLE     = 'timeCycle'
+
+    def __str__(self):
+        return self.name
+
+class TimerRecoveryPolicy(Enum):
+    """
+    The timer recovery policy. If a pod dies with active timers, this
+    policy defines the behavior for how events that *should* have fired
+    in the past are handled once the timers are loaded from the back store.
+    RECOVER_FORGET - ignore past events (mark them as ignored in token pool)
+    RECOVER_FIRE   - fire all past events immediately
+    RECOVER_FAIL   - fail the workflow instance
+    RECOVER_FUTURE - schedule them in the future with now() as base time
+    """
+    RECOVER_FORGET = 'timerRecoveryPolicyForget'
+    RECOVER_FIRE   = 'timerRecoveryPolicyFire'
+    RECOVER_FAIL   = 'timerRecoveryPolicyFail'
+    RECOVER_FUTURE = 'timerRecoveryPolicyFuture'
 
 class Recurrence:
     NOREPEAT  =  0
@@ -75,7 +99,7 @@ class Functions:
         args = cls._time_preproc(parms)
         assert len(args) == 2, f'{Literals.ADD_FUNC} takes 2 parameters, {len(args)} provided'
         args[0] += args[1]
-        return datetime.fromtimestamp(args[0], tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+        return TimeUtc.format_8601(args[0])
 
     @classmethod
     def func_sub(cls, parms:str) -> str:
@@ -83,13 +107,13 @@ class Functions:
         args = cls._time_preproc(parms)
         assert len(args) == 2, f'{Literals.SUB_FUNC} takes 2 parameters, {len(args)} provided'
         args[0] -= args[1]
-        return datetime.fromtimestamp(args[0], tz=timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+        return TimeUtc.format_8601(args[0])
 
     @classmethod
     def func_now(cls, parms:str = None) -> str:
         """Return now utc as ISO-8601 formatted timestamp"""
         # NOW() takes no arguments, returns the curent date/time as ISO_8601_FORMAT
-        return datetime.now(timezone.utc).strftime(Literals.ISO_8601_FORMAT)
+        return TimeUtc.format_8601(TimeUtc.now())
 
 class ValidationResults:
     def __init__(self, timer_type:str, spec:str):
@@ -120,17 +144,13 @@ class ValidationResults:
     def is_date(self):
         return self.timer_type == TimerType.TIME_DATE
 
-    def __str__(self):
-        return str(
-            {
-                "type":self.timer_type.name,
-                "spec":self.spec,
-                "start_date":self.start_date,
-                "end_date":self.end_date,
-                "interval":self.interval,
-                "recurrance":self.recurrance,
-            }
-        )
+class TimedEventManager:
+    """Forward declaration"""
+    pass
+
+class TimerContext(ValidationResults):
+    """Forward declaration"""
+    pass
 
 class TimerContext(ValidationResults):
     """
@@ -144,6 +164,7 @@ class TimerContext(ValidationResults):
         self.end_date      = source.end_date
         self.interval      = source.interval
         self.recurrance    = source.recurrance
+        self.spec          = source.spec
         self.token_stack   = token_stack
         self.exec_time     = 0
         self.token_pool_id = None
@@ -167,13 +188,42 @@ class TimerContext(ValidationResults):
             return self.recurrance == 0
         return False
 
+    def to_json(self) -> str:
+        ret = {k:v for k,v in self.__dict__.items() if not k.startswith('__')}
+        ret['timer_type'] = ret['timer_type'].name
+        args = []
+        for v in ret['args']:
+            if isinstance(v,bytes):
+                v = v.decode()
+            args.append(v)
+        ret['args'] = args
+        return json.dumps(ret)
+
+    @classmethod
+    def from_json(cls, jayson:Union[str, bytes, dict]) -> TimerContext:
+        if isinstance(jayson,str):
+            data = json.loads(jayson)
+        elif isinstance(jayson,bytes):
+            data = json.loads(jayson.decode())
+        elif isinstance(jayson,dict):
+            data = jayson
+        else:
+            raise ValueError('cannot interpret input to from_json')
+        obj = cls.__new__(cls) # does not call __init__
+        for k,v in data.items():
+            if k == 'timer_type':
+                v = TimerType[v]
+            setattr(obj,k,v)
+        return obj
+
 class WrappedTimer:
     """
     Python timers are created, start, and die without any notifications. This
     class wraps a threading.Timer object so that we can receive a notification
     once the timer matures.
     """
-    def __init__(self, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context:TimerContext):
+    def __init__(self, mgr:TimedEventManager, interval : int, done_action : typing.Callable[[object],None], action : typing.Callable[[list],None], context:TimerContext):
+        self.mgr = mgr
         self._interval = interval
         self._done_action = done_action
         self._action = action
@@ -204,27 +254,28 @@ class WrappedTimer:
 
     def start(self):
         self._timer.start()
-        logging.info(f'{self._context.guid} {now_utc()} Starting timer')
+        logging.info(f'{self._context.guid} {TimeUtc.now()} Starting timer will execute {TimeUtc.format_8601(self._context.exec_time)}')
 
     def cancel(self):
-        logging.info(f'{self._context.guid} {now_utc()} Canceling timer')
+        logging.info(f'{self._context.guid} {TimeUtc.now()} Canceling timer')
         self._timer.cancel()
         self.done()
 
     def done(self, abort:bool = False):
-        logging.info(f'{self._context.guid} {now_utc()} Timer done')
+        logging.info(f'{self._context.guid} {TimeUtc.now()} Timer done')
         self._done_action(self._context, abort)
 
 class TimedEventManager:
     """
     """
-    def __init__(self, timer_description_json : str, callback : typing.Callable[[list], None], is_start_event:bool = False):
+    def __init__(self, timer_description_json : str, callback : typing.Callable[[list], None], is_start_event:bool = False, recovery_policy:TimerRecoveryPolicy = TimerRecoveryPolicy.RECOVER_FAIL):
         # TODO: load and schedule any persisted timed events
         self.events = dict()
         self.json = timer_description_json
         #[timer_type, timer_spec]
         self.timer_type, self.spec = json.loads(timer_description_json)
         self.callback = callback
+        self.recovery_policy = recovery_policy
         self.is_start_event = is_start_event
         # if validate_spec returns None, then the spec has dynamic references
         # i.e. {substitutions} and/or FUNCTIONS(), so we will resolve dynamically
@@ -454,7 +505,7 @@ class TimedEventManager:
 
         context = TimerContext(self.aspects, token_stack, args)
 
-        time_now = now_utc()
+        time_now = TimeUtc.now()
         # if a start_date was supplied, fire the first event on that date.
         if context.start_date is not None:
             if context.start_date < time_now:
@@ -481,9 +532,23 @@ class TimedEventManager:
                 logging.info(f'{context.guid} Created token pool {context.token_pool_id}')
             context.decrement()
 
+        print(context.to_json())
+
         self.completed = False
-        timer = WrappedTimer(duration, self.__timer_done_action, self.__timer_action, context)
+        timer = WrappedTimer(self, duration, self.__timer_done_action, self.__timer_action, context)
         timer.start()
+
+    def restore_timer(self, context:TimerContext):
+        """
+        """
+        time_now = TimeUtc.now()
+        if context.exec_time < time_now:
+            # execution time is in the past ... enforce recoveryPolicy
+            pass
+        else:
+            duration = context.exec_time - time_now
+            timer = WrappedTimer(self, duration, self.__timer_done_action, self.__timer_action, context)
+            timer.start()
 
     def __timer_action(self, context:TimerContext, *args):
         """
@@ -522,7 +587,7 @@ class TimedEventManager:
             logging.info(f'{context.guid} timer aborted')
             self.completed = True
         elif context.continues:
-            time_now   = now_utc()
+            time_now   = TimeUtc.now()
             context.exec_time += context.interval
             if context.end_date is not None and context.end_date < context.exec_time:
                 context.exec_time = context.end_date
@@ -532,7 +597,7 @@ class TimedEventManager:
                 # TODO: enforce the recurrance recovery policy
                 logging.info(f'{context.guid} Timer occurs in the past - firing immediately')
                 duration = 0
-            timer = WrappedTimer(duration, self.__timer_done_action, self.__timer_action, context)
+            timer = WrappedTimer(self, duration, self.__timer_done_action, self.__timer_action, context)
             timer.start()
             context.decrement()
         else:
@@ -545,8 +610,10 @@ def test_callback(token_stack:str, data:str, iid:str, did:str, content_type:str)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    # mgr = TimedEventManager('["timeDate","{NOW()}"]', test_callback, False)
-    # spec = mgr._substitutor.do_sub({}, "{NOW()}")
+
+    mgr = TimedEventManager('["timeDate","{NOW()}"]', test_callback, False)
+    spec = mgr._substitutor.do_sub({}, "{SUB(NOW(),PT1H)}")
+    print(spec)
     # results,_ = TimedEventManager.validate_spec('timeDate', spec)
     # print(results)
     # spec = mgr._substitutor.do_sub({}, "R3/{NOW()}/{ADD(NOW(),P5D)}")
@@ -557,7 +624,7 @@ if __name__ == "__main__":
     # print(results)
     # results,_ = TimedEventManager.validate_spec('timeCycle', "R/2021-01-01T12:00:00Z/2021-01-02T12:00:00Z")
     # print(results)
-    spec = '["timeCycle","R3/PT15S"]'
+    # spec = '["timeCycle","R3/PT15S"]'
     # spec = '["timeCycle", "R/{NOW()}/{ADD(NOW(),PT3M)}"]' #RDD - unbounded for three minutes
     # spec = '["timeCycle", "R/PT3M/{ADD(NOW(),PT3M)}"]' #RPD - unbounded for three minutes
     # spec = '["timeCycle", "R/{NOW()}/PT1M"]' #RDP = unbounded for one minute
@@ -565,12 +632,12 @@ if __name__ == "__main__":
     # spec = '["timeCycle", "R3/PT30S/{ADD(NOW(),PT4M)}"]' #RPD - three recurrences, three minutes apart, ending 20 minutes from now
     # spec = '["timeCycle", "R0/PT30S/{ADD(NOW(),PT3M)}"]' #RPD - three recurrences, three minutes apart, ending 20 minutes from now
     # spec = '["timeCycle", "R3/PT30S/{ADD(NOW(),PT1M)}"]' #RPD - three recurrences, three minutes apart, ending 20 minutes from now
-    mgr = TimedEventManager(spec, test_callback, False)
-    mgr.create_timer('test_iid', '',  [b'{}',1,'hello','application/json'])
-    time.sleep(10)
-    mgr.create_timer('test_iid', '',  [b'[]',2,'world','application/json'])
-    time.sleep(7)
-    mgr.create_timer('test_iid', '',  [b'[]',3,'people','application/json'])
+    # mgr = TimedEventManager(spec, test_callback, False)
+    # mgr.create_timer('test_iid', '',  [b'{}',1,'hello','application/json'])
+    # time.sleep(10)
+    # mgr.create_timer('test_iid', '',  [b'[]',2,'world','application/json'])
+    # time.sleep(7)
+    # mgr.create_timer('test_iid', '',  [b'[]',3,'people','application/json'])
     # mgr.enqueue(test_callback, '', 'test_flow_id','test_wf_id', 'application/json')
 
     #mgr = TimedEventManager('["timeDuration","P10D"]')
@@ -615,4 +682,18 @@ if __name__ == "__main__":
     # for spec in test_specs:
     #     results,_ = TimedEventManager.validate_spec('timeCycle', spec)
     #     print(results)
+
+    # test for recovery
+    # 1. Create a duration timer of 1H in the past
+    # mgr = TimedEventManager('["timeDuration", "PT5M"]', test_callback, False)
+    # mgr.create_timer('test_iid', '',  [b'{}',1,'hello','application/json'])
+    # restored_json = '{"guid": "15338b7c88e642bbab48793a42bad81f", "timer_type": "TIME_DURATION", "start_date": 1625846154, "end_date": null, "interval": 300, "recurrance": 0, "spec": "PT5M", "token_stack": "", "exec_time": 1625846454, "token_pool_id": null, "args": ["{}", 1, "hello", "application/json"], "completed": false}'
+    # ctx = TimerContext.from_json(restored_json)
+    # mgr.restore_timer(ctx)
+
+    # ctx = TimerContext(mgr.aspects, None, ['test_flow_id','test_wf_id', 'application/json'])
+    # j = ctx.to_json()
+    # print(j)
+    # ctx1 = TimerContext.from_json(j)
+    # print(ctx1)
 
