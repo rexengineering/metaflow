@@ -155,6 +155,10 @@ class WorkflowKeys:
     def catch_event_key(cls, did, correlation_id):
         return f'{cls.key_of(did)}/catchEvents/{correlation_id}'
 
+    @classmethod
+    def timed_events_key(cls, did):
+        return f'{cls.key_of(did)}/timed_events'
+
 
 # TODO: There seems to be a proliferation of instance-related keys in ETCD.
 # Schedule a careful review of these and remove as many as possible.
@@ -171,7 +175,6 @@ class WorkflowInstanceKeys:
         self.end_event      = self.end_event_key(iid)
         self.traceid        = self.traceid_key(iid)
         self.content_type   = self.content_type_key(iid)
-        self.timed_events   = self.timed_events_key(iid)
         self.timed_results  = self.timed_results_key(iid)
         self.metadata       = self.metadata_key(iid)
 
@@ -221,10 +224,6 @@ class WorkflowInstanceKeys:
         return f'{cls.key_of(iid)}/content_type'
 
     @classmethod
-    def timed_events_key(cls, iid):
-        return f'{cls.key_of(iid)}/timed_events'
-
-    @classmethod
     def timed_results_key(cls, iid):
         return f'{cls.key_of(iid)}/timed_results'
 
@@ -247,7 +246,7 @@ class WorkflowInstanceKeys:
     @classmethod
     def async_callback_response_key(cls, iid, tid, request_id):
         return f'{cls.key_of(iid)}/async_service_task/{tid}/{request_id}/response'
-    
+
     @classmethod
     def metadata_key(cls, iid):
         return f'{cls.key_of(iid)}/metadata'
