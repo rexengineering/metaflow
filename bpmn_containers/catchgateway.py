@@ -41,6 +41,7 @@ from flowlib.constants import (
     Headers,
     flow_result,
     TIMER_DESCRIPTION,
+    TIMER_RECOVER_POLICY,
 )
 from flowlib.timer_util import (
     TimedEventManager,
@@ -91,6 +92,7 @@ Where timer_type is timeDate, timeCycle, or timeDuration
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION)
 """
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, None)
+TIMED_EVENT_RECOVERY_POLICY = os.getenv(TIMER_RECOVER_POLICY, 'fail')
 IS_TIMED_EVENT          = TIMED_EVENT_DESCRIPTION is not None
 IS_TIMED_START_EVENT    = IS_TIMED_EVENT and FUNCTION == FUNCTION_START
 IS_TIMED_CATCH_EVENT    = IS_TIMED_EVENT and FUNCTION == FUNCTION_CATCH
@@ -117,7 +119,7 @@ class EventCatchPoller:
         if IS_TIMED_EVENT:
             callback, name = (self.create_instance_timer_callback, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
             logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION}')
-            self.timed_manager = TimedEventManager(WF_ID, TIMED_EVENT_DESCRIPTION, callback, self.timer_error_callback, IS_TIMED_START_EVENT)
+            self.timed_manager = TimedEventManager(WF_ID, TIMED_EVENT_DESCRIPTION, callback, self.timer_error_callback, TIMED_EVENT_RECOVERY_POLICY, IS_TIMED_START_EVENT)
 
     def start(self):
         assert self.future is None

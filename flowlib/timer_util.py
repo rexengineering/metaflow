@@ -328,15 +328,16 @@ class TimedEventManager:
             timer_desc:str,
             callback:Callable[[list], None],
             err_cb:Callable[[list],None],
-            is_start_event:bool = False,
-            recovery_policy:TimerRecoveryPolicy = TimerRecoveryPolicy.RECOVER_FAIL):
+            recovery_policy:str,
+            is_start_event:bool = False):
         self.did = did
         self.json = timer_desc
         #[timer_type, timer_spec]
         self.timer_type, self.spec = json.loads(timer_desc)
         self.callback = callback
         self.err_callback = err_cb
-        self.recovery_policy = recovery_policy
+        # convert recovery_policy into it's Enum equiv - if invalid let it raise
+        self.recovery_policy = TimerRecoveryPolicy[recovery_policy.upper()]
         self.is_start_event = is_start_event
         # if validate_spec returns None, then the spec has dynamic references
         # i.e. {substitutions} and/or FUNCTIONS(), so we will resolve dynamically
@@ -715,16 +716,17 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     get_etcd()
 
-    mgr = TimedEventManager('test_did', '["timeDate","{NOW()}"]', test_callback, test_err_callback, False, TimerRecoveryPolicy.RECOVER_FORGET)
+    mgr = TimedEventManager('test_did', '["timeDate","{NOW()}"]', test_callback, test_err_callback, 'recover_fire', False)
+
     restored_json = '{"guid": "15338b7c88e642bbab48793a42bad81f", "iid":"test_did-test_did_iid", "timer_type": "TIME_DURATION", "start_date": 1625846154, "end_date": null, "interval": 300, "recurrence": 0, "spec": "PT5M", "token_stack": "", "exec_time": 1625846454, "token_pool_id": null, "args": ["{}", 1, "hello", "application/json"], "completed": false}'
-    ctx = TimerContext.from_json(restored_json)
-    ctx.save()
-    ctx0 = TimerContext.restore('test_did-test_did_iid')
+    # ctx = TimerContext.from_json(restored_json)
+    # ctx.save()
+    # ctx0 = TimerContext.restore('test_did-test_did_iid')
 
 
-    mgr.restore_timer(ctx0)
-    spec = mgr._substitutor.do_sub({}, "{SUB(NOW(),PT1H)}")
-    print(spec)
+    # mgr.restore_timer(ctx0)
+    # spec = mgr._substitutor.do_sub({}, "{SUB(NOW(),PT1H)}")
+    # print(spec)
     # results,_ = TimedEventManager.validate_spec('timeDate', spec)
     # print(results)
     # spec = mgr._substitutor.do_sub({}, "R3/{NOW()}/{ADD(NOW(),P5D)}")
