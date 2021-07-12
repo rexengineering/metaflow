@@ -9,9 +9,10 @@ import json
 from flowlib.constants import (
     BPMN_TIMER_EVENT_DEFINITION,
     TIMER_DESCRIPTION,
+    TIMER_RECOVER_POLICY,
     to_valid_k8s_name,
 )
-from flowlib.timer_util import TimedEventManager, ValidationResults
+from flowlib.timer_util import TimedEventManager, ValidationResults, TimerRecoveryPolicy
 from flowlib.config import (
     DEFAULT_NOTIFICATION_KAFKA_TOPIC,
     DEFAULT_USE_CLOSURE_TRANSPORT,
@@ -308,6 +309,7 @@ class WorkflowProperties:
         self._passthrough_target = None
         self._prefix_passthrough_with_namespace = False
         self._catch_event_expiration = 72
+        self._timer_recovery_policy = TimerRecoveryPolicy.RECOVER_FAIL
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -466,7 +468,7 @@ class WorkflowProperties:
 
         if 'deployment_timeout' in annotations:
             self._deployment_timeout = annotations['deployment_timeout']
-    
+
         if 'synchronous_wrapper_timeout' in annotations:
             self._synchronous_wrapper_timeout = annotations['synchronous_wrapper_timeout']
 
@@ -488,6 +490,13 @@ class WorkflowProperties:
 
         if 'catch_event_expiration' in annotations:
             self._catch_event_expiration = annotations['catch_event_expiration']
+
+        if 'timer_recovery_policy' in annotations:
+            policy = annotations.get('timer_recovery_policy', 'fail')
+            try:
+                self._timer_recovery_policy = TimerRecoveryPolicy(policy)
+            except ValueError:
+                pass
 
 
 class BPMNComponent:
@@ -558,7 +567,7 @@ class BPMNComponent:
                     self._timer_aspects, self._timer_dynamic = TimedEventManager.validate_spec(key, self._timer_description[1])
                     break
             assert self._timer_description, "timerEventDefinition has invalid timer type"
-
+            self._timer_recovery_policy = workflow_properties._timer_recovery_policy
 
         service_update = {
             'hash_used': (self._global_props.namespace_shared and not self._is_preexisting),
@@ -586,10 +595,26 @@ class BPMNComponent:
                 self._health_properties.update(annotation['health'])
             if 'service' in annotation:
                 self._service_properties.update(annotation['service'])
+            if 'timer_recovery_policy' in annotation:
+                policy = annotation.get('timer_recovery_policy', 'fail')
+                try:
+                    self._timer_recovery_policy = TimerRecoveryPolicy(policy)
+                except ValueError:
+                    pass
+
 
     def init_env_config(self):
         if self._timer_description:
-            return [{'name': TIMER_DESCRIPTION, 'value': json.dumps(self._timer_description)}]
+            return [
+                {
+                    'name': TIMER_DESCRIPTION,
+                    'value': json.dumps(self._timer_description)
+                },
+                {
+                    'name': TIMER_RECOVER_POLICY,
+                    'value': self._timer_recovery_policy.name
+                }
+            ]
         return []
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
