@@ -36,7 +36,7 @@
       <bpmn:incoming>SequenceFlow_0wlepjp</bpmn:incoming>
       <bpmn:outgoing>Flow_0o2g7mu</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_0370jag">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5M</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT2M</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
     <bpmn:sequenceFlow id="Flow_0o2g7mu" sourceRef="timer_one" targetRef="Task_1mrtiy4" />
@@ -67,18 +67,12 @@
     </bpmn:textAnnotation>
     <bpmn:textAnnotation id="TextAnnotation_12caj0p">
       <bpmn:text>rexflow:
-    timer_recovery_policy: forget</bpmn:text>
+    timer_recovery_policy: fail</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1qgli2q" sourceRef="timer_one" targetRef="TextAnnotation_12caj0p" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Underpants">
-      <bpmndi:BPMNShape id="TextAnnotation_1v6ziq7_di" bpmnElement="TextAnnotation_1v6ziq7">
-        <dc:Bounds x="170" y="360" width="290" height="40" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_12caj0p_di" bpmnElement="TextAnnotation_12caj0p">
-        <dc:Bounds x="610" y="380" width="220" height="39" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_0o2g7mu_di" bpmnElement="Flow_0o2g7mu">
         <di:waypoint x="628" y="237" />
         <di:waypoint x="690" y="237" />
@@ -131,6 +125,12 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_18mql5m_di" bpmnElement="TextAnnotation_18mql5m">
         <dc:Bounds x="640" y="87" width="128" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1v6ziq7_di" bpmnElement="TextAnnotation_1v6ziq7">
+        <dc:Bounds x="170" y="360" width="290" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_12caj0p_di" bpmnElement="TextAnnotation_12caj0p">
+        <dc:Bounds x="610" y="380" width="220" height="40" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
         <di:waypoint x="348" y="197" />

@@ -118,7 +118,7 @@ class EventCatchPoller:
         self._catch_manager = catch_manager
         if IS_TIMED_EVENT:
             callback, name = (self.create_instance_timer_callback, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
-            logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION}')
+            logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION} RecPol:{TIMED_EVENT_RECOVERY_POLICY}')
             self.timed_manager = TimedEventManager(WF_ID, TIMED_EVENT_DESCRIPTION, callback, self.timer_error_callback, TIMED_EVENT_RECOVERY_POLICY, IS_TIMED_START_EVENT)
 
     def start(self):
