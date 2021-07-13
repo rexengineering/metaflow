@@ -137,6 +137,7 @@ type FieldInitializer {
     value: String!
 }
 
+
 """Used to communicate specific validator results"""
 type ValidatorResult {
     validator: Validator!
@@ -151,12 +152,19 @@ type FieldValidationResult {
 }
 
 # Inputs
+input MetaDataInput {
+    key: String!
+    value: String!
+}
+
 input GetInstanceInput {
-    iid: WorkflowInstanceId!
+    iid: WorkflowInstanceId
+    meta_data: [MetaDataInput]
 }
 
 input CreateWorkflowInstanceInput {
     graphqlUri: String!
+    meta_data: [MetaDataInput]
 }
 
 input CancelWorkflowInstanceInput {
@@ -193,6 +201,10 @@ input TaskMutationCompleteInput {
 }
 
 # Payloads
+type MetaData {
+    key: String!
+    value: String!
+}
 
 type CreateInstancePayload {
     did: WorkflowDeployemntId!
@@ -211,6 +223,7 @@ type CancelInstancePayload {
 type WorkflowInstanceInfo {
     iid: WorkflowInstanceId!
     iid_status: WorkflowStatus!
+    meta_data: [MetaData]
     graphqlUri: String
 }
 

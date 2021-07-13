@@ -12,6 +12,8 @@ from .graphql_wrappers import (
     GRAPHQL_URI,
     DATA_ID,
     IID,
+    KEY,
+    META_DATA,
     PASSED,
     RESET,
     RESULTS,
@@ -19,6 +21,7 @@ from .graphql_wrappers import (
     TID,
     TYPE,
     VALIDATORS,
+    VALUE,
     WORKFLOW,
 )
 from typing import List, Dict, Tuple
@@ -37,16 +40,32 @@ task_mutation = ObjectType("TaskMutation")
 def mutation_get_instance(_,info, input=None):
     workflow = info.context[WORKFLOW]
     status = workflow.get_status()
-    if input and input[IID]:
-        iid_list = [input[IID]]
-    else:
+    in_meta = None
+    iid_list = None
+    if input:
+        in_meta = input.get(META_DATA,None)
+        if in_meta is not None:
+            in_meta = {d[KEY]:d[VALUE] for d in in_meta}
+        if IID in input:
+            iid_list = [input[IID]]
+    if iid_list is None:
         iid_list = workflow.get_instances()
 
     iid_info = []
     for iid in iid_list:
-        uri = workflow.get_instance_graphql_uri(iid)
-        iid_status = workflow.get_instance_status(iid)
-        iid_info.append(gql.workflow_instance_info(iid, iid_status, uri))
+        meta = workflow.get_instance_meta_data(iid)
+        keep = True
+        if in_meta is not None:
+            # perform meta compare. Only keep matches
+            keep = meta is not None and workflow.compare_meta_data(in_meta, meta)
+        if keep:
+            uri = workflow.get_instance_graphql_uri(iid)
+            md = [
+                gql.meta_data(k, v)
+                for k,v in meta.items()
+            ]
+            iid_status = workflow.get_instance_status(iid)
+            iid_info.append(gql.workflow_instance_info(iid, iid_status, md, uri))
     return gql.get_instances_payload(workflow.did, status, iid_info, workflow.get_task_ids())
 
 # Workflow Mutations
@@ -55,7 +74,9 @@ def mutation_get_instance(_,info, input=None):
 def mutation_create_instance(_,info,input):
     workflow = info.context[WORKFLOW]
     #data: {"id": "process-0p1yoqw-aa16211c-9f5251689f1811eba4489a05f2a68bd3", "message": "Ok", "status": 0}
-    data = workflow.create_instance(input[GRAPHQL_URI])
+    meta = input.get(META_DATA, [])
+    uri  = input[GRAPHQL_URI]
+    data = workflow.create_instance(uri, meta)
     return gql.create_instance_payload(workflow.did, data['id'], SUCCESS, workflow.get_task_ids())
 
 @mutation.field('cancelInstance')

@@ -21,6 +21,8 @@ from .graphql_wrappers import (
     DATA_ID,
     DEFAULT,
     DATA,
+    KEY,
+    META_DATA,
     TEXT,
     TYPE,
     UNKNOWN,
@@ -75,8 +77,7 @@ class Workflow:
         return None
 
     def get_status(self) -> str:
-        status, _ = self.etcd.get(WorkflowKeys.state_key(self.did))
-        return status.decode('utf-8')
+        return self._get_etcd_value(WorkflowKeys.state_key(self.did))
 
     def watch_instances(self):
         """
@@ -109,11 +110,17 @@ class Workflow:
         response = await PrismApiClient.complete_workflow(endpoint,iid)
         logging.info(f'Notifying {endpoint} that {iid} has completed state ({state}); response {response}')
 
-    def create_instance(self, graphql_uri:str):
+    def create_instance(self, graphql_uri:str, meta:list):
+        md = [
+            flow_pb2.StringPair(key=m[KEY], value=m[VALUE])
+            for m in meta
+        ]
+        print(md)
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
             response = flowd.RunWorkflow(flow_pb2.RunRequest(
                 workflow_id=self.did, args=None,
-                stopped=False, start_event_id=None
+                stopped=False, start_event_id=None,
+                metadata=md
             ))
             data = json.loads(response.data)
             if graphql_uri:
@@ -132,7 +139,7 @@ class Workflow:
             return status
         raise ValueError(f'{iid} is not a known instance')
 
-    def get_instances(self):
+    def get_instances(self, meta:dict = None) -> list:
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
             request = flow_pb2.PSRequest(
                 kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False,
@@ -149,11 +156,26 @@ class Workflow:
         status = self._get_etcd_value(WorkflowInstanceKeys.state_key(iid))
         return status or UNKNOWN
 
+    def get_instance_meta_data(self, iid:str) -> list:
+        meta = self._get_etcd_value(WorkflowInstanceKeys.metadata_key(iid))
+        return json.loads(meta)
+
+    def compare_meta_data(self, lhs:dict, rhs:dict) -> bool:
+        """
+        Return True iff all keys in lhs are in rhs, and values match for those keys.
+        """
+        logging.info(f'Comparing {lhs} and {rhs}')
+        shared = {k:lhs[k] for k in lhs if k in rhs and lhs[k].lower() == rhs[k].lower()}
+        return len(shared) == len(lhs)
+
     def _get_etcd_value(self, key:str):
-        ret, _ = self.etcd.get(key)
-        if ret:
-            return ret.decode('utf-8')
-        return None
+        def __logic(etcd):
+            ret, _ = etcd.get(key)
+            if ret:
+                return ret.decode('utf-8')
+            return None
+
+        return etcd_utils.locked_call(key, __logic)
 
     def get_task_ids(self):
         return self.tasks.keys()
