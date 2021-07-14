@@ -29,8 +29,10 @@ GRAPHQL_URI= 'graphqlUri'
 IID        = 'iid'
 IID_LIST   = 'iid_list'
 IID_STATUS = 'iid_status'
+KEY        = 'key'
 LABEL      = 'label'
 MESSAGE    = 'message'
+META_DATA  = 'meta_data'
 ORDER      = 'order'
 PASSED     = 'passed'
 RESET      = 'reset'
@@ -71,9 +73,16 @@ def field_validation_result(data_id:str, passed:bool, results:List):
         RESULTS: results,
     }
 
-def create_workflow_instance_input(iid: str, graphql_uri: str):
+def meta_data(key:str, val:str):
+    return {
+        KEY: key,
+        VALUE: val,
+    }
+
+def create_workflow_instance_input(iid: str, graphql_uri: str, meta:list):
     return {
         GRAPHQL_URI: graphql_uri,
+        META_DATA: meta,
     }
 
 def cancel_workflow_instance_input(iid:str):
@@ -129,10 +138,11 @@ def cancel_instance_payload(did:str, iid:str, state:str, status:str):
         STATUS: status,
     }
 
-def workflow_instance_info(iid:str, iid_status:str, graphql_uri:str):
+def workflow_instance_info(iid:str, iid_status:str, meta:list, graphql_uri:str):
     return {
         IID: iid,
         IID_STATUS: iid_status,
+        META_DATA: meta,
         GRAPHQL_URI: graphql_uri,
     }
 
