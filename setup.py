@@ -19,6 +19,7 @@ setuptools.setup(**rex_setup_args(
         'pyyaml',
         'quart',
         'requests',
+        'retry',
         'xmltodict',
     ],
     long_description_content_type='text/markdown',
