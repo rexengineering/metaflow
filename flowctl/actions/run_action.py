@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 
 from flowlib import flow_pb2
@@ -36,15 +37,29 @@ def __refine_args__(parser: argparse.ArgumentParser):
         type=str,
         help='optional arguments to send to the workflow deployment',
     )
+    parser.add_argument(
+        '--meta',
+        '-m',
+        type=str,
+        help='instance-specific metadata as {key:value[,key:value ...]}'
+    )
     return parser
 
-
 def run_action(namespace: argparse.Namespace, *args, **kws):
+    metadata = None
+    if namespace.meta is not None:
+        m = json.loads(namespace.meta)
+        metadata = [
+            flow_pb2.StringPair(key=the_key, value=the_value)
+            for the_key, the_value in m.items()
+        ]
+
     response = None
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         response = flowd.RunWorkflow(flow_pb2.RunRequest(
             workflow_id=namespace.workflow_id, args=namespace.args,
-            stopped=namespace.stopped, start_event_id=namespace.start_event_id
+            stopped=namespace.stopped, start_event_id=namespace.start_event_id,
+            metadata=metadata
         ))
     status = response.status
     if status < 0:

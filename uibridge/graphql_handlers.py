@@ -48,24 +48,21 @@ def mutation_get_instance(_,info, input=None):
             in_meta = {d[KEY]:d[VALUE] for d in in_meta}
         if IID in input:
             iid_list = [input[IID]]
+
     if iid_list is None:
-        iid_list = workflow.get_instances()
+        iid_list = workflow.get_instances(in_meta)
 
     iid_info = []
     for iid in iid_list:
+        uri = workflow.get_instance_graphql_uri(iid)
         meta = workflow.get_instance_meta_data(iid)
-        keep = True
-        if in_meta is not None:
-            # perform meta compare. Only keep matches
-            keep = meta is not None and workflow.compare_meta_data(in_meta, meta)
-        if keep:
-            uri = workflow.get_instance_graphql_uri(iid)
-            md = [
+        if meta is not None:
+            meta = [
                 gql.meta_data(k, v)
                 for k,v in meta.items()
             ]
-            iid_status = workflow.get_instance_status(iid)
-            iid_info.append(gql.workflow_instance_info(iid, iid_status, md, uri))
+        iid_status = workflow.get_instance_status(iid)
+        iid_info.append(gql.workflow_instance_info(iid, iid_status, meta, uri))
     return gql.get_instances_payload(workflow.did, status, iid_info, workflow.get_task_ids())
 
 # Workflow Mutations
