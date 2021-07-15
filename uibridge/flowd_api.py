@@ -140,9 +140,15 @@ class Workflow:
         raise ValueError(f'{iid} is not a known instance')
 
     def get_instances(self, meta:dict = None) -> list:
+        metadata = None
+        if meta is not None:
+            metadata = [
+                flow_pb2.StringPair(key=k, value=v)
+                for k,v in meta.items()
+            ]
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
             request = flow_pb2.PSRequest(
-                kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False,
+                kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False, metadata=metadata
             )
             response = flowd.PSQuery(request)
             logging.info(f'get_instances req:{request} res:{response}')
@@ -158,15 +164,9 @@ class Workflow:
 
     def get_instance_meta_data(self, iid:str) -> list:
         meta = self._get_etcd_value(WorkflowInstanceKeys.metadata_key(iid))
-        return json.loads(meta)
-
-    def compare_meta_data(self, lhs:dict, rhs:dict) -> bool:
-        """
-        Return True iff all keys in lhs are in rhs, and values match for those keys.
-        """
-        logging.info(f'Comparing {lhs} and {rhs}')
-        shared = {k:lhs[k] for k in lhs if k in rhs and lhs[k].lower() == rhs[k].lower()}
-        return len(shared) == len(lhs)
+        if meta is not None:
+            return json.loads(meta)
+        return None
 
     def _get_etcd_value(self, key:str):
         def __logic(etcd):
