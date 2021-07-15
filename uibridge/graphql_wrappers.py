@@ -1,9 +1,20 @@
-'''
-Concenience methods to create objects received from and sent to graphql queries and mutations
-'''
+"""
+Convenience methods to create objects received from and sent to graphql 
+queries and mutations
+"""
 import typing
-from typing import Dict, List
+from typing import Any, Dict, List
 
+# validator types
+BOOLEAN = 'BOOLEAN'
+INTERVAL = 'INTERVAL'
+PERCENTAGE = 'PERCENTAGE'
+POSITIVE = 'POSITIVE'
+REGEX = 'REGEX'
+REQUIRED = 'REQUIRED'
+
+# graphql field names
+BODY1      = 'BODY1'
 CONSTRAINT = 'constraint'
 DATA       = 'data'
 DATA_ID    = 'dataId'
@@ -18,8 +29,10 @@ GRAPHQL_URI= 'graphqlUri'
 IID        = 'iid'
 IID_LIST   = 'iid_list'
 IID_STATUS = 'iid_status'
+KEY        = 'key'
 LABEL      = 'label'
 MESSAGE    = 'message'
+META_DATA  = 'meta_data'
 ORDER      = 'order'
 PASSED     = 'passed'
 RESET      = 'reset'
@@ -33,19 +46,20 @@ TYPE       = 'type'
 VALIDATOR  = 'validator'
 VALIDATORS = 'validators'
 VALUE      = 'value'
+VARIANT    = 'variant'
 WORKFLOW   = 'workflow'
 UNKNOWN    = 'UNKNOWN'
 
 SUCCESS = 'SUCCESS'
 FAILURE = 'FAILURE'
 
-def validator(type:str, constraint:str) -> Dict[str,any]:
+def validator(type:str, constraint:str) -> Dict[str,Any]:
     return {
         TYPE:type,
         CONSTRAINT:constraint,
     }
 
-def validator_result(validator:Dict[str,any], passed:bool, message:str):
+def validator_result(validator:Dict[str,Any], passed:bool, message:str):
     return {
         VALIDATOR: validator,
         PASSED: passed,
@@ -59,9 +73,21 @@ def field_validation_result(data_id:str, passed:bool, results:List):
         RESULTS: results,
     }
 
-def create_workflow_instance_input(iid: str, graphql_uri: str):
+def meta_data(key:str, val:str):
+    return {
+        KEY: key,
+        VALUE: val,
+    }
+
+def create_workflow_instance_input(iid: str, graphql_uri: str, meta:list):
     return {
         GRAPHQL_URI: graphql_uri,
+        META_DATA: meta,
+    }
+
+def cancel_workflow_instance_input(iid:str):
+    return {
+        IID: iid,
     }
 
 def task_mutations_form_input(iid:str, tid:str):
@@ -104,10 +130,19 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         TASKS: tasks,
     }
 
-def workflow_instance_info(iid:str, iid_status:str, graphql_uri:str):
+def cancel_instance_payload(did:str, iid:str, state:str, status:str):
+    return {
+        DID: did,
+        IID: iid,
+        IID_STATUS: state,
+        STATUS: status,
+    }
+
+def workflow_instance_info(iid:str, iid_status:str, meta:list, graphql_uri:str):
     return {
         IID: iid,
         IID_STATUS: iid_status,
+        META_DATA: meta,
         GRAPHQL_URI: graphql_uri,
     }
 
@@ -131,14 +166,17 @@ def field_validator(type:str, constraint:str):
         CONSTRAINT: constraint,
     }
 
-def task_field_data(data_id:str, type:str, order:int, label:str, data:str, deefault:dict, encrypted:bool, validators:List):
+def task_field_data(data_id:str, type:str, order:int, label:str, data:str, defval:dict, encrypted:bool, validators:List, variant:str = None):
+    if type == TEXT and variant is None:
+        variant = BODY1
     return {
         DATA_ID: data_id,
         TYPE: type,
         ORDER: order,
         LABEL: label,
         DATA: data,
-        DEFAULT: deefault,
+        DEFAULT: defval,
+        VARIANT: variant,
         ENCRYPTED: encrypted,
         VALIDATORS: validators,
     }

@@ -10,10 +10,12 @@ kubernetes
 docker
 quart
 httpx==0.17.*
+retry
 ariadne
 gql[aiohttp]==3.0.0a5
 pydantic==1.8.*
 isodate
+requests
 # Optional development dependency
 grpcio-tools
 pudb

@@ -1,6 +1,6 @@
-'''
+"""
 Implements BPMNStartEvent object, which for now is just a pass-through to Flowd.
-'''
+"""
 
 from collections import OrderedDict
 from typing import Mapping
@@ -30,8 +30,8 @@ ATTEMPTS = 2
 
 
 class BPMNStartEvent(BPMNComponent):
-    '''Wrapper for BPMN service task metadata.
-    '''
+    """Wrapper for BPMN service task metadata.
+    """
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
@@ -58,7 +58,7 @@ class BPMNStartEvent(BPMNComponent):
 
         # if this is a timed start event, verify that the timer aspects are valid
         if self._timer_aspects:
-            assert self._timer_aspects.recurrance >=0, f'Invalid recurrance for start event \'{self._timer_aspects.recurrance}\''
+            assert self._timer_aspects.recurrence >=0, f'Invalid recurrence for start event \'{self._timer_aspects.recurrence}\''
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict, edge_map: OrderedDict) -> list:
@@ -120,6 +120,10 @@ class BPMNStartEvent(BPMNComponent):
                 "name": "API_WRAPPER_TIMEOUT",
                 "value": str(self._global_props.synchronous_wrapper_timeout),
             },
+            {
+                "name": "TID",
+                "value": self.id,
+            }
         ]
         if self._global_props.traffic_shadow_url:
             deployment_env_config.append({

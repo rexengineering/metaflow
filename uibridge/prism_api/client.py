@@ -22,7 +22,7 @@ basepath = path.dirname(__file__)
 
 schemas = []
 for schema in schema_files:
-    filepath = path.abspath(path.join(basepath, 'schema', schema))
+    filepath = path.abspath(path.join(basepath, 'callback/schema', schema))
     with open(filepath) as f:
         schemas.append(f.read())
 
@@ -37,12 +37,15 @@ class PrismApiClient:
         return transport
     
     @classmethod
-    async def start_task(cls, url:str, iid:str, tid:str):
+    async def notify_task_started(cls, url:str, iid:str, tid:str):
+        """
+        notify PRISM that the given task has started
+        """
         async with Client(
             transport=cls.get_transport(url),
             schema=schema,
         ) as session:
-            query = gql(queries.START_TASK_MUTATION)
+            query = gql(queries.TASK_START_MUTATION)
             params = {
                 'startTaskInput' : entities.StartTaskInput(
                     iid=iid,
@@ -65,7 +68,7 @@ class PrismApiClient:
             transport=cls.get_transport(url),
             schema=schema,
         ) as session:
-            query = gql(queries.COMPLETE_WORKFLOW_MUTATION)
+            query = gql(queries.WORKFLOW_COMPLETE_MUTATION)
             params = {
                 'completeWorkflowInput' : entities.CompleteWorkflowInput(
                     iid=iid,

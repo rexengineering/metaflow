@@ -67,8 +67,8 @@ enum OperationStatus {
 """Client side constraints for user input"""
 enum ValidationType {
     BOOLEAN
+    INTERVAL
     REQUIRED
-    REQUIRED_IF
     PERCENTAGE
     POSITIVE
     REGEX
@@ -76,12 +76,28 @@ enum ValidationType {
 
 """Data request types that will be mapped to UI components"""
 enum DataType {
+    COPY
     TEXT
     CURRENCY
     INTEGER
     FLOAT
     BOOLEAN
     PERCENTAGE
+    TABLE
+}
+
+"""Values for field.variant"""
+enum TextVariant {
+    BODY1
+    BODY2
+    H1
+    H2
+    H3
+    H4
+    H5
+    H6
+    SUBTITLE1
+    SUBTITLE2
 }
 
 """Types of methods to initialize a field's default"""
@@ -105,6 +121,7 @@ type TaskFieldData {
     order: Int!
     label: String
     data: String
+    variant: TextVariant
     default: FieldInitializer
     encrypted: Boolean!
     validators: [Validator!]!
@@ -120,6 +137,7 @@ type FieldInitializer {
     value: String!
 }
 
+
 """Used to communicate specific validator results"""
 type ValidatorResult {
     validator: Validator!
@@ -134,12 +152,23 @@ type FieldValidationResult {
 }
 
 # Inputs
+input MetaDataInput {
+    key: String!
+    value: String!
+}
+
 input GetInstanceInput {
-    iid: WorkflowInstanceId!
+    iid: WorkflowInstanceId
+    meta_data: [MetaDataInput]
 }
 
 input CreateWorkflowInstanceInput {
     graphqlUri: String!
+    meta_data: [MetaDataInput]
+}
+
+input CancelWorkflowInstanceInput {
+    iid: WorkflowInstanceId!
 }
 
 input TaskMutationFormInput {
@@ -172,6 +201,10 @@ input TaskMutationCompleteInput {
 }
 
 # Payloads
+type MetaData {
+    key: String!
+    value: String!
+}
 
 type CreateInstancePayload {
     did: WorkflowDeployemntId!
@@ -180,9 +213,17 @@ type CreateInstancePayload {
     tasks: [TaskId!]!
 }
 
+type CancelInstancePayload {
+    did: WorkflowDeployemntId!
+    iid: WorkflowInstanceId!
+    iid_status: WorkflowStatus!
+    status: OperationStatus!
+}
+
 type WorkflowInstanceInfo {
     iid: WorkflowInstanceId!
     iid_status: WorkflowStatus!
+    meta_data: [MetaData]
     graphqlUri: String
 }
 
@@ -231,6 +272,7 @@ type Query {
 
 type Mutation {
     createInstance(input: CreateWorkflowInstanceInput!) : CreateInstancePayload
+    cancelInstance(input: CancelWorkflowInstanceInput!) : CancelInstancePayload
     tasks: TaskMutation
 }
 

@@ -2,40 +2,40 @@ import base64
 import json
 import logging
 import os
-import requests
-import typing
 
 from confluent_kafka import Producer
 from quart import request, make_response, jsonify
 from urllib.parse import urlparse
 
-from flowlib.workflow import Workflow
-from flowlib.quart_app import QuartApp
-from flowlib.etcd_utils import (
-    get_etcd,
-    transition_state,
-)
+from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT
 from flowlib.constants import (
     WorkflowInstanceKeys,
     BStates,
     Headers,
     flow_result,
 )
-from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT
-from flowlib import token_api
+from flowlib.etcd_utils import (
+    get_etcd,
+    transition_state,
+    locked_call,
+)
+from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
+from flowlib.token_api import TokenPool
+from flowlib.quart_app import QuartApp
+from flowlib.workflow import Workflow
 
 
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', None)
-FORWARD_URL = os.getenv('FORWARD_URL', '')
-FORWARD_TASK_ID = os.getenv('FORWARD_TASK_ID', '')
-
-TOTAL_ATTEMPTS_STR = os.getenv('TOTAL_ATTEMPTS', '')
-TOTAL_ATTEMPTS = int(TOTAL_ATTEMPTS_STR) if TOTAL_ATTEMPTS_STR else 2
 FUNCTION = os.getenv('REXFLOW_THROW_END_FUNCTION', 'THROW')
 WF_ID = os.getenv('WF_ID', None)
 END_EVENT_NAME = os.getenv('END_EVENT_NAME', None)
 
-KAFKA_SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", None)
+SHADOW_URL = os.getenv("REXFLOW_KAFKA_SHADOW_URL", '')
+
+
+FORWARD_TARGETS = []
+if FUNCTION == 'THROW':
+    FORWARD_TARGETS = json.loads(os.environ['FORWARD_TARGETS'])
 
 
 kafka = None
@@ -58,56 +58,6 @@ def send_to_stream(data, flow_id, wf_id, content_type):
     kafka.poll(0)  # good practice: flush the toilet
 
 
-def _shadow_to_kafka(data, headers):
-    # TODO: REXFLOW-188
-    if not KAFKA_SHADOW_URL:
-        return
-    o = urlparse(FORWARD_URL)
-    headers['x-rexflow-original-host'] = o.netloc
-    headers['x-rexflow-original-path'] = o.path
-    try:
-        requests.post(KAFKA_SHADOW_URL, headers=headers, data=data).raise_for_status()
-    except Exception:
-        logging.warning("Failed shadowing traffic to Kafka")
-
-
-def make_call_(data):
-    headers = {
-        Headers.FLOWID_HEADER: request.headers[Headers.FLOWID_HEADER],
-        Headers.X_HEADER_WORKFLOW_ID: request.headers[Headers.X_HEADER_WORKFLOW_ID],
-        Headers.CONTENT_TYPE: request.headers['content-type'],
-        Headers.X_HEADER_TASK_ID: FORWARD_TASK_ID,
-    }
-    if Headers.TRACEID_HEADER in request.headers:
-        headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
-    elif Headers.TRACEID_HEADER.lower in request.headers:
-        headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
-
-    # TODO: REXFLOW-188
-    success = False
-    for _ in range(TOTAL_ATTEMPTS):
-        try:
-            next_response = requests.post(FORWARD_URL, headers=headers, data=data)
-            next_response.raise_for_status()
-            success = True
-            _shadow_to_kafka(data, headers)
-            break
-        except Exception:
-            logging.error(
-                f"failed making a call to {FORWARD_URL} on wf {request.headers[Headers.FLOWID_HEADER]}"
-            )
-
-    # TODO: REXFLOW-188
-    if not success:
-        # Notify Flowd that we failed.
-        o = urlparse(FORWARD_URL)
-        headers['x-rexflow-original-host'] = o.netloc
-        headers['x-rexflow-original-path'] = o.path
-        requests.post(INSTANCE_FAIL_ENDPOINT, data=data, headers=headers)
-        headers['x-rexflow-failure'] = True
-        _shadow_to_kafka(data, headers)
-
-
 def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
     etcd = get_etcd()
     keys = WorkflowInstanceKeys(instance_id)
@@ -122,10 +72,15 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
         alldone = True
         toks = timer_header.split(',')[::-1]  # sort in reverse order so newest first
         for token in toks:
-            if not token_api.token_release(token):
+            logging.info(f'Releasing token for pool {token}')
+            pool = TokenPool.from_pool_name(token)
+            if not pool.release_as_complete():
                 alldone = False
+                logging.info(str(pool))
                 break
-        with etcd.lock(keys.timed_results):
+            logging.info(str(pool))
+
+        def __logic(etcd, payload):
             results = etcd.get(keys.timed_results)[0]
             if results:
                 results = json.loads(results)
@@ -138,13 +93,35 @@ def complete_instance(instance_id, wf_id, payload, content_type, timer_header):
                 'payload': base64.b64encode(payload) if content_type != 'application/json' else payload.decode()
             })
             payload = json.dumps(results)
-            content_type = 'application/json'
-            if not alldone:
-                etcd.put(keys.timed_results, payload)
-                return
-            # else fall through and complete the workflow instance
+            etcd.put(keys.timed_results, payload)
+
+        locked_call(keys.timed_results, __logic, [payload])
+
+        if not alldone:
+            return
+        logging.info('All tokens accounted for')
+        # else fall through and complete the workflow instance
+
+        # with etcd.lock(keys.timed_results):
+        #     results = etcd.get(keys.timed_results)[0]
+        #     if results:
+        #         results = json.loads(results)
+        #     else:
+        #         results = []
+        #     results.append({
+        #         'token-pool-id': toks,
+        #         'content-type': content_type,
+        #         'end-event-name': END_EVENT_NAME,
+        #         'payload': base64.b64encode(payload) if content_type != 'application/json' else payload.decode()
+        #     })
+        #     payload = json.dumps(results)
+        #     content_type = 'application/json'
+        #     if not alldone:
+        #         etcd.put(keys.timed_results, payload)
+        #         return
+        #     logging.info('All tokens accounted for')
+        #     # else fall through and complete the workflow instance
     assert wf_id == WF_ID, "Did we call the wrong End Event???"
-    logging.info("Either no timers or all timers are done - COMPLETING")
     if etcd.put_if_not_exists(keys.result, payload):
 
         if not etcd.put_if_not_exists(keys.content_type, content_type):
@@ -183,32 +160,53 @@ class EventThrowApp(QuartApp):
         return jsonify(flow_result(0, ""))
 
     async def throw_event(self):
-        data = await request.data
-        if kafka is not None:
-            send_to_stream(
-                data,
-                request.headers[Headers.FLOWID_HEADER],
-                request.headers[Headers.X_HEADER_WORKFLOW_ID],
-                request.headers['content-type'],
-            )
-        if FUNCTION == 'END':
-            complete_instance(
-                request.headers[Headers.FLOWID_HEADER],
-                request.headers[Headers.X_HEADER_WORKFLOW_ID],
-                data,
-                request.headers['content-type'],
-                request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID),
-            )
-        if FORWARD_URL:
-            make_call_(data)
-        resp = await make_response(flow_result(0, ""))
+        headers = dict(request.headers)
+        logging.info(headers)
+        try:
+            data = await request.data
+            if kafka is not None:
+                send_to_stream(
+                    data,
+                    request.headers[Headers.FLOWID_HEADER],
+                    request.headers[Headers.X_HEADER_WORKFLOW_ID],
+                    request.headers.get(Headers.CONTENT_TYPE, 'application/json'),
+                )
+            print('got here', flush=True)
+            if FUNCTION == 'END':
+                complete_instance(
+                    request.headers[Headers.FLOWID_HEADER],
+                    request.headers[Headers.X_HEADER_WORKFLOW_ID],
+                    data,
+                    request.headers.get(Headers.CONTENT_TYPE, 'application/json'),
+                    request.headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower()),
+                )
+            for target in FORWARD_TARGETS:
+                method = target['method']
+                target_url = target['target_url']
+                task_id = target['task_id']
+                total_attempts = int(target['total_attempts'])
+                poster = FlowPost(
+                    headers[Headers.X_HEADER_FLOW_ID],
+                    task_id,
+                    data,
+                    url=target_url,
+                    method=method,
+                    retries=total_attempts-1,
+                    shadow_url=SHADOW_URL,
+                    headers=headers,
+                )
+                poster.send()
 
-        if Headers.TRACEID_HEADER in request.headers:
-            resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
-        elif Headers.TRACEID_HEADER.lower in request.headers:
-            resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
+            resp = await make_response(flow_result(0, ""))
 
-        return resp
+            if Headers.TRACEID_HEADER in request.headers:
+                resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
+            elif Headers.TRACEID_HEADER.lower in request.headers:
+                resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER.lower()]
+
+            return resp
+        except Exception as exn:
+            logging.exception("ooph", exc_info=exn)
 
     def run(self):
         super().run()

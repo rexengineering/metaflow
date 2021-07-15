@@ -91,7 +91,7 @@ class REXFlowUIBridge(AsyncService):
         # specific interaction
         #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
         if ui_srv_url and ui_srv_url != TEST_MODE_URI:
-            response = await PrismApiClient.start_task(ui_srv_url, iid, tid)
+            response = await PrismApiClient.notify_task_started(ui_srv_url, iid, tid)
             logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
 
         return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}

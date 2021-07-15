@@ -117,7 +117,7 @@ class ExclusiveGatewayApp(QuartApp):
             except Exception:
                 logging.warning("Failed shadowing traffic to Kafka")
 
-        resp = flow_result(0, "Ok.")
+        resp = jsonify(flow_result(0, "Ok."))
         if Headers.TRACEID_HEADER.lower() in request.headers:
             resp.headers[Headers.TRACEID_HEADER] = request.headers[Headers.TRACEID_HEADER]
         return resp

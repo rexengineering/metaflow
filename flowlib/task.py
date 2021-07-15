@@ -24,6 +24,7 @@ from .k8s_utils import (
 )
 from .config import (
     CREATE_DEV_INGRESS,
+    DEFAULT_USE_PREEXISTING_SERVICES,
     FLOWD_HOST,
     FLOWD_PORT,
     INSTANCE_FAIL_ENDPOINT_PATH,
@@ -32,7 +33,7 @@ from .config import (
 
 )
 from .reliable_wf_utils import create_kafka_transport
-from .constants import Headers
+from .constants import Headers, to_valid_k8s_name
 
 Upstream = namedtuple(
     'Upstream',
@@ -89,8 +90,13 @@ def form_param_config(param):
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
-        super().__init__(task, process, global_props)
+    def __init__(self,
+        task: OrderedDict,
+        process: OrderedDict,
+        global_props: WorkflowProperties,
+        default_is_preexisting: bool = DEFAULT_USE_PREEXISTING_SERVICES,
+    ):
+        super().__init__(task, process, global_props, default_is_preexisting=default_is_preexisting)
         self._task = task
 
         self._target_port = self.service_properties.port
@@ -133,7 +139,9 @@ class BPMNTask(BPMNComponent):
                 'namespace': self.namespace,
                 'port': ASYNC_BRIDGE_LISTEN_PORT,
                 'container': self._service_properties.container,
-                'host': f'bridge-{self._worker_service_name}'
+                'host': to_valid_k8s_name(f'bridge-{self._worker_service_name}-{self.id}'),
+                'hash_used': self.workflow_properties.namespace_shared,
+                'id_hash': self.workflow_properties.id_hash,
             })
             self._call_properties = CallProperties()
             self._call_properties.update({
@@ -142,9 +150,7 @@ class BPMNTask(BPMNComponent):
             })
 
         if self._is_preexisting and self._annotation is not None:
-            assert 'namespace' in self._annotation['service'], \
-                "Must provide namespace of preexisting service."
-            self._namespace = self._annotation['service']['namespace']
+            self._namespace = self._annotation['service'].get('namespace', global_props.namespace)
             if 'health' not in self._annotation:
                 # Can't make guarantee about where the service implementor put
                 # their health endpoint, so (for now) require it to be specified.

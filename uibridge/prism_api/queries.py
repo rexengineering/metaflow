@@ -1,6 +1,6 @@
-'''Query/Mutation definitions for GraphQL'''
+"""Query/Mutation definitions for GraphQL"""
 
-START_TASK_MUTATION = '''
+TASK_START_MUTATION = '''
 mutation StartTask($startTaskInput: StartTaskInput!) {
   task {
     start(input: $startTaskInput) {
@@ -13,7 +13,7 @@ mutation StartTask($startTaskInput: StartTaskInput!) {
 }
 '''
 
-COMPLETE_WORKFLOW_MUTATION = '''
+WORKFLOW_COMPLETE_MUTATION = '''
 mutation CompleteWorkflow($completeWorkflowInput: CompleteWorkflowInput!) {
   workflow {
     complete(input: $completeWorkflowInput) {
