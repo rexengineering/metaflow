@@ -84,6 +84,7 @@ enum DataType {
     BOOLEAN
     PERCENTAGE
     TABLE
+    WORKFLOW
 }
 
 """Values for field.variant"""
@@ -124,7 +125,7 @@ type TaskFieldData {
     variant: TextVariant
     default: FieldInitializer
     encrypted: Boolean!
-    validators: [Validator!]!
+    validators: [Validator]
 }
 
 type Validator {
@@ -163,6 +164,7 @@ input GetInstanceInput {
 }
 
 input CreateWorkflowInstanceInput {
+    did: String
     graphqlUri: String!
     meta_data: [MetaDataInput]
 }

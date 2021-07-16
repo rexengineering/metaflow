@@ -7,12 +7,12 @@ from typing import Any, Dict
 from . import graphql_wrappers as gql
 
 class ValidatorType(Enum):
-    BOOLEAN    = gql.BOOLEAN
-    INTERVAL   = gql.INTERVAL
-    PERCENTAGE = gql.PERCENTAGE
-    POSITIVE   = gql.POSITIVE
-    REGEX      = gql.REGEX
-    REQUIRED   = gql.REQUIRED
+    BOOLEAN    = gql.Validator.BOOLEAN
+    INTERVAL   = gql.Validator.INTERVAL
+    PERCENTAGE = gql.Validator.PERCENTAGE
+    POSITIVE   = gql.Validator.POSITIVE
+    REGEX      = gql.Validator.REGEX
+    REQUIRED   = gql.Validator.REQUIRED
 
 """
 The base class for all validators. Classes derived from BaseValidator

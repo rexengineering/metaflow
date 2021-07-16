@@ -5,13 +5,25 @@ queries and mutations
 import typing
 from typing import Any, Dict, List
 
+class DataType:
+    COPY = 'COPY'
+    TEXT = 'TEXT'
+    CURRENCY = 'CURRENCY'
+    INTEGER = 'INTEGER'
+    FLOAT = 'FLOAT'
+    BOOLEAN = 'BOOLEAN'
+    PERCENTAGE = 'PERCENTAGE'
+    TABLE = 'TABLE'
+    WORKFLOW = 'WORKFLOW'
+
 # validator types
-BOOLEAN = 'BOOLEAN'
-INTERVAL = 'INTERVAL'
-PERCENTAGE = 'PERCENTAGE'
-POSITIVE = 'POSITIVE'
-REGEX = 'REGEX'
-REQUIRED = 'REQUIRED'
+class Validator:
+    BOOLEAN = 'BOOLEAN'
+    INTERVAL = 'INTERVAL'
+    PERCENTAGE = 'PERCENTAGE'
+    POSITIVE = 'POSITIVE'
+    REGEX = 'REGEX'
+    REQUIRED = 'REQUIRED'
 
 # graphql field names
 BODY1      = 'BODY1'
@@ -26,6 +38,7 @@ EVAL       = 'EVAL'
 FIELD      = 'field'
 FIELDS     = 'fields'
 GRAPHQL_URI= 'graphqlUri'
+ID         = 'id'
 IID        = 'iid'
 IID_LIST   = 'iid_list'
 IID_STATUS = 'iid_status'
@@ -79,8 +92,9 @@ def meta_data(key:str, val:str):
         VALUE: val,
     }
 
-def create_workflow_instance_input(iid: str, graphql_uri: str, meta:list):
+def create_workflow_instance_input(iid: str, did:str, graphql_uri: str, meta:list):
     return {
+        DID: did,
         GRAPHQL_URI: graphql_uri,
         META_DATA: meta,
     }

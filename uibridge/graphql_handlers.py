@@ -73,7 +73,8 @@ def mutation_create_instance(_,info,input):
     #data: {"id": "process-0p1yoqw-aa16211c-9f5251689f1811eba4489a05f2a68bd3", "message": "Ok", "status": 0}
     meta = input.get(META_DATA, [])
     uri  = input[GRAPHQL_URI]
-    data = workflow.create_instance(uri, meta)
+    did  = input.get(DID, None)
+    data = workflow.create_instance(did, uri, meta)
     return gql.create_instance_payload(workflow.did, data['id'], SUCCESS, workflow.get_task_ids())
 
 @mutation.field('cancelInstance')
@@ -97,7 +98,7 @@ def mutation_tasks(_,info):
 @task_mutation.field('form')
 def task_mutation_form(_, info, input):
     '''
-    Return the list of fields for the given tid. There are two copies of the 
+    Return the list of fields for the given tid. There are two copies of the
     form - the immutable copy in the did, and the instance copy in the iid.
 
     Which one the caller receives depends on a few things:
@@ -145,6 +146,13 @@ def task_mutation_complete(_,info,input):
     return gql.task_complete_payload(input[IID], input[TID], SUCCESS)
 
 def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, List]:
+    """
+    Validate the fields vs its validators (if any.) The fields passed in may be
+    a subset of all fields in the form for the task, and in this case fill in the
+    blanks values from any stored form.
+
+    Certain fields - such as WORKFLOW - are skipped.
+    """
     # pull the current values for all fields from the backstore
     logging.info(f'_validate_fields {iid} {fields}')
     eval_locals = task.field_vals(iid)
@@ -152,6 +160,9 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
     # overlay the values from the validator input over the persisted values
     # to give a currently 'proposed' form value set
     for in_field in fields:
+        task_field = task.field(in_field[DATA_ID])
+        if task_field[TYPE] in [gql.DataType.WORKFLOW]:
+            continue
         logging.info(f'updating {in_field[DATA_ID]} {eval_locals[in_field[DATA_ID]]} with {in_field[DATA]}')
         eval_locals[in_field[DATA_ID]] = in_field[DATA]
     logging.info(eval_locals)
@@ -159,10 +170,13 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
     field_results = []
     all_passed = True # assume all validators for all fields pass
     for in_field in fields:
+        field_id   = in_field[DATA_ID]
+        task_field = task.field(field_id)
+        # do not validate static fields
+        if task_field[TYPE] in [gql.DataType.WORKFLOW]:
+            continue
         # TODO: handle decryption here if in_field is marked encrypted
-        field_id = in_field[DATA_ID]
         try:
-            task_field = task.field(field_id)
             results = []
             field_passed = True # assume all validators on this field pass
             logging.info(f'validating field {in_field} {task_field[VALIDATORS]}')
