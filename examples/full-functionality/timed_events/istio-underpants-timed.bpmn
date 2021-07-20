@@ -63,11 +63,15 @@
     <bpmn:association id="Association_1yz0l60" sourceRef="Task_1mrtiy4" targetRef="TextAnnotation_18mql5m" />
     <bpmn:textAnnotation id="TextAnnotation_1v6ziq7">
       <bpmn:text>rexflow_global_properties:
-    timer_recovery_policy: fire</bpmn:text>
+    timer_recovery_policy: fire
+    user_metadata:
+      key0: value0
+      key1: value1</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:textAnnotation id="TextAnnotation_12caj0p">
       <bpmn:text>rexflow:
-    timer_recovery_policy: fail</bpmn:text>
+    timer_recovery_policy: fail
+    </bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_1qgli2q" sourceRef="timer_one" targetRef="TextAnnotation_12caj0p" />
   </bpmn:process>
@@ -127,10 +131,10 @@
         <dc:Bounds x="640" y="87" width="128" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1v6ziq7_di" bpmnElement="TextAnnotation_1v6ziq7">
-        <dc:Bounds x="170" y="360" width="290" height="40" />
+        <dc:Bounds x="170" y="360" width="290" height="82" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_12caj0p_di" bpmnElement="TextAnnotation_12caj0p">
-        <dc:Bounds x="610" y="380" width="220" height="40" />
+        <dc:Bounds x="610" y="380" width="250" height="53" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_1uohovd_di" bpmnElement="Association_1uohovd">
         <di:waypoint x="348" y="197" />

@@ -175,7 +175,7 @@ class Workflow:
 
 
 class WorkflowInstance:
-    '''NOTE as of this commit:
+    """NOTE as of this commit:
 
     This class does NOT get instantiated by the Start Event, because it requires the
     creation of a Workflow Object. Doing this requires significant computation over the
@@ -185,7 +185,7 @@ class WorkflowInstance:
     This class is instantiated by Flowd and used for:
     1. Running a WF instance via `flowctl run` as opposed to an http call to Start Event.
     2. Potentially other dashboarding uses in the future (not yet implemented).
-    '''
+    """
     def __init__(self, parent: Union[str, Workflow], id: str = None):
         if isinstance(parent, str):
             self.parent = Workflow.from_id(parent)
@@ -196,28 +196,28 @@ class WorkflowInstance:
 
     @staticmethod
     def new_instance_id(parent_id: str):
-        '''
+        """
         Constructs a new WF Instance Id given a parent WF id. Should ONLY be
         called by the Start Service.
-        '''
+        """
         uid = uuid.uuid1().hex
         return f'{parent_id}-{uid}'
 
     def start(self, start_event_id=None, *args):
-        '''Starts the WF and returns the resulting ID. NOTE: Now, WF Id's are
+        """Starts the WF and returns the resulting ID. NOTE: Now, WF Id's are
         created by the Start Event, so this method simply makes an HTTP rpc call
         to the appropriate start event of the appropriate WF Deployment.
-        '''
+        """
         process = self.parent.process
         executor_obj = get_executor()
 
         def start_wf(task_id: str):
-            '''
+            """
             Arguments:
                 task_id - Task ID in the BPMN spec.
             Returns:
                 A boolean value indicating an OK response.
-            '''
+            """
             task = process.component_map[task_id]
             call_props = task.call_properties
             serialization = call_props.serialization.lower()

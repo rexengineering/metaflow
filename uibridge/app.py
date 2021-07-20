@@ -90,7 +90,7 @@ class REXFlowUIBridge(AsyncService):
         # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
         # specific interaction
         #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
-        if ui_srv_url and ui_srv_url != TEST_MODE_URI:
+        if ui_srv_url and not ui_srv_url.startswith(TEST_MODE_URI):
             response = await PrismApiClient.notify_task_started(ui_srv_url, iid, tid)
             logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
 

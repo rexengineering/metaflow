@@ -1,5 +1,5 @@
-'''Utilities used in bpmn.py.
-'''
+"""Utilities used in bpmn.py.
+"""
 from collections import OrderedDict
 from typing import Any, Generator, Mapping, List, Set, Union, Optional
 import yaml
@@ -37,8 +37,8 @@ def calculate_id_hash(wf_id: str) -> str:
 
 
 def iter_xmldict_for_key(odict: OrderedDict, key: str) -> Generator[OrderedDict, None, None]:
-    '''Generator for iterating through an OrderedDict returned from xmltodict for a given key.
-    '''
+    """Generator for iterating through an OrderedDict returned from xmltodict for a given key.
+    """
     value = odict.get(key)
     if value:
         if isinstance(value, list):
@@ -49,10 +49,10 @@ def iter_xmldict_for_key(odict: OrderedDict, key: str) -> Generator[OrderedDict,
 
 
 def raw_proc_to_digraph(proc: OrderedDict):
-    '''Takes in an OrderedDict (just the BPMN Process).
+    """Takes in an OrderedDict (just the BPMN Process).
     Returns a directed graph, represented as a python dictionary, which shows the
     call dependencies of all of the BPMN components in the process.
-    '''
+    """
     digraph = dict()
     for sequence_flow in iter_xmldict_for_key(proc, 'bpmn:sequenceFlow'):
         source_ref = sequence_flow['@sourceRef']
@@ -64,10 +64,10 @@ def raw_proc_to_digraph(proc: OrderedDict):
 
 
 def outgoing_sequence_flow_table(proc: OrderedDict):
-    '''Takes in an OrderedDict (just the BPMN Process).
+    """Takes in an OrderedDict (just the BPMN Process).
     Returns a dict mapping from a BPMN Component ID to a List of the outward
     edge id's flowing from that component.
-    '''
+    """
     outflows = {}
     for sequence_flow in iter_xmldict_for_key(proc, 'bpmn:sequenceFlow'):
         source_id = sequence_flow['@sourceRef']
@@ -78,10 +78,10 @@ def outgoing_sequence_flow_table(proc: OrderedDict):
 
 
 def get_annotations(process: OrderedDict, source_ref=None):
-    '''Takes in a BPMN process and BPMN Component ID and returns a generator.
+    """Takes in a BPMN process and BPMN Component ID and returns a generator.
     Yields python dictionaries containing the yaml-like REXFlow annotations
     from the BPMN Documents.
-    '''
+    """
     if source_ref is not None:
         targets = set()
         for association in iter_xmldict_for_key(process, 'bpmn:association'):
@@ -116,21 +116,21 @@ class ServiceProperties:
 
     @property
     def host_without_hash(self):
-        '''Returns the hostname for this K8s Service with the trailing id hash
+        """Returns the hostname for this K8s Service with the trailing id hash
         stripped (if the id hash exists).
 
         This is the host SHORT NAME and does NOT include the namespace.
-        '''
+        """
         return self._host
 
     @property
     def host(self):
-        '''Returns the host for the K8s Service corresponding to the owning
+        """Returns the host for the K8s Service corresponding to the owning
         BPMNComponent object. Note: if the Service is in a shared namespace,
         then the host returned will include the id hash at the end.
 
         This is the host SHORT NAME and does NOT include the namespace.
-        '''
+        """
         host = self._host
         if self._is_hash_used:
             assert self._id_hash, "The ID hash of the ServiceProperties should be set by now."
@@ -139,27 +139,27 @@ class ServiceProperties:
 
     @property
     def port(self):
-        '''Returns the port upon which this service listens.
-        '''
+        """Returns the port upon which this service listens.
+        """
         return self._port if self._port is not None else 80
 
     @property
     def protocol(self):
-        '''Returns the protocol with which to communicate with this Service.
-        '''
+        """Returns the protocol with which to communicate with this Service.
+        """
         return self._protocol if self._protocol is not None else 'HTTP'
 
     @property
     def container(self):
-        '''Returns the docker image name for this k8s Service. Useful when creating
+        """Returns the docker image name for this k8s Service. Useful when creating
         Deployment objects.
-        '''
+        """
         return self._container_name
 
     @property
     def asynchronous(self):
-        '''Returns whether this is an Asynchronous Service.
-        '''
+        """Returns whether this is an Asynchronous Service.
+        """
         return self._asynchronous
 
     def update(self, annotations):
@@ -206,11 +206,11 @@ class CallProperties:
 
     @property
     def total_attempts(self) -> int:
-        '''
+        """
         Returns total number of times to attempt calling this service, including retries.
         i.e. `total_attempts == 1` implies zero retries, `total_attempts == 3` implies two
         retries.
-        '''
+        """
         return self._total_attempts if self._total_attempts else 2
 
     def update(self, annotations: Mapping[str, Any]) -> None:
@@ -306,6 +306,7 @@ class WorkflowProperties:
         self._use_closure_transport = DEFAULT_USE_CLOSURE_TRANSPORT
         self._priority_class = None
         self._user_opaque_metadata = {}
+        self._user_metadata = {}
         self._passthrough_target = None
         self._prefix_passthrough_with_namespace = False
         self._catch_event_expiration = 72
@@ -403,17 +404,23 @@ class WorkflowProperties:
 
     @property
     def user_opaque_metadata(self):
-        '''Retrieves opaque metadata set by user in this bpmn process.
-        '''
+        """Retrieves opaque metadata set by user in this bpmn process.
+        """
         return self._user_opaque_metadata
 
     @property
+    def user_metadata(self):
+        """Retrieves bpmn user_metadata
+        """
+        return self._user_metadata
+
+    @property
     def passthrough_target(self):
-        '''As a development tool, we provide a Passthrough configuration option
+        """As a development tool, we provide a Passthrough configuration option
         In this case, a user can deploy a workflow to his/her own docker-desktop
         cluster, and yet all service task calls will be "passed through" to a
         user-specified target url: `f'{host}.{passthrough_target}{passthrough_prefix}'`
-        '''
+        """
         return self._passthrough_target
 
     @property
@@ -483,6 +490,10 @@ class WorkflowProperties:
             assert type(annotations['user_opaque_metadata']) == dict
             self._user_opaque_metadata.update(annotations['user_opaque_metadata'])
 
+        if 'user_metadata' in annotations:
+            assert type(annotations['user_metadata']) == dict
+            self._user_metadata.update(annotations['user_metadata'])
+
         if 'passthrough_target' in annotations:
             self._passthrough_target = annotations['passthrough_target']
             if annotations.get('prefix_passthrough_with_namespace', False):
@@ -498,9 +509,8 @@ class WorkflowProperties:
             except ValueError:
                 pass
 
-
 class BPMNComponent:
-    '''
+    """
     This is an abstract class for any BPMN Component. A Component may be a Task, Gateway,
     Throw Event, Catch Event, or more. In REXFlow, each Component is represented as
     a microservice. In all cases except for a Task, the microservice is automatically
@@ -514,7 +524,7 @@ class BPMNComponent:
     The responsibility of the BPMNComponent object is to let the aforementioned
     BPMNTask object (it could've been a gateway, event, etc) know at which URL
     to reach the next component in the workflow.
-    '''
+    """
     def __init__(self,
                  spec: OrderedDict,
                  process: OrderedDict,
@@ -602,7 +612,6 @@ class BPMNComponent:
                 except ValueError:
                     pass
 
-
     def init_env_config(self):
         if self._timer_description:
             return [
@@ -619,7 +628,7 @@ class BPMNComponent:
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, Any],
                       digraph: Mapping[str, Set[str]], sequence_flow_table: Mapping[str, Any]) -> list:
-        '''Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
+        """Takes in a dict which maps a BPMN component id* to a BPMNComponent Object,
         and an OrderedDict which represents the whole BPMN Process as a directed graph.
         The digraph maps from {TaskId -> set(TaskId)}.
         Returns a list of kubernetes objects in python dict (i.e. json) format. Each
@@ -638,78 +647,78 @@ class BPMNComponent:
            VS rules. The use-case for a VS would be for docker-desktop dev,
            so that the developer may send traffic from his/her terminal into
            the cluster (i.e. the VS attaches to a Gateway).
-        '''
+        """
         raise NotImplementedError("Method must be overriden.")
 
     @property
     def name(self) -> str:
-        '''Returns the Name of this BPMN Object, conforming to the k8s name regex.
+        """Returns the Name of this BPMN Object, conforming to the k8s name regex.
         This can be determined through any of two ways, in order of precedence:
         1. Directly putting a name on the BPMN object. For example, in a service task,
         this would be the text in the middle of the BPMN diagram. For an edge, it would
         be the visible text displayed just next to it. May return empty string.
         2. If the above is not specified, name() returns a k8s-safe version of the
         BPMN Component ID.
-        '''
+        """
         return self._name
 
     @property
     def namespace(self) -> str:
-        '''Returns the k8s namespace in which the corresponding k8s deployment for this
+        """Returns the k8s namespace in which the corresponding k8s deployment for this
         BPMNComponent sits.
-        '''
+        """
         return self._namespace
 
     @property
     def deployment_timeout(self) -> int:
-        '''Returns time that healthd should wait when starting/stopping the deployment
-        '''
+        """Returns time that healthd should wait when starting/stopping the deployment
+        """
         return self.workflow_properties._deployment_timeout
 
     @property
     def is_in_shared_ns(self) -> bool:
-        '''Returns True if the k8s object corresponding to this BPMNComponent sits in
+        """Returns True if the k8s object corresponding to this BPMNComponent sits in
         a shared k8s namespace, as opposed to a namespace that is dedicated solely
         to this Workflow Deployment.
-        '''
+        """
         return self._is_in_shared_ns
 
     @property
     def is_preexisting(self) -> bool:
-        '''Returns True if the k8s object corresponding to this BPMNComponent was
+        """Returns True if the k8s object corresponding to this BPMNComponent was
         deployed separately from the Workflow; i.e. it was pre-existing.
-        '''
+        """
         return self._is_preexisting
 
     @property
     def health_properties(self) -> HealthProperties:
-        '''Returns the HealthProperties object for this BPMNComponent.
-        '''
+        """Returns the HealthProperties object for this BPMNComponent.
+        """
         return self._health_properties
 
     @property
     def call_properties(self) -> CallProperties:
-        '''Returns the CallProperties object for this BPMNComponent.
-        '''
+        """Returns the CallProperties object for this BPMNComponent.
+        """
         return self._call_properties
 
     @property
     def service_properties(self) -> ServiceProperties:
-        '''Returns the ServiceProperties object for this BPMNComponent.
-        '''
+        """Returns the ServiceProperties object for this BPMNComponent.
+        """
         return self._service_properties
 
     @property
     def workflow_properties(self) -> WorkflowProperties:
-        '''Returns the WorkflowProperties object for this BPMNComponent.
-        '''
+        """Returns the WorkflowProperties object for this BPMNComponent.
+        """
         return self._global_props
 
     @property
     def k8s_url(self) -> str:
-        '''Returns the fully-qualified host + path that is understood by the k8s
+        """Returns the fully-qualified host + path that is understood by the k8s
         kube-dns. For example, returns "http://my-service.my-namespace:my-port"
-        '''
+        """
         service_props = self.service_properties
         proto = service_props.protocol.lower()
         host = service_props.host
@@ -718,32 +727,32 @@ class BPMNComponent:
 
     @property
     def envoy_host(self) -> str:
-        '''Returns the Envoy-readable hostname for this service, for example
+        """Returns the Envoy-readable hostname for this service, for example
         "my-service.my-namespace.svc.cluster.local"
-        '''
+        """
         service_props = self.service_properties
         host = service_props.host
         return f'{host}.{self.namespace}.svc.cluster.local'
 
     @property
     def kafka_topics(self) -> List[str]:
-        '''List of kafka topics that need to get created for this BPMNComponent
+        """List of kafka topics that need to get created for this BPMNComponent
         to run. Can include topics used for reliable transport and/or Events (eg. an
         intermediateThrowEvent.)
-        '''
+        """
         return self._kafka_topics
 
     @property
     def annotation(self) -> dict:
-        '''Returns the python dictionary representation of the rexflow annotation on the
-        BPMN diagram for this BPMNComponent.'''
+        """Returns the python dictionary representation of the rexflow annotation on the
+        BPMN diagram for this BPMNComponent."""
         return self._annotation if self._annotation else dict()
 
     @property
     def path(self) -> str:
-        '''Returns the HTTP Path to call this component. The path refers to calling
+        """Returns the HTTP Path to call this component. The path refers to calling
         the BPMN component, and NOT the healthcheck.
-        '''
+        """
         call_props = self.call_properties
         path = call_props.path
         if not path.startswith('/'):
@@ -752,7 +761,7 @@ class BPMNComponent:
 
     @property
     def service_name(self):
-        '''Returns the name of the k8s service. Same as the host.
+        """Returns the name of the k8s service. Same as the host.
         Just a convenience method.
-        '''
+        """
         return self.service_properties.host

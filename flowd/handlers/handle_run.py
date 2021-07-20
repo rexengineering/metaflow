@@ -1,3 +1,4 @@
+import copy
 import logging
 import json
 from flowlib import workflow
@@ -35,6 +36,13 @@ def handler(request):
         if 'id' in result:
             iid = result['id']
             instance = workflow.WorkflowInstance(parent=wf_deployment, id=iid)
-            metadata = json.dumps({obj.key: obj.value for obj in request.metadata})
-            etcd.put(instance.keys.metadata, metadata.encode())
+            # pull default metadata from BPMN deployment
+            instance_meta = copy.deepcopy(instance.parent.properties.user_metadata)
+            # pull any metadata provided with the RUN request
+            run_metadata = {obj.key: obj.value for obj in request.metadata}
+            if run_metadata:
+                # overlay the RUN metadata over the 'default' metadata
+                instance_meta.update(run_metadata)
+            logging.info(f'metadata {instance_meta} {type(instance_meta).__name__}')
+            etcd.put(instance.keys.metadata, json.dumps(instance_meta).encode())
     return result
