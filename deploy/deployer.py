@@ -62,6 +62,14 @@ class Deployer:
             self.core_v1.create_persistent_volume)
         self.delete_persistent_volume        = wrap_api_call(
             self.core_v1.delete_persistent_volume)
+        self.create_cluster_role = wrap_api_call(
+            self.rbac_v1.create_cluster_role)
+        self.delete_cluster_role = wrap_api_call(
+            self.rbac_v1.delete_cluster_role)
+        self.create_cluster_role_binding = wrap_api_call(
+            self.rbac_v1.create_cluster_role_binding)
+        self.delete_cluster_role_binding = wrap_api_call(
+            self.rbac_v1.delete_cluster_role_binding)
 
     def create(self, namespace):
         print("The deploy module is used for dev deployments. As such, we are now "
@@ -125,6 +133,44 @@ class Deployer:
         self.create_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
             specs.rexflow_db_constructor_vs)
+        
+        # Grafana for monitoring
+        self.create_namespaced_deployment(
+            'rexflow', specs.grafana_deployment)
+        self.create_namespaced_persistent_volume_claim(
+            'rexflow', specs.grafana_pvc)
+        self.create_namespaced_service(
+            'rexflow', specs.grafana_svc)
+        
+        # Prometheus for Metrics
+        os.system("kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/master/bundle.yaml")
+        # os.system("helm install --upgrade prometheus stable/prometheus-operator --namespace prometheus")
+        self.create_cluster_role(
+            specs.prometheus_cluster_role)
+        self.create_cluster_role_binding(
+            specs.prometheus_cluster_role_binding)
+        self.create_namespaced_service_account(
+            'rexflow', specs.prometheus_service_account)
+        self.create_namespaced_service(
+            'rexflow', specs.prometheus_service)
+        # self.create_namespaced_deployment(
+        #     'default', specs.prometheus_deployment)
+        self.create_namespaced_custom_object(
+            'monitoring.coreos.com', 'v1', 'rexflow', 'prometheuses', specs.prometheus)
+        self.create_namespaced_custom_object(
+            'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', specs.flowd_monitor)
+        
+        # salesforce_data_router
+        self.create_namespaced_service(
+            'rexflow', specs.salesforce_data_router_svc)
+        self.create_namespaced_deployment(
+            'rexflow', specs.salesforce_data_router_deployment)
+        self.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways',
+            specs.salesforce_data_router_gateway)
+        self.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
+            specs.salesforce_data_router_vs)
 
         # Gateway and virtual services
         self.create_namespaced_custom_object(
@@ -172,6 +218,34 @@ class Deployer:
         self.delete_namespaced_config_map('postgres', 'rexflow')
         self.delete_namespaced_persistent_volume_claim('postgres', 'rexflow')
         self.delete_persistent_volume('postgres')
+        # grafana delete
+        self.delete_namespaced_deployment('grafana', 'rexflow')
+        self.delete_namespaced_service('grafana', 'rexflow')
+        self.delete_namespaced_persistent_volume_claim('grafana-pvc', 'rexflow')
+        # Prometheus Delete
+        self.delete_cluster_role('prometheus')
+        self.delete_cluster_role_binding('prometheus')
+        self.delete_namespaced_service_account('prometheus', 'rexflow')
+        self.delete_namespaced_service('prometheus', 'rexflow')
+        # Prometheus operator delete
+        self.delete_namespaced_service('prometheus-operator', 'default')
+        self.delete_namespaced_service_account('prometheus-operator', 'default')
+        self.delete_namespaced_deployment('prometheus-operator', 'default')
+        self.delete_cluster_role('prometheus-operator')
+        self.delete_cluster_role_binding('prometheus-operator')
+        self.delete_namespaced_custom_object(
+            'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', 'flowd')
+        self.delete_namespaced_custom_object(
+            'monitoring.coreos.com', 'v1', 'rexflow', 'prometheuses', 'prometheus')
+        # Salesforce Data Router
+        self.delete_namespaced_deployment('salesforce-data-router', 'rexflow')
+        self.delete_namespaced_service('salesforce-data-router' ,'rexflow')
+        self.delete_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways',
+            'salesforce-data-router')
+        self.delete_namespaced_custom_object(
+        'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
+        'salesforce-data-router')
         self.delete_namespaced_service('flowd', 'default')
         self.delete_namespaced_service('flowd', 'rexflow')
         self.delete_namespaced_deployment('flowd', 'rexflow')

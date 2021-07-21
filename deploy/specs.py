@@ -580,3 +580,142 @@ rexflow_db_constructor_deployment = {
         }
     }
 }
+salesforce_data_router_vs = {
+    'apiVersion': 'networking.istio.io/v1alpha3', 
+    'kind': 'VirtualService', 
+    'metadata': {
+        'name': 'salesforce-data-router' 
+        }, 
+    'spec': {
+        'hosts': ['*'], 
+        'gateways': ['salesforce-data-router'], 
+        'http': [
+            {
+                'match': [
+                    {
+                        'uri': {'prefix': '/salesforce-data-router'}
+                    }
+                ], 
+                'rewrite': {
+                    'uri': '/'
+                    }, 
+                'route': [
+                    {
+                        'destination': {
+                            'port': {'number': 5001}, 
+                            'host': 'salesforce-data-router'}
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+salesforce_data_router_svc = {
+    'apiVersion': 'v1', 
+    'kind': 'Service', 
+    'metadata': {
+        'name': 'salesforce-data-router', 
+        'labels': {
+            'app': 'salesforce-data-router'
+            }
+        }, 
+        'spec': {
+            'ports': [
+                {
+                    'port': 5001, 
+                    'protocol': 'TCP'
+                }
+            ], 
+            'selector': {
+                'app': 
+                'salesforce-data-router'
+                }
+            }
+        }
+
+salesforce_data_router_gateway = {
+    'apiVersion': 'networking.istio.io/v1alpha3', 
+    'kind': 'Gateway', 
+    'metadata': {
+        'name': 'salesforce-data-router'
+                }, 
+    'spec': {
+        'selector': {
+            'istio': 'ingressgateway'}, 
+            'servers': [
+                {
+                    'port': {
+                        'number': 80, 
+                        'name': 'http', 
+                        'protocol': 'HTTP'
+                        }, 
+                    'hosts': ['*']
+                }
+            ]
+        }
+    }
+    
+salesforce_data_router_deployment = {
+    'apiVersion': 'apps/v1', 
+    'kind': 'Deployment', 
+    'metadata': {
+        'name': 'salesforce-data-router',
+        'labels': {
+            'app': "salesforce-data-router",
+        }
+    }, 
+    'spec': {
+        'selector': {
+            'matchLabels': {
+                'app': 'salesforce-data-router'
+                            }
+                }, 
+        'replicas': 1, 
+        'template': {
+            'metadata': 
+            {
+                'labels': {
+                    'app': 'salesforce-data-router'
+                    }
+            }, 
+            'spec': {
+                'containers': [
+                    {
+                        'name': 'hellothere', 
+                        'image': 'salesforce-data-router', 
+                        'imagePullPolicy': 'Never', 
+                        'env': [
+                            {
+                                'name': 'REXFLOW_KAFKA_HOST', 
+                                'value': 'my-cluster-kafka-bootstrap.kafka:9092'
+                            },
+                            {
+                                'name': "REXFLOW_POSTGRES_DB_URI",
+                                "value": 'postgresql://postgresadmin:admin123@postgres.rexflow:5432/postgresdb',
+                            },
+                            {
+                                'name': 'DEFAULT_NOTIFICATION_KAFKA_TOPIC',
+                                'value': 'rexflow-all-traffic',
+                            }
+                        ], 
+                        'ports': [
+                            {
+                                'containerPort': 5001
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}
+prometheus_cluster_role = {'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'ClusterRole', 'metadata': {'creationTimestamp': None, 'name': 'prometheus'}, 'rules': [{'apiGroups': [''], 'resources': ['nodes', 'nodes/metrics', 'services', 'endpoints', 'pods'], 'verbs': ['get', 'list', 'watch']}, {'apiGroups': [''], 'resources': ['configmaps'], 'verbs': ['get']}, {'apiGroups': ['networking.k8s.io'], 'resources': ['ingresses'], 'verbs': ['get', 'list', 'watch']}, {'nonResourceURLs': ['/metrics'], 'verbs': ['get']}]}
+prometheus_cluster_role_binding = {'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'ClusterRoleBinding', 'metadata': {'name': 'prometheus'}, 'roleRef': {'apiGroup': 'rbac.authorization.k8s.io', 'kind': 'ClusterRole', 'name': 'prometheus'}, 'subjects': [{'kind': 'ServiceAccount', 'name': 'prometheus', 'namespace': 'default'}]}
+flowd_monitor = {'apiVersion': 'monitoring.coreos.com/v1', 'kind': 'ServiceMonitor', 'metadata': {'name': 'flowd', 'labels': {'app': 'flowd'}}, 'spec': {'selector': {'matchLabels': {'app': 'flowd'}}, 'endpoints': [{'port': 'http'}]}}
+prometheus = {'apiVersion': 'monitoring.coreos.com/v1', 'kind': 'Prometheus', 'metadata': {'name': 'prometheus'}, 'spec': {'serviceAccountName': 'prometheus', 'serviceMonitorSelector': {'matchLabels': {'app': 'flowd'}}, 'resources': {'requests': {'memory': '400Mi'}}, 'enableAdminAPI': False}}
+prometheus_service_account = {'apiVersion': 'v1', 'kind': 'ServiceAccount', 'metadata': {'name': 'prometheus'}}
+prometheus_service = {'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': 'prometheus', 'labels': {'app': 'prometheus'}}, 'spec': {'ports': [{'name': 'web', 'port': 9090, 'targetPort': 'web'}], 'selector': {'app': 'prometheus'}, 'sessionAffinity': 'ClientIP'}}
+grafana_pvc = {'apiVersion': 'v1', 'kind': 'PersistentVolumeClaim', 'metadata': {'name': 'grafana-pvc'}, 'spec': {'accessModes': ['ReadWriteOnce'], 'resources': {'requests': {'storage': '1Gi'}}}}
+grafana_deployment = {'apiVersion': 'apps/v1', 'kind': 'Deployment', 'metadata': {'labels': {'app': 'grafana'}, 'name': 'grafana'}, 'spec': {'selector': {'matchLabels': {'app': 'grafana'}}, 'template': {'metadata': {'labels': {'app': 'grafana'}}, 'spec': {'securityContext': {'fsGroup': 472, 'supplementalGroups': [0]}, 'containers': [{'name': 'grafana', 'image': 'grafana/grafana:7.5.2', 'imagePullPolicy': 'IfNotPresent', 'ports': [{'containerPort': 3000, 'name': 'http-grafana', 'protocol': 'TCP'}], 'readinessProbe': {'failureThreshold': 3, 'httpGet': {'path': '/robots.txt', 'port': 3000, 'scheme': 'HTTP'}, 'initialDelaySeconds': 10, 'periodSeconds': 30, 'successThreshold': 1, 'timeoutSeconds': 2}, 'livenessProbe': {'failureThreshold': 3, 'initialDelaySeconds': 30, 'periodSeconds': 10, 'successThreshold': 1, 'tcpSocket': {'port': 3000}, 'timeoutSeconds': 1}, 'resources': {'requests': {'cpu': '250m', 'memory': '750Mi'}}, 'volumeMounts': [{'mountPath': '/var/lib/grafana', 'name': 'grafana-pv'}]}], 'volumes': [{'name': 'grafana-pv', 'persistentVolumeClaim': {'claimName': 'grafana-pvc'}}]}}}}
+grafana_svc = {'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': 'grafana'}, 'spec': {'ports': [{'port': 3000, 'protocol': 'TCP', 'targetPort': 'http-grafana'}], 'selector': {'app': 'grafana'}, 'sessionAffinity': 'None', 'type': 'LoadBalancer'}}

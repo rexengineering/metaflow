@@ -10,6 +10,7 @@ from quart import request, jsonify
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow, get_workflows
+from prometheus_client.core import GaugeMetricFamily
 
 from flowlib.config import (
     INSTANCE_FAIL_ENDPOINT_PATH,
@@ -84,6 +85,12 @@ class FlowApp(QuartApp):
         self.app.route('/', methods=['POST'])(self.root_route)
         self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=(['POST']))(self.fail_route)
         self.app.route(WF_MAP_ENDPOINT_PATH, methods=['GET', 'POST'])(self.wf_map)
+        self.app.route('/metrics', methods=['GET'])(self.metrics)
+    
+    def metrics(self):
+        g = GaugeMetricFamily("MemoryUsage", 'Help text', labels=['instance'])
+        g.add_metric(["instance01.us.west.local"], 20)
+        return "my_metric 1"
 
     async def health(self):
         self.etcd.get('Is The Force With Us?')

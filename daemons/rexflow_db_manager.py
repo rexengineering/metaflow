@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from flowlib.executor import get_executor
 from flowlib.config import POSTGRES_DB_URI, DEFAULT_NOTIFICATION_KAFKA_TOPIC
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
 Base = declarative_base()
 engine = sqlalchemy.create_engine(POSTGRES_DB_URI)
@@ -19,7 +20,6 @@ session = Session()
 Base.metadata.create_all(engine)
 
 # Kafka Setup
-
 KAFKA_GROUP_ID = "workflow-kafka-consumer"
 KAFKA_TOPIC = DEFAULT_NOTIFICATION_KAFKA_TOPIC
 config = {

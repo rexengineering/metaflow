@@ -18,6 +18,7 @@ isodate
 requests
 sqlalchemy
 psycopg2-binary
+prometheus_client
 # Optional development dependency
 grpcio-tools
 pudb
