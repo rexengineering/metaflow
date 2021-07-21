@@ -32,7 +32,8 @@
       <bpmn:documentation>Get two numbers</bpmn:documentation>
       <bpmn:text>rexflow:
   fields:
-    file: amort_terms_form.json</bpmn:text>
+    file: amort_terms_form.json
+  post_to_salesforce: true</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Association_0kjjvp5" sourceRef="get_terms" targetRef="TextAnnotation_1gcjsvw" />
     <bpmn:textAnnotation id="TextAnnotation_0hu7c9d">
@@ -53,7 +54,8 @@
   xgw_expression_type: python
   user_metadata:
     key0: value0
-    key1: value1</bpmn:text>
+    key1: value1
+  post_to_salesforce: never</bpmn:text>
     </bpmn:textAnnotation>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -90,7 +92,7 @@
         <dc:Bounds x="840" y="327" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1gcjsvw_di" bpmnElement="TextAnnotation_1gcjsvw">
-        <dc:Bounds x="310" y="180" width="192" height="54" />
+        <dc:Bounds x="310" y="180" width="192" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0hu7c9d_di" bpmnElement="TextAnnotation_0hu7c9d">
         <dc:Bounds x="850" y="164" width="220" height="54" />
@@ -99,11 +101,11 @@
         <dc:Bounds x="630" y="157" width="160" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
-        <dc:Bounds x="160" y="80" width="260" height="82" />
+        <dc:Bounds x="160" y="80" width="260" height="96" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0kjjvp5_di" bpmnElement="Association_0kjjvp5">
         <di:waypoint x="383" y="327" />
-        <di:waypoint x="366" y="234" />
+        <di:waypoint x="368" y="248" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Association_1eubqhp_di" bpmnElement="Association_1eubqhp">
         <di:waypoint x="892" y="327" />

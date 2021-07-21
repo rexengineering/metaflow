@@ -66,7 +66,8 @@
     timer_recovery_policy: fire
     user_metadata:
       key0: value0
-      key1: value1</bpmn:text>
+      key1: value1
+    post_to_salesforce: never</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:textAnnotation id="TextAnnotation_12caj0p">
       <bpmn:text>rexflow:
@@ -131,7 +132,7 @@
         <dc:Bounds x="640" y="87" width="128" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1v6ziq7_di" bpmnElement="TextAnnotation_1v6ziq7">
-        <dc:Bounds x="170" y="360" width="290" height="82" />
+        <dc:Bounds x="170" y="360" width="290" height="96" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_12caj0p_di" bpmnElement="TextAnnotation_12caj0p">
         <dc:Bounds x="610" y="380" width="250" height="53" />

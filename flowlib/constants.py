@@ -1,3 +1,4 @@
+from enum import Enum
 from hashlib import sha256
 import uuid
 import re
@@ -106,6 +107,10 @@ class Headers:
     X_REXFLOW_ORIGINAL_PATH = 'x-rexflow-original-path'
     X_REXFLOW_FAILURE = 'x-rexflow-failure'
 
+class UserTaskPersistPolicy(Enum):
+    PERSIST_NEVER = 'never'
+    PERSIST_EACH = 'each'
+    PERSIST_FINALLY = 'finally'
 
 class WorkflowKeys:
     ROOT = f'{REXFLOW_ROOT}/workflows'

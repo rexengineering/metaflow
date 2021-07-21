@@ -11,7 +11,8 @@ from typing import Any, Dict, List, NoReturn, Tuple
 
 from etcd3.events import DeleteEvent, PutEvent
 
-from flowlib import flow_pb2, etcd_utils, executor
+from flowlib import flow_pb2, etcd_utils, executor, workflow
+from flowlib.user_task import BPMNUserTask
 from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
@@ -44,9 +45,18 @@ class Workflow:
         self.instance_headers = {}
         self.instance_data = {}
 
-        for tid in tids:
-            self.tasks[tid] = WorkflowTask(self,tid)
+        # for tid in tids:
+        #     self.tasks[tid] = WorkflowTask(self,tid)
+
+        # import the actual workflow as we need annotation info
+        wf = workflow.Workflow.from_id(self.did)
+        task:BPMNUserTask
+        for task in wf.process.user_tasks:
+            logging.info(f'task {task}')
+            self.tasks[task.id] = WorkflowTask(self,task.id,task.persist_user_data)
         logging.info(f'Workflow object initialized to process workflow {did}')
+
+        # find all user tasks in the workflow
 
     def start(self):
         self.timer = threading.Timer(1, self.watch_instances)
@@ -278,9 +288,10 @@ class Workflow:
                 exc_info=exn,
             )
 class WorkflowTask:
-    def __init__(self, wf:Workflow, tid:str):
+    def __init__(self, wf:Workflow, tid:str, persist_user_data:bool):
         self.wf = wf
         self.tid = tid
+        self.persist_user_data = persist_user_data
         self._fields = {}   # the immutable complete set of form information
         self._values = {}   # the immutable initial set of form data
         form, _ = wf.etcd.get(WorkflowKeys.field_key(wf.did,tid))
@@ -288,6 +299,7 @@ class WorkflowTask:
             self._fields = self._normalize_fields(form)
             for k,v in self._fields.items():
                 self._values[k] = v[DATA]
+        logging.info(f'task {wf.did} {tid} {persist_user_data}')
 
     def get_form(self, iid:str, reset:bool = False):
         """

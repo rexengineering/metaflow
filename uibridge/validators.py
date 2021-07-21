@@ -229,7 +229,7 @@ class BooleanValidator(BaseValidator):
         """
         if not super().validate(data,locals):
             return False
-        
+
         if data.lower() in ['true', 'false']:
             return True
 

@@ -11,6 +11,7 @@ from flowlib.constants import (
     TIMER_DESCRIPTION,
     TIMER_RECOVER_POLICY,
     to_valid_k8s_name,
+    UserTaskPersistPolicy,
 )
 from flowlib.timer_util import TimedEventManager, ValidationResults, TimerRecoveryPolicy
 from flowlib.config import (
@@ -311,6 +312,7 @@ class WorkflowProperties:
         self._prefix_passthrough_with_namespace = False
         self._catch_event_expiration = 72
         self._timer_recovery_policy = TimerRecoveryPolicy.RECOVER_FAIL
+        self._user_task_persist_policy = UserTaskPersistPolicy.PERSIST_NEVER
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -431,6 +433,14 @@ class WorkflowProperties:
     def catch_event_expiration(self):
         return self._catch_event_expiration
 
+    @property
+    def timer_recovery_policy(self):
+        return self._timer_recovery_policy
+
+    @property
+    def user_task_persist_policy(self):
+        return self._user_task_persist_policy
+
     def update(self, annotations):
         if 'priority_class' in annotations:
             self._priority_class = annotations['priority_class']
@@ -507,7 +517,14 @@ class WorkflowProperties:
             try:
                 self._timer_recovery_policy = TimerRecoveryPolicy(policy)
             except ValueError:
-                pass
+                raise ValueError(f'Invalid timer_recovery_policy {policy}')
+
+        if 'post_to_salesforce' in annotations:
+            policy = annotations.get('post_to_salesforce', UserTaskPersistPolicy.PERSIST_NEVER)
+            try:
+                self._user_task_persist_policy = UserTaskPersistPolicy(policy)
+            except ValueError:
+                raise ValueError(f'Invalid post_to_salesforce value {policy}')
 
 class BPMNComponent:
     """
