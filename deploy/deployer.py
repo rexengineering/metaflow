@@ -50,6 +50,26 @@ class Deployer:
             self.custom_api.create_namespaced_custom_object)
         self.delete_namespaced_custom_object = wrap_api_call(
             self.custom_api.delete_namespaced_custom_object)
+        self.create_namespaced_config_map    = wrap_api_call(
+            self.core_v1.create_namespaced_config_map)
+        self.create_namespaced_persistent_volume_claim = wrap_api_call(
+            self.core_v1.create_namespaced_persistent_volume_claim)
+        self.delete_namespaced_config_map    = wrap_api_call(
+            self.core_v1.delete_namespaced_config_map)
+        self.delete_namespaced_persistent_volume_claim  = wrap_api_call(
+            self.core_v1.delete_namespaced_persistent_volume_claim)
+        self.create_persistent_volume        = wrap_api_call(
+            self.core_v1.create_persistent_volume)
+        self.delete_persistent_volume        = wrap_api_call(
+            self.core_v1.delete_persistent_volume)
+        self.create_cluster_role = wrap_api_call(
+            self.rbac_v1.create_cluster_role)
+        self.delete_cluster_role = wrap_api_call(
+            self.rbac_v1.delete_cluster_role)
+        self.create_cluster_role_binding = wrap_api_call(
+            self.rbac_v1.create_cluster_role_binding)
+        self.delete_cluster_role_binding = wrap_api_call(
+            self.rbac_v1.delete_cluster_role_binding)
 
     def create(self, namespace):
         print("The deploy module is used for dev deployments. As such, we are now "
@@ -87,6 +107,19 @@ class Deployer:
         ))
         self.create_namespaced_role_binding(
             'default', specs.healthd_edit_default_spec)
+        
+        # salesforce_data_router
+        self.create_namespaced_service(
+            'rexflow', specs.salesforce_data_router_svc)
+        self.create_namespaced_deployment(
+            'rexflow', specs.salesforce_data_router_deployment)
+        self.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways',
+            specs.salesforce_data_router_gateway)
+        self.create_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
+            specs.salesforce_data_router_vs)
+
         # Gateway and virtual services
         self.create_namespaced_custom_object(
             'networking.istio.io', 'v1alpha3', 'default', 'gateways',
@@ -129,6 +162,13 @@ class Deployer:
         self.delete_namespaced_service('rexflow-etcd', 'rexflow')
         self.delete_namespaced_deployment('rexflow-etcd', 'rexflow')
         self.delete_namespaced_service_account('rexflow-etcd', 'rexflow')
+        # Salesforce Data Router
+        self.delete_namespaced_deployment('salesforce-data-router', 'rexflow')
+        self.delete_namespaced_service('salesforce-data-router' ,'rexflow')
+        self.delete_namespaced_custom_object(
+            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways','salesforce-data-router')
+        self.delete_namespaced_custom_object(
+        'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices','salesforce-data-router')
         self.delete_namespace('rexflow')
 
         if namespace.kafka:
