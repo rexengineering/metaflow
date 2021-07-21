@@ -123,7 +123,7 @@ def task_mutation_form(_, info, input):
 @task_mutation.field('validate')
 def task_mutation_validate(_,info,input):
     task = info.context[WORKFLOW].task(input[TID])
-    all_passed, field_results = _validate_fields(task, input[IID], input[FIELDS])
+    all_passed, field_results = _validate_fields(task, input[IID], input[FIELDS], info.context)
     return gql.task_validate_payload(input[IID], input[TID], SUCCESS, all_passed, field_results)
 
 @task_mutation.field('save')
@@ -133,7 +133,7 @@ def task_mutation_save(_,info,input):
     iid    = input[IID]
     task   = info.context[WORKFLOW].task(tid)
     if task:
-        all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
+        all_passed, field_results = _validate_fields(task, iid, input[FIELDS], info.context)
         task.update(iid, input[FIELDS])
         status = SUCCESS
     return gql.task_validate_payload(iid, tid, status, all_passed, field_results)
@@ -146,7 +146,7 @@ def task_mutation_complete(_,info,input):
     workflow.complete(input[IID], input[TID])
     return gql.task_complete_payload(input[IID], input[TID], SUCCESS)
 
-def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, List]:
+def _validate_fields(task:WorkflowTask, iid:str, fields:List, context) -> Tuple[bool, List]:
     """
     Validate the fields vs its validators (if any.) The fields passed in may be
     a subset of all fields in the form for the task, and in this case fill in the
@@ -207,11 +207,11 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
             field_passed = all_passed = False
 
     if all_passed and task.persist_user_data:
-        persist_form_data(task, iid, fields)
+        persist_form_data(task, iid, fields, context)
 
     return (all_passed, field_results)
 
-def persist_form_data(task:WorkflowTask, iid:str, fields:list):
+def persist_form_data(task:WorkflowTask, iid:str, fields:list, context):
     # placeholder - here we'll push to kafka topic
-    queue.put([task,iid,fields])
+    context['kafka'].put([task,iid,fields])
 

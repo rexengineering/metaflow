@@ -137,7 +137,7 @@ class REXFlowUIBridge(AsyncService):
         success, result = graphql_sync(
             self.graphql_schema,
             data,
-            context_value = {'request':request, 'workflow': self.workflow},
+            context_value = {'request':request, 'workflow': self.workflow, 'kafka':self._kafka},
             debug=self.app.debug
         )
         status_code = 200 if success else 400
