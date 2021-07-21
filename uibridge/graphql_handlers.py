@@ -2,6 +2,7 @@ from flowlib.constants import WorkflowInstanceKeys
 import json
 import logging
 import typing
+from queue import Queue
 from .validators import validator_factory
 from . import graphql_wrappers as gql
 from .graphql_wrappers import (
@@ -205,4 +206,12 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
             field_results.append(gql.field_validation_result(field_id, False, ex))
             field_passed = all_passed = False
 
+    if all_passed and task.persist_user_data:
+        persist_form_data(task, iid, fields)
+
     return (all_passed, field_results)
+
+def persist_form_data(task:WorkflowTask, iid:str, fields:list):
+    # placeholder - here we'll push to kafka topic
+    queue.put([task,iid,fields])
+

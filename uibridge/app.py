@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import os.path
+from uibridge.kafka import KafkaPublisher
 import requests
 
 from quart import jsonify, request
@@ -59,6 +60,9 @@ class REXFlowUIBridge(AsyncService):
             graphql_handlers.mutation,
             graphql_handlers.task_mutation,
         )
+
+        self._kafka = KafkaPublisher('some_topic')
+        self._kafka.start()
 
         self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, BRIDGE_CONFIG, flowd_host, flowd_port)
         self.workflow.start()

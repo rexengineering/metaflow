@@ -45,9 +45,6 @@ class Workflow:
         self.instance_headers = {}
         self.instance_data = {}
 
-        # for tid in tids:
-        #     self.tasks[tid] = WorkflowTask(self,tid)
-
         # import the actual workflow as we need annotation info
         wf = workflow.Workflow.from_id(self.did)
         task:BPMNUserTask
