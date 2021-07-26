@@ -160,17 +160,6 @@ class Deployer:
         self.create_namespaced_custom_object(
             'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', specs.flowd_monitor)
         
-        # salesforce_data_router
-        self.create_namespaced_service(
-            'rexflow', specs.salesforce_data_router_svc)
-        self.create_namespaced_deployment(
-            'rexflow', specs.salesforce_data_router_deployment)
-        self.create_namespaced_custom_object(
-            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways',
-            specs.salesforce_data_router_gateway)
-        self.create_namespaced_custom_object(
-            'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
-            specs.salesforce_data_router_vs)
 
         # Gateway and virtual services
         self.create_namespaced_custom_object(
@@ -237,15 +226,6 @@ class Deployer:
             'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', 'flowd')
         self.delete_namespaced_custom_object(
             'monitoring.coreos.com', 'v1', 'rexflow', 'prometheuses', 'prometheus')
-        # Salesforce Data Router
-        self.delete_namespaced_deployment('salesforce-data-router', 'rexflow')
-        self.delete_namespaced_service('salesforce-data-router' ,'rexflow')
-        self.delete_namespaced_custom_object(
-            'networking.istio.io', 'v1alpha3', 'rexflow', 'gateways',
-            'salesforce-data-router')
-        self.delete_namespaced_custom_object(
-        'networking.istio.io', 'v1alpha3', 'rexflow', 'virtualservices',
-        'salesforce-data-router')
         self.delete_namespaced_service('flowd', 'default')
         self.delete_namespaced_service('flowd', 'rexflow')
         self.delete_namespaced_deployment('flowd', 'rexflow')

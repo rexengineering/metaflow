@@ -3,14 +3,14 @@ from collections import defaultdict
 import base64
 import logging
 import json
-
+import prometheus_client as prom
 from async_timeout import timeout
-from quart import request, jsonify
+from quart import request, jsonify, Response
+from prometheus_client import multiprocess, Counter, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
 from flowlib.workflow import Workflow, get_workflows
-from prometheus_client.core import GaugeMetricFamily
 
 from flowlib.config import (
     INSTANCE_FAIL_ENDPOINT_PATH,
@@ -23,8 +23,6 @@ from flowlib.constants import (
     Headers,
 )
 from flowlib import token_api
-
-
 TIMEOUT_SECONDS = 10
 
 
@@ -81,16 +79,31 @@ class FlowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
+        self.registry = CollectorRegistry()
+        self.counter = Counter('my_counter', 'A basic counter.', registry = self.registry)
         self.app.route('/health', methods=['GET'])(self.health)
         self.app.route('/', methods=['POST'])(self.root_route)
         self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=(['POST']))(self.fail_route)
         self.app.route(WF_MAP_ENDPOINT_PATH, methods=['GET', 'POST'])(self.wf_map)
-        self.app.route('/metrics', methods=['GET'])(self.metrics)
+        self.app.route('/metrics/', methods=['GET'])(self.metrics)
+        self.app.route('/expose', methods=['GET'])(self.expose)
     
     def metrics(self):
-        g = GaugeMetricFamily("MemoryUsage", 'Help text', labels=['instance'])
-        g.add_metric(["instance01.us.west.local"], 20)
-        return "my_metric 1"
+        self.counter.inc()
+        return Response(prom.generate_latest(self.registry), mimetype=CONTENT_TYPE_LATEST)
+    
+    def expose(self):
+        # try:
+        #     registry = CollectorRegistry()
+        #     g = Gauge('job_last_success_unixtime', 'Last time a batch job successfully finished', registry=registry)
+        #     g.set_to_current_time()
+        #     push_to_gateway('prometheus.rexflow:9090', job='batchA', registry=registry)
+        # except Exception as exn:
+        #     import logging
+        #     logging.exception("ooph", exc_info=exn)
+        # h = Histogram('request_latency_seconds', 'Description of histogram')
+        # h.observe(4.7) 
+        return "Done"
 
     async def health(self):
         self.etcd.get('Is The Force With Us?')
