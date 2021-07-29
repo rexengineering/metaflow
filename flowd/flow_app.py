@@ -6,7 +6,7 @@ import json
 import prometheus_client as prom
 from async_timeout import timeout
 from quart import request, jsonify, Response
-from prometheus_client import multiprocess, Counter, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST
+from prometheus_client import multiprocess, Counter, generate_latest, CollectorRegistry, CONTENT_TYPE_LATEST, Gauge
 
 from flowlib.etcd_utils import get_etcd, transition_state
 from flowlib.quart_app import QuartApp
@@ -79,32 +79,57 @@ class FlowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
-        self.registry = CollectorRegistry()
-        self.counter = Counter('my_counter', 'A basic counter.', registry = self.registry)
+        self.counter = Counter('my_counter', 'A basic counter.',['name'])
+        self.gauge = Gauge('workflow', 'workflows number in different states', ['name'])
         self.app.route('/health', methods=['GET'])(self.health)
         self.app.route('/', methods=['POST'])(self.root_route)
         self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=(['POST']))(self.fail_route)
         self.app.route(WF_MAP_ENDPOINT_PATH, methods=['GET', 'POST'])(self.wf_map)
-        self.app.route('/metrics/', methods=['GET'])(self.metrics)
-        self.app.route('/expose', methods=['GET'])(self.expose)
+        self.app.route('/metrics', methods=['GET'])(self.metrics)
     
     def metrics(self):
-        self.counter.inc()
-        return Response(prom.generate_latest(self.registry), mimetype=CONTENT_TYPE_LATEST)
+        self.counter.labels(name='metric_scrapes').inc()
+        etcd = get_etcd(is_not_none=True)
+        wf_map = {}
+        wf_running = 0
+        wf_running_dict = {}
+        wf_starting = 0
+        wf_starting_dict = {}
+        wf_stopped = 0
+        wf_stopped_dict = {}
+        wf_error = 0
+        wf_error_dict = {}
+        for workflow in get_workflows():
+            if etcd.get(workflow.keys.state)[0] == BStates.RUNNING:
+                wf_id = workflow.process.xmldict['@id']
+                if wf_id not in wf_running_dict:
+                    wf_running_dict[wf_id] = []
+                    wf_running += 1
+            if etcd.get(workflow.keys.state)[0] == BStates.STARTING:
+                wf_id = workflow.process.xmldict['@id']
+                if wf_id not in wf_starting_dict:
+                    wf_starting_dict[wf_id] = []
+                    wf_starting += 1
+            if etcd.get(workflow.keys.state)[0] == BStates.STOPPED:
+                wf_id = workflow.process.xmldict['@id']
+                if wf_id not in wf_stopped_dict:
+                    wf_stopped_dict[wf_id] = []
+                    wf_stopped += 1
+            if etcd.get(workflow.keys.state)[0] == BStates.ERROR:
+                wf_id = workflow.process.xmldict['@id']
+                if wf_id not in wf_error_dict:
+                    wf_error_dict[wf_id] = []
+                    wf_error += 1
+        self.gauge.labels(name="Running").set(wf_running)
+        print("Running: "+str(wf_running),flush=True)
+        self.gauge.labels(name="Starting").set(wf_starting)
+        print("Starting: "+str(wf_starting),flush=True)
+        self.gauge.labels(name="Stopped").set(wf_stopped)
+        print("Stopped: "+str(wf_stopped),flush=True)
+        self.gauge.labels(name="Error").set(wf_error)
+        print("Error: "+str(wf_error),flush=True)
+        return generate_latest()
     
-    def expose(self):
-        # try:
-        #     registry = CollectorRegistry()
-        #     g = Gauge('job_last_success_unixtime', 'Last time a batch job successfully finished', registry=registry)
-        #     g.set_to_current_time()
-        #     push_to_gateway('prometheus.rexflow:9090', job='batchA', registry=registry)
-        # except Exception as exn:
-        #     import logging
-        #     logging.exception("ooph", exc_info=exn)
-        # h = Histogram('request_latency_seconds', 'Description of histogram')
-        # h.observe(4.7) 
-        return "Done"
-
     async def health(self):
         self.etcd.get('Is The Force With Us?')
         return flow_result(0, "Ok.")
@@ -127,6 +152,7 @@ class FlowApp(QuartApp):
         return 'Hello there!\n'
 
     async def fail_route(self):
+        self.counter.labels(name='failed_instances').inc()
         # When there is a flow ID in the headers, store the result in etcd and
         # change the state to ERROR.
 

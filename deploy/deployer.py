@@ -159,7 +159,8 @@ class Deployer:
             'monitoring.coreos.com', 'v1', 'rexflow', 'prometheuses', specs.prometheus)
         self.create_namespaced_custom_object(
             'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', specs.flowd_monitor)
-        
+        self.create_namespaced_custom_object(
+            'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', specs.flowd_grpc_monitor)
 
         # Gateway and virtual services
         self.create_namespaced_custom_object(
@@ -223,7 +224,9 @@ class Deployer:
         self.delete_cluster_role('prometheus-operator')
         self.delete_cluster_role_binding('prometheus-operator')
         self.delete_namespaced_custom_object(
-            'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', 'flowd')
+            'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', 'prometheus')
+        self.delete_namespaced_custom_object(
+            'monitoring.coreos.com', 'v1', 'rexflow', 'servicemonitors', 'prometheus-grpc')
         self.delete_namespaced_custom_object(
             'monitoring.coreos.com', 'v1', 'rexflow', 'prometheuses', 'prometheus')
         self.delete_namespaced_service('flowd', 'default')

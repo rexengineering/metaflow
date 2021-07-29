@@ -1,7 +1,5 @@
 from flowlib import flow_pb2_grpc
-
 from .handlers import handler_dispatch
-
 
 class Flow(flow_pb2_grpc.FlowDaemon):
 
