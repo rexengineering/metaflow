@@ -13,7 +13,8 @@ from flowlib.workflow import Workflow, get_workflows
 
 from flowlib.config import (
     INSTANCE_FAIL_ENDPOINT_PATH,
-    WF_MAP_ENDPOINT_PATH
+    WF_MAP_ENDPOINT_PATH,
+    UI_BRIDGE_INIT_PATH,
 )
 from flowlib.constants import (
     BStates,
@@ -193,6 +194,11 @@ class FlowApp(QuartApp):
                     'start_event_urls': start_event_urls,
                     'user_opaque_metadata': workflow.properties.user_opaque_metadata,
                 })
+                if workflow.process.user_tasks:
+                    bridge = workflow.process.user_tasks[0]._service_properties
+                    wf_map[wf_id].append({
+                        'bridge_url' :  f'http://{bridge._host}.{workflow.process.namespace}:{bridge._port}/'
+                    })
         return flow_result(0, 'Ok', wf_map=wf_map)
 
     def _put_payload(self, payload: dict, keys: WorkflowInstanceKeys, workflow: Workflow):
