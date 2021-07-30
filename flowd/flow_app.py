@@ -121,13 +121,9 @@ class FlowApp(QuartApp):
                     wf_error_dict[wf_id] = []
                     wf_error += 1
         self.gauge.labels(name="Running").set(wf_running)
-        print("Running: "+str(wf_running),flush=True)
         self.gauge.labels(name="Starting").set(wf_starting)
-        print("Starting: "+str(wf_starting),flush=True)
         self.gauge.labels(name="Stopped").set(wf_stopped)
-        print("Stopped: "+str(wf_stopped),flush=True)
         self.gauge.labels(name="Error").set(wf_error)
-        print("Error: "+str(wf_error),flush=True)
         return generate_latest()
     
     async def health(self):
