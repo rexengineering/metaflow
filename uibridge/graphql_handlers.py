@@ -1,3 +1,4 @@
+from uibridge import salesforce_utils
 from flowlib.constants import WorkflowInstanceKeys
 import json
 import logging
@@ -130,11 +131,16 @@ def task_mutation_save(_,info,input):
     status = FAILURE
     tid    = input[TID]
     iid    = input[IID]
-    task   = info.context[WORKFLOW].task(tid)
+    wf     = info.context[WORKFLOW]
+    task   = wf.task(tid)
+    sf     = info.context.get('salesforce', False)
+    logging.info(f'task save salesforce {sf}')
     if task:
         all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
-        task.update(iid, input[FIELDS])
+        flds = task.update(iid, input[FIELDS])
         status = SUCCESS
+        if sf:
+            salesforce_utils.post_salesforce_data(wf.did, iid, task, flds)
     return gql.task_validate_payload(iid, tid, status, all_passed, field_results)
 
 @task_mutation.field('complete')

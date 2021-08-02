@@ -51,9 +51,7 @@
     <bpmn:textAnnotation id="TextAnnotation_1mpg83g">
       <bpmn:text>rexflow_global_properties:
   xgw_expression_type: python
-  user_metadata:
-    key0: value0
-    key1: value1</bpmn:text>
+  salesforce: true</bpmn:text>
     </bpmn:textAnnotation>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -99,7 +97,7 @@
         <dc:Bounds x="630" y="157" width="160" height="68" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
-        <dc:Bounds x="160" y="80" width="260" height="82" />
+        <dc:Bounds x="160" y="80" width="260" height="54" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0kjjvp5_di" bpmnElement="Association_0kjjvp5">
         <di:waypoint x="383" y="327" />

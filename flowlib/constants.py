@@ -160,6 +160,10 @@ class WorkflowKeys:
     def timed_events_key(cls, did):
         return f'{cls.key_of(did)}/timed_events'
 
+    @classmethod
+    def salesforce_info(cls, did, tid):
+        return f'{cls.key_of(did)}/salesforce/{tid}'
+
 
 # TODO: There seems to be a proliferation of instance-related keys in ETCD.
 # Schedule a careful review of these and remove as many as possible.

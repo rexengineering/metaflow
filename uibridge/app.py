@@ -18,6 +18,8 @@ from flowlib import executor, user_task
 from flowlib.constants import Headers, flow_result, TEST_MODE_URI
 from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
+from .salesforce_utils import create_salesforce_assets
+from uibridge import salesforce_utils
 
 
 BASEDIR = os.path.dirname(__file__)
@@ -59,8 +61,17 @@ class REXFlowUIBridge(AsyncService):
             graphql_handlers.mutation,
             graphql_handlers.task_mutation,
         )
+        self.salesforce = True
 
         self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, BRIDGE_CONFIG, flowd_host, flowd_port)
+        # assure salesforce resources exist (if required)
+        if self.salesforce:
+            logging.info(f'Deploying/validating Salesforce resources')
+            success, count = create_salesforce_assets(self.workflow)
+            # success True means the resources exist - the count is the number of resources deployed
+            if not success:
+                logging.error('Salesforce resources required but do not exist')
+                self.salesforce = False
         self.workflow.start()
 
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
@@ -133,7 +144,11 @@ class REXFlowUIBridge(AsyncService):
         success, result = graphql_sync(
             self.graphql_schema,
             data,
-            context_value = {'request':request, 'workflow': self.workflow},
+            context_value = {
+                'request':request, 
+                'workflow': self.workflow,
+                'salesforce': self.salesforce,
+            },
             debug=self.app.debug
         )
         status_code = 200 if success else 400

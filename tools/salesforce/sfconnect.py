@@ -54,21 +54,26 @@ Generate a Salesforce Schema from Workflow Task form
     </fields>
 </CustomObject>
 """
-from zipfile import ZipFile, ZipInfo
+import json
+
 from io import BytesIO
+from simple_salesforce import Salesforce
+from uibridge.flowd_api import Workflow, WorkflowTask
+from zipfile import ZipFile, ZipInfo
+
 import flowlib.etcd_utils
 from flowlib.constants import (
     WorkflowKeys,
     WorkflowInstanceKeys,
 )
-from uibridge.flowd_api import Workflow, WorkflowTask
-
 class CustomField:
     def __init__(self, name:str, label:str, type:str):
-        self._name = f'{name.replace("_","e")}__c'
+        # remove all '-' and '_' and convert to lower case
+        self._name = f'{name.replace("-","").replace("_","")}__c'.lower()
+        self._form_name = name
         self._label = label
         self._type = type
-    
+
     def __str__(self):
         return '<fields>\n' \
             f'<fullName>{self._name}</fullName>\n' \
@@ -81,24 +86,22 @@ class CustomField:
             f'<type>{self._type}</type>\n' \
             '</fields>\n'
 
-    #    return '<?xml version="1.0" encoding="UTF-8"?>\n' \
-    #         '<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">\n' \
-    #         f'<fullName>{self._name}__c</fullName>\n' \
-    #         '<externalId>false</externalId>\n' \
-    #         f'<label>{self._label}</label>\n' \
-    #         '<length>180</length>\n' \
-    #         '<required>false</required>\n' \
-    #         '<trackHistory>false</trackHistory>\n' \
-    #         '<trackTrending>false</trackTrending>\n' \
-    #         f'<type>{self._type}</type>\n' \
-    #         '</CustomField>'
-
 class CustomObject:
     def __init__(self, name:str, label:str):
-        # Object Name field can only contain underscores and alphanumeric characters.
-        self._name = f'{name.replace("-","").replace("_","e")}__c'
+        # remove all '-' and '_' and convert to lower case
+        self._name = f'{name.replace("-","").replace("_","")}__c'.lower()
         self._label = label
         self._fields = []
+
+    def exists(self, sf:Salesforce):
+        """Determine if this custom object already exists"""
+        try:
+            getattr(sf,self._name).metadata()
+            sf.query_all('SELECT Id FROM {}'.format(self._name))['records']
+            return True
+        except:
+            pass
+        return False
 
     def add_field(self, fld:CustomField):
         self._fields.append(fld)
@@ -119,7 +122,7 @@ class CustomObject:
             '<enableSharing>true</enableSharing>\n' \
             '<enableStreamingApi>true</enableStreamingApi>\n' \
             '<externalSharingModel>Private</externalSharingModel>\n' \
-            f'<label>Rexflow {self._name.replace("_", " ")}</label>\n' \
+            f'<label>Rexflow {self._name}</label>\n' \
             '<nameField>\n' \
                 f'<label>Rexflow_{self._name}</label>\n' \
                 '<trackHistory>false</trackHistory>\n' \
@@ -135,6 +138,19 @@ class CustomObject:
             xml += str(field)
         xml += '</CustomObject>'
         return xml
+
+    def form_json(self) -> str:
+        field_map = {}
+        for field in self._fields:
+            field_map[field._form_name] = field._name
+
+        d = {'salesforce': {
+                'table' : self._name,
+                'field_map' : field_map
+            }
+        }
+        j = json.dumps(d)
+        print(j)
 
 class Profile:
     def __init__(self, name:str):
@@ -183,6 +199,22 @@ package_xml = """<?xml version="1.0" encoding="UTF-8"?>
 </Package>"""
 
 if __name__ == "__main__":
+    mode = 2
+
+    sf = Salesforce(
+        username='ghester@rexhomes.com.qa1',
+        consumer_key='3MVG9Eroh42Z9.iXvUyLGLZu3HSJ1y337lFTT1BY8htZ7m7FtBKU9pioaooAT2QJy3.MnktFj.1zZgnOzdPpk',
+        privatekey_file='/root/JWT/server.key',
+        domain='test',
+    )
+
+    objects = []
+    pr = Profile('System Administrator (MFA)')
+    wf = Workflow('amorttable-7e262634', ['get_terms','show_table'], {}, '', 0)
+    did_pref = wf.did
+    if len(did_pref) > 6:
+        did_pref = wf.did[0:3] + wf.did[-3:]
+
     # create a file heir as follows:
     # ./package.xml
     # ./objects
@@ -194,32 +226,53 @@ if __name__ == "__main__":
         filex = ZipInfo('package.xml')
         zip_archive.writestr(filex, package_xml)
 
-        pr = Profile('System Administrator (MFA)')
-        wf = Workflow('amorttable-7e262634', ['get_terms','show_table'], {}, '', 0)
         task:WorkflowTask
         for task in wf.tasks.values():
             # did/tid combo can't exceed 12 chars
-            obj = CustomObject(f'RF{wf.did[0:5]}_{task.tid[0:5]}', wf.did)
+            tid_pref = task.tid
+            if len(tid_pref) > 6:
+                tid_pref = task.tid[0:3] + task.tid[-3:]
+            obj = CustomObject(f'rf{did_pref}_{tid_pref}', wf.did)
+            if mode < 1 and obj.exists(sf):
+                print(f'{obj._name} already exists - skipping')
+                continue
+            objects.append(obj)
             form = task.get_form(None,False)
 
             for field in form:
                 cf = CustomField(field['dataId'], field['label'], 'Text')
-                obj.add_field(cf) 
+                obj.add_field(cf)
                 pr.add_field(f'{obj._name}.{cf._name}')
 
             filex = ZipInfo(f'objects/{obj._name}.object')
             zip_archive.writestr(filex, str(obj))
+            print(obj.form_json())
         # now write the Admin profile (updates)
         filex = ZipInfo(f'profiles/{pr._name}.profile')
         zip_archive.writestr(filex, str(pr))
 
+    if len(objects) == 0:
+        print("No objects to create - exiting")
+        exit(1)
+
     with open('bogus.zip', 'wb') as f:
         f.write(archive.getbuffer())
-    
+
     archive.close()
 
-    # a = CustomObject('BogusCode__c', 'Bogus Code Name')
-    # a.add_field(CustomField('BogusCity__c', 'City', 'Text'))
-    # a.add_field(CustomField('BogusState__c', 'State', 'Text'))
+    if mode < 2:
+        result = sf.deploy('/opt/rexflow/bogus.zip', True, allowMissingFiles=True, testLevel='NoTestRun')
+        asyncId = result['asyncId']
+        print(asyncId)
+        deployment_finished = False
+        successful          = False
+        while not deployment_finished:
+            result = sf.checkDeployStatus(asyncId, True)
+            print(result)
+            deployment_finished = result.get('state') in ["Succeeded", "Completed", "Error", "Failed", "SucceededPartial", None]
+            successful          = result.get('state') in ["Succeeded", "Completed"]
 
-    # print(a)
+    # try to insert some data
+    # result = sf.Rexflow_amorttable_7e262634_show_table__c.create({'interest__c':'0.030', 'principal__c':'123456.00', 'seller__c':'REX Homes', 'term__c': '30'})
+
+    # modify the form image in etcd to include table and field information about the created objects

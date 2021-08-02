@@ -9,14 +9,6 @@ if __name__ == "__main__":
         domain='test',
     )
 
-    # the following does not work ...
-    # sf = Salesforce(
-    #     username='ghester@rexhomes.com.qa1',
-    #     password='C0deF0018374',
-    #     security_token='6Cel800D020000008aoW88802000000H35KpYegUksJItspideSuIuy0aSJh6ygmh7gC4gJEuQDLW2Y3dWESWRQj3dVfmv7Wgzu7XQkKOJN',
-    #     domain='test',
-    # )
-
     print(sf)
 
     if mode == 2:
