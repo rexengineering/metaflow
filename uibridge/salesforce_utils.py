@@ -7,6 +7,7 @@ import os
 
 from io import BytesIO
 from simple_salesforce import Salesforce
+from typing import Any
 from uibridge.flowd_api import Workflow, WorkflowTask
 from zipfile import ZipFile, ZipInfo
 
@@ -15,6 +16,10 @@ from flowlib.constants import (
     WorkflowKeys,
     WorkflowInstanceKeys,
 )
+
+class SalesforceManager:
+    def __init__(self, wf:Workflow):
+        
 
 class CustomField:
     def __init__(self, name:str, label:str, type:str, length:int):
@@ -105,7 +110,8 @@ class CustomObject:
 
         d = {'salesforce': {
                 'table' : self._name,
-                'field_map' : field_map
+                'field_map' : field_map,
+                'records' : {},
             }
         }
         return json.dumps(d)
@@ -160,7 +166,7 @@ package_xml = """<?xml version="1.0" encoding="UTF-8"?>
 </Package>
 """
 
-def put_salesforce_info(did:str, tid:str, data:str):
+def put_salesforce_info(did:str, tid:str, data:Any):
     # make sure data is encoded
     if isinstance(data, dict):
         data = json.dumps(data).encode()
@@ -194,6 +200,26 @@ def get_salesforce_client() -> Salesforce:
         domain='test',
     )
 
+def get_salesforce_object_name(name:str):
+    # If the name is already six or less then use verbatim, otherwise
+    # condense by taking the first and last three chars of the name.
+    if len(name) > 6:
+        name = name[0:3] + name[-3:]
+    return name
+
+def get_salesforce_table_name(task:WorkflowTask):
+    # we are constrained in Salesforce Profile(s) to 40-chars, and since we waste
+    # six with the __c for the CustomObject name AND the CustomField name AND
+    # one more for the dot separator, then we're down six leaving 33 total. Hence
+    # we restrict the did and tid names to six chars each. Subtract these 12 chars
+    # and that means the maximum length of a field name to 22 chars, which should
+    # suffice.
+    #
+    # So a salesforce CustomObject name will be rfwwwwww_tttttt__c (18 chars)
+    did_pref = get_salesforce_object_name(task.wf.did)
+    tid_pref = get_salesforce_object_name(task.tid)
+    return f'rf{did_pref}{tid_pref}'
+
 def create_salesforce_assets(wf:Workflow):
     # TODO: have to derive path to server key
     # TODO: Move all these constants to either etcd
@@ -202,23 +228,14 @@ def create_salesforce_assets(wf:Workflow):
     obj_exists = 0
     objects = []
     pr = Profile('System Administrator (MFA)')
-    did_pref = wf.did
-    #
-    # we are constrained in Salesforce Profile's to 40-chars, and since we waste
-    # six with the __c for the CustomObject name AND the CustomField name AND
-    # one more for the dot separator, then we're down six leaving 33 total. Hence
-    # we restrict the did and tid names to six chars each. If the name is already
-    # six or less then use verbatim, otherwise condense by taking the first and
-    # last three chars of the name. Subtract these 12 chars and that means the
-    # maximum length of a field name to 21 chars, which should suffice.
-    if len(did_pref) > 6:
-        did_pref = wf.did[0:3] + wf.did[-3:]
 
     # create a file heir as follows:
     # ./package.xml
     # ./objects
     # ./objects/name_of_first_object__c.object
     # ./objects/name_of_second_object__c.object
+    # ./objects/...
+    # ./profiles/name_of_account.profile
     # ...
     archive = BytesIO()
     with ZipFile(archive, 'w') as zip_archive:
@@ -227,11 +244,7 @@ def create_salesforce_assets(wf:Workflow):
 
         task:WorkflowTask
         for task in wf.tasks.values():
-            # did/tid combo can't exceed 12 chars
-            tid_pref = task.tid
-            if len(tid_pref) > 6:
-                tid_pref = task.tid[0:3] + task.tid[-3:]
-            obj = CustomObject(f'rf{did_pref}_{tid_pref}', wf.did)
+            obj = CustomObject(get_salesforce_table_name(task), wf.did)
             objects.append(obj)
             pr.add_obj(obj)
             form = task.get_form(None,False)
@@ -287,9 +300,11 @@ def create_salesforce_assets(wf:Workflow):
 def post_salesforce_data(did:str, iid:str, task:WorkflowTask, data:dict):
     """
     """
-    sf_id = None
     sf_info = get_salesforce_info(task.wf.did, task.tid)
     assert sf_info is not None, f'{task.wf.did} {task.tid} does not have salesforce support'
+    if 'records' not in sf_info:
+        sf_info['records'] = {}
+    sf_recid = sf_info['records'].get(iid, None)
     sf = get_salesforce_client()
     data_dict = {}
     data_dict['did__c'] = did
@@ -303,17 +318,17 @@ def post_salesforce_data(did:str, iid:str, task:WorkflowTask, data:dict):
 
     logging.info(f'salesforce posting {data_dict}')
     sf_obj = getattr(sf, sf_info['salesforce']['table'])
-    if sf_id is not None:
-        response = sf_obj.upsert(sf_id, data_dict)
+    if sf_recid is not None:
+        response = sf_obj.upsert(sf_recid, data_dict)
     else:
         response = sf_obj.create(data_dict)
+        if 'id' in response.keys():
+            # the response has a record id, which we will need in case we need to update this record.
+            sf_info['records'][iid] = response['id']
+            put_salesforce_info(did, task.tid, sf_info)
 
     # [('id', 'a1S02000000WGUaEAO'), ('success', True), ('errors', [])]
     logging.info(f'salesforce response {response}')
-    if 'id' in response.keys():
-        # the response has a record id, which we will need in case we need to update this record.
-        # sf_id = response['id']
-        pass
 
 
 

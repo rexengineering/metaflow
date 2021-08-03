@@ -311,6 +311,7 @@ class WorkflowProperties:
         self._prefix_passthrough_with_namespace = False
         self._catch_event_expiration = 72
         self._timer_recovery_policy = TimerRecoveryPolicy.RECOVER_FAIL
+        self._use_salesforce = False
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -508,6 +509,9 @@ class WorkflowProperties:
                 self._timer_recovery_policy = TimerRecoveryPolicy(policy)
             except ValueError:
                 pass
+
+        if 'salesforce' in annotations:
+            self._use_salesforce = annotations['salesforce']
 
 class BPMNComponent:
     """

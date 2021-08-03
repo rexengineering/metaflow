@@ -61,10 +61,10 @@ class REXFlowUIBridge(AsyncService):
             graphql_handlers.mutation,
             graphql_handlers.task_mutation,
         )
-        self.salesforce = True
 
         self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, BRIDGE_CONFIG, flowd_host, flowd_port)
         # assure salesforce resources exist (if required)
+        self.salesforce = os.environ.get('USE_SALESFORCE', 'false').lower() == 'true'
         if self.salesforce:
             logging.info(f'Deploying/validating Salesforce resources')
             success, count = create_salesforce_assets(self.workflow)

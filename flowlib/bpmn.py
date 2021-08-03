@@ -379,7 +379,11 @@ class BPMNProcess:
                 {
                     'name': 'BRIDGE_CONFIG',
                     'value': json.dumps(bridge_config),
-                }
+                },
+                {
+                    'name': 'USE_SALESFORCE',
+                    'value': self.properties._use_salesforce,
+                },
             ]
             results.append(create_deployment(
                 self.namespace,
@@ -489,7 +493,7 @@ class BPMNProcess:
         for task in self.tasks:
             if not task.is_passthrough:
                 continue
-            
+
             key = f'{task.service_name}.{task.namespace}'
             if key not in services:
                 target_url = f'http://{task.service_name}'
