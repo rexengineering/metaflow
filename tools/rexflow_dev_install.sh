@@ -23,7 +23,7 @@ istioctl install -y --set profile=demo
 
 echo "creating conda environment"
 conda create --name rexflow python=3.8
-source activate rexflow
+conda activate rexflow
 pip install -r requirements.txt
 
 echo "installing rexflow into your cluster"
