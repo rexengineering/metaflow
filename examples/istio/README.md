@@ -13,10 +13,10 @@ REXFlow response routing.  For details on building this container, see the
 README for the REX `istio-proxy` repository.
 
 In order to download the istio proxy you can run the following command
-''' 
+``` 
 % docker pull 355508092300.dkr.ecr.us-west-2.amazonaws.com/rex/istio-proxy:1.8.2-branch.rex.sh
 % docker tag 355508092300.dkr.ecr.us-west-2.amazonaws.com/rex/istio-proxy:1.8.2-branch.rex.sh rex-proxy:1.8.2
-'''
+```
 
 Lastly, you must set the `ISTIO_VERSION` environment variable to the version
 of your istio: see `istioctl version`, and you must set `REX_ISTIO_PROXY_IMAGE`
@@ -33,9 +33,9 @@ First, ensure you are using the `docker-desktop` context for Kubernetes:
 ```
 
 Second, Install Istio on our cluster
-'''
+```
 % istioctl install --set profile=demo
-'''
+```
 Third, if you haven't already, be sure to setup your Python environment for use
 of `flowctl`:
 
