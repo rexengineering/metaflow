@@ -80,10 +80,10 @@ class TimerRecoveryPolicy(Enum):
     RECOVER_FAIL   - (default) fail the workflow instance
     RECOVER_FUTURE - (not implemented) schedule them in the future with now() as base time
     """
-    RECOVER_FORGET = 'forget'
-    RECOVER_FIRE   = 'fire'
-    RECOVER_FAIL   = 'fail'
-    # RECOVER_FUTURE = 'future'
+    RECOVER_FORGET = 'FORGET'
+    RECOVER_FIRE   = 'FIRE'
+    RECOVER_FAIL   = 'FAIL'
+    # RECOVER_FUTURE = 'FUTURE'
 
 class Recurrence:
     NOREPEAT  =  0

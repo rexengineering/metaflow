@@ -503,9 +503,9 @@ class WorkflowProperties:
             self._catch_event_expiration = annotations['catch_event_expiration']
 
         if 'timer_recovery_policy' in annotations:
-            policy = annotations.get('timer_recovery_policy', 'fail')
+            policy = annotations.get('timer_recovery_policy', 'FAIL')
             try:
-                self._timer_recovery_policy = TimerRecoveryPolicy(policy)
+                self._timer_recovery_policy = TimerRecoveryPolicy(policy.upper())
             except ValueError:
                 pass
 
@@ -606,9 +606,9 @@ class BPMNComponent:
             if 'service' in annotation:
                 self._service_properties.update(annotation['service'])
             if 'timer_recovery_policy' in annotation:
-                policy = annotation.get('timer_recovery_policy', 'fail')
+                policy = annotation.get('timer_recovery_policy', 'FAIL')
                 try:
-                    self._timer_recovery_policy = TimerRecoveryPolicy(policy)
+                    self._timer_recovery_policy = TimerRecoveryPolicy(policy.upper())
                 except ValueError:
                     pass
 
