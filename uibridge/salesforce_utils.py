@@ -4,22 +4,21 @@ Generate a Salesforce Schema from Workflow Task form
 import json
 import logging
 import os
+import queue
 
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from simple_salesforce import Salesforce
 from typing import Any
 from uibridge.flowd_api import Workflow, WorkflowTask
 from zipfile import ZipFile, ZipInfo
 
-from flowlib.etcd_utils import locked_call
 from flowlib.constants import (
     WorkflowKeys,
     WorkflowInstanceKeys,
 )
-
-class SalesforceManager:
-    def __init__(self, wf:Workflow):
-        
+from flowlib.etcd_utils import locked_call
+from flowlib.executor import get_executor
 
 class CustomField:
     def __init__(self, name:str, label:str, type:str, length:int):
@@ -166,169 +165,196 @@ package_xml = """<?xml version="1.0" encoding="UTF-8"?>
 </Package>
 """
 
-def put_salesforce_info(did:str, tid:str, data:Any):
-    # make sure data is encoded
-    if isinstance(data, dict):
-        data = json.dumps(data).encode()
-    elif isinstance(data, str):
-        data = data.encode()
+class SalesforceManager:
+    def __init__(self, wf:Workflow):
+        self._wf = wf
+        self._sf = self.get_client()
+        self._queue = queue.Queue()
+        self._executor:ThreadPoolExecutor = get_executor()
+        self._future = None
 
-    assert isinstance(data,bytes), 'Data must be bytes'
+    def start(self):
+        assert self._future is None
+        self._running = True
+        self._future = self._executor.submit(self)
 
-    key = WorkflowKeys.salesforce_info(did, tid)
-    def __logic(etcd):
-        logging.info(f'salesforce writing {data}')
-        etcd.put(key, data)
-        return True
-    return locked_call(key, __logic)
+    def stop(self):
+        assert self._future is not None
+        # exhaust the queue
+        self._queue.join()
+        self._running = False
 
-def get_salesforce_info(did:str, tid:str) -> dict:
-    key = WorkflowKeys.salesforce_info(did, tid)
-    def __logic(etcd):
-        data, _ = etcd.get(key)
-        if data is not None:
-            return json.loads(data.decode())
-        return None
-    return locked_call(key, __logic)
+    def put_salesforce_info(self, tid:str, data:Any):
+        # make sure data is encoded
+        if isinstance(data, dict):
+            data = json.dumps(data).encode()
+        elif isinstance(data, str):
+            data = data.encode()
 
-def get_salesforce_client() -> Salesforce:
-    server_key_path=os.path.join(os.path.dirname(__file__), 'resources/server.key')
-    return Salesforce(
-        username='ghester@rexhomes.com.qa1',
-        consumer_key='3MVG9Eroh42Z9.iXvUyLGLZu3HSJ1y337lFTT1BY8htZ7m7FtBKU9pioaooAT2QJy3.MnktFj.1zZgnOzdPpk',
-        privatekey_file=server_key_path, #'/root/JWT/server.key',
-        domain='test',
-    )
+        assert isinstance(data,bytes), 'Data must be bytes'
 
-def get_salesforce_object_name(name:str):
-    # If the name is already six or less then use verbatim, otherwise
-    # condense by taking the first and last three chars of the name.
-    if len(name) > 6:
-        name = name[0:3] + name[-3:]
-    return name
+        key = WorkflowKeys.salesforce_info(self._wf.did, tid)
+        def __logic(etcd):
+            logging.info(f'salesforce writing {data}')
+            etcd.put(key, data)
+            return True
+        return locked_call(key, __logic)
 
-def get_salesforce_table_name(task:WorkflowTask):
-    # we are constrained in Salesforce Profile(s) to 40-chars, and since we waste
-    # six with the __c for the CustomObject name AND the CustomField name AND
-    # one more for the dot separator, then we're down six leaving 33 total. Hence
-    # we restrict the did and tid names to six chars each. Subtract these 12 chars
-    # and that means the maximum length of a field name to 22 chars, which should
-    # suffice.
-    #
-    # So a salesforce CustomObject name will be rfwwwwww_tttttt__c (18 chars)
-    did_pref = get_salesforce_object_name(task.wf.did)
-    tid_pref = get_salesforce_object_name(task.tid)
-    return f'rf{did_pref}{tid_pref}'
+    def __call__(self):
+        while self._running:
+            iid, task, data = self._queue.get()
+            if iid is not None:
+                self.post_salesforce_data(iid, task, data)
+                logging.info("processed event successfully.")
+            self._queue.task_done()
 
-def create_salesforce_assets(wf:Workflow):
-    # TODO: have to derive path to server key
-    # TODO: Move all these constants to either etcd
-    sf = get_salesforce_client()
+    def post(self, iid:str, task:WorkflowTask, data:dict):
+        self._queue.put([iid, task, data])
 
-    obj_exists = 0
-    objects = []
-    pr = Profile('System Administrator (MFA)')
+    def get_salesforce_info(self, tid:str) -> dict:
+        key = WorkflowKeys.salesforce_info(self._wf.did, tid)
+        def __logic(etcd):
+            data, _ = etcd.get(key)
+            if data is not None:
+                return json.loads(data.decode())
+            return None
+        return locked_call(key, __logic)
 
-    # create a file heir as follows:
-    # ./package.xml
-    # ./objects
-    # ./objects/name_of_first_object__c.object
-    # ./objects/name_of_second_object__c.object
-    # ./objects/...
-    # ./profiles/name_of_account.profile
-    # ...
-    archive = BytesIO()
-    with ZipFile(archive, 'w') as zip_archive:
-        filex = ZipInfo('package.xml')
-        zip_archive.writestr(filex, package_xml)
+    def get_client(self) -> Salesforce:
+        server_key_path=os.path.join(os.path.dirname(__file__), 'resources/server.key')
+        return Salesforce(
+            username='ghester@rexhomes.com.qa1',
+            consumer_key='3MVG9Eroh42Z9.iXvUyLGLZu3HSJ1y337lFTT1BY8htZ7m7FtBKU9pioaooAT2QJy3.MnktFj.1zZgnOzdPpk',
+            privatekey_file=server_key_path, #'/root/JWT/server.key',
+            domain='test',
+        )
 
-        task:WorkflowTask
-        for task in wf.tasks.values():
-            obj = CustomObject(get_salesforce_table_name(task), wf.did)
-            objects.append(obj)
-            pr.add_obj(obj)
-            form = task.get_form(None,False)
+    def get_salesforce_object_name(self, name:str):
+        # If the name is already six or less then use verbatim, otherwise
+        # condense by taking the first and last three chars of the name.
+        if len(name) > 6:
+            name = name[0:3] + name[-3:]
+        return name
 
-            for field in form:
-                cf = CustomField(field['dataId'], field['label'], 'Text', 180)
-                obj.add_field(cf)
+    def get_salesforce_table_name(self, task:WorkflowTask):
+        # we are constrained in Salesforce Profile(s) to 40-chars, and since we waste
+        # six with the __c for the CustomObject name AND the CustomField name AND
+        # one more for the dot separator, then we're down six leaving 33 total. Hence
+        # we restrict the did and tid names to six chars each. Subtract these 12 chars
+        # and that means the maximum length of a field name to 22 chars, which should
+        # suffice.
+        #
+        # So a salesforce CustomObject name will be rfwwwwww_tttttt__c (18 chars)
+        did_pref = self.get_salesforce_object_name(task.wf.did)
+        tid_pref = self.get_salesforce_object_name(task.tid)
+        return f'rf{did_pref}{tid_pref}'
 
-            # save the salesinfo json
-            j = obj.form_json()
-            logging.info(j)
-            put_salesforce_info(wf.did, task.tid, j)
+    def create_salesforce_assets(self):
+        # TODO: have to derive path to server key
+        # TODO: Move all these constants to either etcd
+        obj_exists = 0
+        objects = []
+        pr = Profile('System Administrator (MFA)')
 
-            if obj.exists(sf):
-                # validate the the object does now already exist
-                logging.info(f'{obj._name} already exists - skipping')
-                obj_exists += 1
-                continue
+        # create a file heir as follows:
+        # ./package.xml
+        # ./objects
+        # ./objects/name_of_first_object__c.object
+        # ./objects/name_of_second_object__c.object
+        # ./objects/...
+        # ./profiles/name_of_account.profile
+        # ...
+        archive = BytesIO()
+        with ZipFile(archive, 'w') as zip_archive:
+            filex = ZipInfo('package.xml')
+            zip_archive.writestr(filex, package_xml)
 
-            filex = ZipInfo(f'objects/{obj._name}.object')
-            obj_xml = str(obj)
-            zip_archive.writestr(filex, obj_xml)
-            logging.info(obj_xml)
+            task:WorkflowTask
+            for task in self._wf.tasks.values():
+                obj = CustomObject(self.get_salesforce_table_name(task), self._wf.did)
+                objects.append(obj)
+                pr.add_obj(obj)
+                form = task.get_form(None,False)
 
-        # now write the Admin profile (updates)
-        filex = ZipInfo(f'profiles/{pr._name}.profile')
-        pro_xml = str(pr)
-        zip_archive.writestr(filex, pro_xml)
-        logging.info(pro_xml)
+                for field in form:
+                    cf = CustomField(field['dataId'], field['label'], 'Text', 180)
+                    obj.add_field(cf)
 
-    if len(objects) == 0:
-        logging.info("No objects to create - leaving")
-        return True, obj_exists
+                # save the salesinfo json
+                j = obj.form_json()
+                logging.info(j)
+                self.put_salesforce_info(task.tid, j)
 
-    with open('bogus.zip', 'wb') as f:
-        f.write(archive.getbuffer())
+                if obj.exists(self._sf):
+                    # validate the the object does now already exist
+                    logging.info(f'{obj._name} already exists - skipping')
+                    obj_exists += 1
+                    continue
 
-    archive.close()
+                filex = ZipInfo(f'objects/{obj._name}.object')
+                obj_xml = str(obj)
+                zip_archive.writestr(filex, obj_xml)
+                logging.info(obj_xml)
 
-    # now deploy the schema to salesforce
-    result = sf.deploy('/opt/rexflow/bogus.zip', True, allowMissingFiles=True, testLevel='NoTestRun')
-    async_id = result['asyncId']
-    deployment_finished = False
-    successful          = False
-    while not deployment_finished:
-        result = sf.checkDeployStatus(async_id, True)
-        logging.info(result)
-        deployment_finished = result.get('state') in ["Succeeded", "Completed", "Error", "Failed", "SucceededPartial", None]
-        successful          = result.get('state') in ["Succeeded", "Completed"]
+            # now write the Admin profile (updates)
+            filex = ZipInfo(f'profiles/{pr._name}.profile')
+            pro_xml = str(pr)
+            zip_archive.writestr(filex, pro_xml)
+            logging.info(pro_xml)
 
-    return successful, len(objects)
+        if len(objects) == 0:
+            logging.info("No objects to create - leaving")
+            return True, obj_exists
 
-def post_salesforce_data(did:str, iid:str, task:WorkflowTask, data:dict):
-    """
-    """
-    sf_info = get_salesforce_info(task.wf.did, task.tid)
-    assert sf_info is not None, f'{task.wf.did} {task.tid} does not have salesforce support'
-    if 'records' not in sf_info:
-        sf_info['records'] = {}
-    sf_recid = sf_info['records'].get(iid, None)
-    sf = get_salesforce_client()
-    data_dict = {}
-    data_dict['did__c'] = did
-    data_dict['iid__c'] = iid
-    data_dict['tid__c'] = task.tid
-    data_dict['xid__c'] = 'n/a'
-    logging.info(f'form data {data}\n sf_info {sf_info}')
-    for rf_key, sf_key in sf_info['salesforce']['field_map'].items():
-        if rf_key in data.keys():
-            data_dict[sf_key] = data[rf_key]['data']
+        with open('bogus.zip', 'wb') as f:
+            f.write(archive.getbuffer())
 
-    logging.info(f'salesforce posting {data_dict}')
-    sf_obj = getattr(sf, sf_info['salesforce']['table'])
-    if sf_recid is not None:
-        response = sf_obj.upsert(sf_recid, data_dict)
-    else:
-        response = sf_obj.create(data_dict)
-        if 'id' in response.keys():
-            # the response has a record id, which we will need in case we need to update this record.
-            sf_info['records'][iid] = response['id']
-            put_salesforce_info(did, task.tid, sf_info)
+        archive.close()
 
-    # [('id', 'a1S02000000WGUaEAO'), ('success', True), ('errors', [])]
-    logging.info(f'salesforce response {response}')
+        # now deploy the schema to salesforce
+        result = self._sf.deploy('/opt/rexflow/bogus.zip', True, allowMissingFiles=True, testLevel='NoTestRun')
+        async_id = result['asyncId']
+        deployment_finished = False
+        successful          = False
+        while not deployment_finished:
+            result = self._sf.checkDeployStatus(async_id, True)
+            logging.info(result)
+            deployment_finished = result.get('state') in ["Succeeded", "Completed", "Error", "Failed", "SucceededPartial", None]
+            successful          = result.get('state') in ["Succeeded", "Completed"]
+
+        return successful, len(objects)
+
+    def post_salesforce_data(self, iid:str, task:WorkflowTask, data:dict):
+        """
+        """
+        sf_info = self.get_salesforce_info(task.tid)
+        assert sf_info is not None, f'{self._wf.did} {task.tid} does not have salesforce support'
+        if 'records' not in sf_info:
+            sf_info['records'] = {}
+        sf_recid = sf_info['records'].get(iid, None)
+        data_dict = {}
+        data_dict['did__c'] = self._wf.did
+        data_dict['iid__c'] = iid
+        data_dict['tid__c'] = task.tid
+        data_dict['xid__c'] = 'n/a'
+        logging.info(f'form data {data}\n sf_info {sf_info}')
+        for rf_key, sf_key in sf_info['salesforce']['field_map'].items():
+            if rf_key in data.keys():
+                data_dict[sf_key] = data[rf_key]['data']
+
+        logging.info(f'salesforce posting {data_dict}')
+        sf_obj = getattr(self._sf, sf_info['salesforce']['table'])
+        if sf_recid is not None:
+            response = sf_obj.upsert(sf_recid, data_dict)
+        else:
+            response = sf_obj.create(data_dict)
+            if 'id' in response.keys():
+                # the response has a record id, which we will need in case we need to update this record.
+                sf_info['records'][iid] = response['id']
+                self.put_salesforce_info(task.tid, sf_info)
+
+        # [('id', 'a1S02000000WGUaEAO'), ('success', True), ('errors', [])]
+        logging.info(f'salesforce response {response}')
 
 
 
