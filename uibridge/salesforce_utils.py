@@ -20,6 +20,35 @@ from flowlib.constants import (
 from flowlib.etcd_utils import locked_call
 from flowlib.executor import get_executor
 
+
+private_key = """-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA/USE/o9vB/k6CEPm6sIjcPUiY0rw+jAhRiLJR1wUX9CuJ1+f
+x/buK0Vqq59cm2bf1eWYIp0J6uqHG8A44xp89oXR6/DmJnJWBi8CRmyjRDNMpnIq
+VgmjDuFXndKWkyHpyhgVtPIA3Bi+3UHQXbGX8E/rYXea28XQ7/HxybG9YHvJXZhn
+Bwqo8CmUFk+b7mjpwYd4i9cRsVtPDe9Mvf+1VWcGj+bWTAVFTGSjBknzCzJI3Yvh
+AzhPYK3Zhxi7m/eWEYOPCYPRFxq7gijkaQq2szPYEq20N8r1pWgjXZPmCd/UQ0Ek
+WHwGYrcmBPirO2/wpJJgQrhbTpMcsZTmw5v5dQIDAQABAoIBAE8TS6rnQbVtnS7j
+dH+rqcEk6F20ElUrHdh2F/4Nw9a+owFsG8klUet0uv9mvFVQ42Y3Ty7PdT9Bhnml
+pJ1TsdyOn6JZDqLGZBF+L+mpFbi/g5kcYBeI3r5QoTiHfbfmiMYuiuh5/sa5ey49
+1D7MqjG/4jAGVfV0Z+3izqk4s3Yh0RXU3KbYKVvJlPSAfiRsH8f/IvgIsux8bsCD
+4+tEg2hBvLLlml9AIHC06S82w/xYBggXje550eMKtERl5bFlk+AIVYTo2bUzpFCX
+WViv3JC7/6P6E/y6W4xSnaXLlvY+yeKotXkW0XReph/Q1TopI4rzF6VojlmSG3KB
+CYo+EgECgYEA/8s+j9v54XqBYgozMVq17KcK8NGZFXWJDEeAHNN/DwblSRKTIDRb
+LQp+H6OP6Rq/jWcQUDp35XwThSw5r6Lsv6Xa0yo2/05c58yCJxNvwIfduIs0emxQ
+Wc4JjP2o/2PbqLVLcFNIjw8jAg7+KGapRs1tC63MXsRQJArMPjsXZsECgYEA/XjB
+DNgVGvvQK92m7hTCX+nuqx51mOGs1mSdhcCCnjCdwLwHQNQmG4zGPHjFjxeoUx6i
+uYUFK2b8LJTLjbIWzqTBtiBtfY85XdpjR/SuFncYkHqQ0ms9c5jwA/2qb1IYfIHx
+GPYov/m5MR3aBPuuPuUzQpwTWV6+HebPHQtwE7UCgYEAgoSSR5VWy1ZW7k+GD4jZ
+iwcw7fAEzI5Mf5d8JzlDe8do9wAjUitk2nagJESxCaA8XUpZaJZs1wuYajtGs/fO
+FXvrTBQeO+cgQKZ5QrcILpUk7SUagd0CotAez3Ie6TFqw4q+E3Jrc5OlqUc9KCA5
+/4aSPYNQ5IoG2l0oGhjMuAECgYEAzBgJSfBLvjh4vHlzSk0I3fYdKUgTZJCCfPbz
+J5mFEx8ORvyf0oGAVbqafGK6oKdp79PBLyR+rx3ze2osJOH7H1TmbWHbB7jldj68
+plnMO2aWLu+h4OxcxNGmoXAFZjFyaf6vRWwgD8Ria7wfqteEzDv9dGr74YA6ERWi
+Oz7UdekCgYBslAlmMi8kmtx34GS+STe03xbiO9YtIs2/1qiYF1DQhlpJcDEC/Xtr
+1UkbKUxLxAL8kL+9onIrUKM8Re3kdA/qFfiLCHpMBhmtUMA0unQQcY2QhXddyzFz
+7Ts84zwHLQ0QpzTxiWO1j3TBJl59j1arhoB2ecnyT/tsULkR+h9YNQ==
+-----END RSA PRIVATE KEY-----"""
+
 class CustomField:
     def __init__(self, name:str, label:str, type:str, length:int):
         # remove all '-' and '_' and convert to lower case
@@ -166,12 +195,13 @@ package_xml = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 class SalesforceManager:
-    def __init__(self, wf:Workflow):
+    def __init__(self, wf:Workflow, profile:dict):
         self._wf = wf
-        self._sf = self.get_client()
         self._queue = queue.Queue()
         self._executor:ThreadPoolExecutor = get_executor()
         self._future = None
+        self._profile = profile
+        self._sf = self.get_client()
 
     def start(self):
         assert self._future is None
@@ -221,12 +251,11 @@ class SalesforceManager:
         return locked_call(key, __logic)
 
     def get_client(self) -> Salesforce:
-        server_key_path=os.path.join(os.path.dirname(__file__), 'resources/server.key')
         return Salesforce(
-            username='ghester@rexhomes.com.qa1',
-            consumer_key='3MVG9Eroh42Z9.iXvUyLGLZu3HSJ1y337lFTT1BY8htZ7m7FtBKU9pioaooAT2QJy3.MnktFj.1zZgnOzdPpk',
-            privatekey_file=server_key_path, #'/root/JWT/server.key',
-            domain='test',
+            username=self._profile['username'], #'ghester@rexhomes.com.qa1',
+            consumer_key=self._profile['consumer_key'], #'3MVG9Eroh42Z9.iXvUyLGLZu3HSJ1y337lFTT1BY8htZ7m7FtBKU9pioaooAT2QJy3.MnktFj.1zZgnOzdPpk',
+            privatekey=self._profile['private_key'],
+            domain=self._profile['domain']
         )
 
     def get_salesforce_object_name(self, name:str):
