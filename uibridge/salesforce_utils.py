@@ -1,5 +1,5 @@
 """
-Generate a Salesforce Schema from Workflow Task form 
+Generate a Salesforce Schema from Workflow Task form
 """
 import json
 import logging

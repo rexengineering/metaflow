@@ -51,11 +51,16 @@
     <bpmn:textAnnotation id="TextAnnotation_1mpg83g">
       <bpmn:text>rexflow_global_properties:
   xgw_expression_type: python
-  salesforce: true</bpmn:text>
+  salesforce:
+    enabled: true
+    file: sf_ghester_test.json</bpmn:text>
     </bpmn:textAnnotation>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="AmortTable">
+      <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
+        <dc:Bounds x="160" y="40" width="260" height="82" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_09h99g5_di" bpmnElement="Flow_09h99g5">
         <di:waypoint x="440" y="367" />
         <di:waypoint x="660" y="367" />
@@ -95,9 +100,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0gjsqdz_di" bpmnElement="TextAnnotation_0gjsqdz">
         <dc:Bounds x="630" y="157" width="160" height="68" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
-        <dc:Bounds x="160" y="80" width="260" height="54" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0kjjvp5_di" bpmnElement="Association_0kjjvp5">
         <di:waypoint x="383" y="327" />

@@ -13,6 +13,7 @@ import xmltodict
 import yaml
 
 from . import bpmn
+from .bpmn_util import Bpmn
 from .executor import get_executor
 from .etcd_utils import get_etcd, transition_state
 from .constants import (
@@ -57,7 +58,7 @@ class Workflow:
 
         proc_key = WorkflowKeys.proc_key(id)
         proc_bytes = etcd.get(proc_key)[0]
-        proc_odict = xmltodict.parse(proc_bytes)['bpmn:process']
+        proc_odict = xmltodict.parse(proc_bytes)[Bpmn.process]
         process = bpmn.BPMNProcess(proc_odict)
         return cls(process, id)
 

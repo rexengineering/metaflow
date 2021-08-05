@@ -5,6 +5,7 @@ import sys
 import xmltodict
 
 from flowlib import bpmn, workflow
+from flowlib.bpmn_util import Bpmn
 from flowlib.etcd_utils import get_etcd
 from flowlib.constants import States, WorkflowKeys, flow_result
 
@@ -21,8 +22,9 @@ def handler(request):
     spec = xmltodict.parse(request.bpmn_xml, encoding='utf-8')
     if logger.level < logging.INFO:
         logging.debug(f'Received following BPMN specification:\n{spec}')
-    process = bpmn.BPMNProcess(spec['bpmn:definitions']['bpmn:process'])
+    process = bpmn.BPMNProcess(spec[Bpmn.definitions][Bpmn.process])
     assert process.id != 'flow', 'Your process name cannot be "flow", as it is a reserved prefix.'
+    logging.info(process.properties)
     workflow_obj = workflow.Workflow(process)
     result["wf_id"] = workflow_obj.id
     if len(process.tasks) <= 0:
