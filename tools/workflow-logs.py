@@ -3,13 +3,6 @@ import sys
 import subprocess
 import datetime
 
-workflow_id = sys.argv[1]
-file_name = str(workflow_id)
-if len(sys.argv) > 2:
-    file_path = sys.argv[2] + "/" + file_name
-else:
-    file_path = file_name
-
 def create_logs(workflow_ids, file_path):
     
     now = datetime.datetime.now()
@@ -33,5 +26,14 @@ def create_logs(workflow_ids, file_path):
     print("Closing Zip file")
     zipObj.close()
 
-create_logs([workflow_id,'rexflow'],file_path)
+if len(sys.argv) < 2:
+    print("Workflow_id must be specified")
+else:
+    workflow_id = sys.argv[1]
+    file_name = str(workflow_id)
+    if len(sys.argv) > 2:
+        file_path = sys.argv[2] + "/" + file_name
+    else:
+        file_path = file_name
+    create_logs([workflow_id,'rexflow'],file_path)
 
