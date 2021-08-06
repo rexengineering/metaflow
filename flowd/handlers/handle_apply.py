@@ -24,7 +24,6 @@ def handler(request):
         logging.debug(f'Received following BPMN specification:\n{spec}')
     process = bpmn.BPMNProcess(spec[Bpmn.definitions][Bpmn.process])
     assert process.id != 'flow', 'Your process name cannot be "flow", as it is a reserved prefix.'
-    logging.info(process.properties)
     workflow_obj = workflow.Workflow(process)
     result["wf_id"] = workflow_obj.id
     if len(process.tasks) <= 0:

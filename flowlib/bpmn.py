@@ -436,7 +436,6 @@ class BPMNProcess:
         # could easily tell Istio to automatically inject our own custom
         # proxy image, and thus remove the code below.
         temp_yaml = yaml.safe_dump_all(results, **kws)
-        logging.info(f'temp_yaml {temp_yaml}')
         if not DO_MANUAL_INJECTION:
             self._save_specs_to_s3(temp_yaml, keys_obj.specs)
             return temp_yaml

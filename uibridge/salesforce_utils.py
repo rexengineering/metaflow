@@ -282,7 +282,6 @@ class SalesforceManager:
 
                 # save the salesinfo json
                 j = obj.form_json()
-                logging.info(j)
                 self.put_salesforce_info(task.tid, j)
 
                 if obj.exists(self._sf):
@@ -294,13 +293,11 @@ class SalesforceManager:
                 filex = ZipInfo(f'objects/{obj._name}.object')
                 obj_xml = str(obj)
                 zip_archive.writestr(filex, obj_xml)
-                logging.info(obj_xml)
 
             # now write the Admin profile (updates)
             filex = ZipInfo(f'profiles/{pr._name}.profile')
             pro_xml = str(pr)
             zip_archive.writestr(filex, pro_xml)
-            logging.info(pro_xml)
 
         if len(objects) == 0:
             logging.info("No objects to create - leaving")

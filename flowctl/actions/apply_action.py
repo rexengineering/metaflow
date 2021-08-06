@@ -84,7 +84,6 @@ def process_specification(spec_file):
             if annot[Bpmn.text].startswith(Literals.GLOBAL_PROPERTIES_KEY):
                 text = yaml.safe_load(annot[Bpmn.text].replace('\xa0', ''))
                 hive = text[Literals.GLOBAL_PROPERTIES_KEY]
-                logging.info(f'\n\n{hive}\n')
                 if Literals.SALESFORCE in hive and hive[Literals.SALESFORCE].keys() >= {'enabled','file'} and hive[Literals.SALESFORCE]['enabled']:
                     fspec = hive[Literals.SALESFORCE]['file']
                     if not fspec.startswith('/'):
@@ -110,7 +109,6 @@ def apply_action(namespace: argparse.Namespace, *args, **kws):
         for spec in namespace.bpmn_spec:
             with open(spec, 'rb') as spec_file_obj:
                 postprocessed_xml = process_specification(spec_file_obj)
-                logging.info(postprocessed_xml)
                 responses[spec] = flowd.ApplyWorkflow(
                     flow_pb2.ApplyRequest(
                         bpmn_xml=postprocessed_xml,

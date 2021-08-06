@@ -70,7 +70,6 @@ class REXFlowUIBridge(AsyncService):
             sf_profile_json = os.environ.get('SALESFORCE_PROFILE', None)
             assert sf_profile_json is not None, 'Could not retrieve SALESFORCE_PROFILE from environment'
             sf_profile = json.loads(sf_profile_json)
-            logging.info(sf_profile)
             self._sf_manager = SalesforceManager(self.workflow, sf_profile)
             logging.info(f'Deploying/validating Salesforce resources')
             success, count = self._sf_manager.create_salesforce_assets()

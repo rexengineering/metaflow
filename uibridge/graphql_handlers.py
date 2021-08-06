@@ -135,7 +135,6 @@ def task_mutation_save(_,info,input):
     task   = wf.task(tid)
     sf     = info.context.get('salesforce', False)
     sf_mgr:SalesforceManager = info.context.get('sf_mgr', None)
-    logging.info(f'task save salesforce {sf}')
     if task:
         all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
         flds = task.update(iid, input[FIELDS])
