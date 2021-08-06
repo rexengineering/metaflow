@@ -9,7 +9,11 @@ def create_logs(workflow_ids, file_path):
     zipObj = ZipFile(file_path+'-' + str(now) + '.zip', 'w')
     print("Initializing ZipFile at " + file_path+'-' + str(now))
     for workflow_id in workflow_ids:
-        res = subprocess.check_output("kubectl get po -n"+str(workflow_id) + " | awk '{print $1}'", shell=True, text=True)
+        try:
+            res = subprocess.check_output("kubectl get po -n"+str(workflow_id) + " | awk '{print $1}'", shell=True, text=True)                       
+        except subprocess.CalledProcessError as grepexc:                                                                                                   
+            print("error code", grepexc.returncode, grepexc.output)
+            continue
         res = res.split("\n")
         res = res[1:-1]
         for itm in res:
