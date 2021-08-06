@@ -5,8 +5,8 @@ import datetime
 
 def create_logs(workflow_ids, file_path):
     
-    now = str(datetime.datetime.now()).replace(' ', "").replace('/', '').replace('-', '')
-    zipObj = ZipFile(file_path+'-' + now + '.zip', 'w')
+    now = str(datetime.datetime.now()).replace(' ', "").replace('/', '').replace('-', '').replace(":", '')
+    zipObj = ZipFile(file_path+'-' + str(now) + '.zip', 'w')
     print("Initializing ZipFile at " + file_path+'-' + str(now))
     for workflow_id in workflow_ids:
         try:
