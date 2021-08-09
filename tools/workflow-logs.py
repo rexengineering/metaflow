@@ -4,10 +4,9 @@ import subprocess
 import datetime
 
 def create_logs(workflow_ids, file_path):
-    
-    now = datetime.datetime.now()
+    now = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
     zipObj = ZipFile(file_path+'-' + str(now) + '.zip', 'w')
-    print("Initializing ZipFile at " + file_path+'-' + str(now))
+    print("Initializing Zip File at " + file_path+'-' + str(now))
     for workflow_id in workflow_ids:
         try:
             res = subprocess.check_output("kubectl get po -n"+str(workflow_id) + " | awk '{print $1}'", shell=True, text=True)                       
