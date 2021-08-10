@@ -8,7 +8,7 @@ from typing import List, Mapping, Any
 import yaml
 
 from .bpmn_util import (
-    Bpmn,
+    BPMN,
     WorkflowProperties,
     ServiceProperties,
     CallProperties,
@@ -109,18 +109,18 @@ class BPMNTask(BPMNComponent):
                 "Must annotate Service Task with service host."
             if 'targetPort' in self._annotation['service']:
                 self._target_port = self._annotation['service']['targetPort']
-        elif Bpmn.extension_elements in task:
+        elif BPMN.extension_elements in task:
             # Second priority: check for Camunda extensions.
-            extensions = task[Bpmn.extension_elements]
+            extensions = task[BPMN.extension_elements]
             if 'camunda:connector' in extensions:
                 hostname = extensions['camunda:connector']['camunda:connectorId']
                 self._service_properties.update({
                     'host': hostname,
                     'container': hostname,
                 })
-        elif Bpmn.documentation in task and task[Bpmn.documentation].startswith('rexflow:'):
+        elif BPMN.documentation in task and task[BPMN.documentation].startswith('rexflow:'):
             # Third priority: check for annotations in the documentation.
-            self.update_annotations(yaml.safe_load(task[Bpmn.documentation]))
+            self.update_annotations(yaml.safe_load(task[BPMN.documentation]))
 
         # The `.service_properties` and `.call_properties` properties of BPMNComponent
         # classes are used by _other_ BPMNComponents to know how to communicate with this
@@ -203,8 +203,8 @@ class BPMNTask(BPMNComponent):
 
         # Error Gateway stuff
         error_gateways = []
-        for boundary_event in iter_xmldict_for_key(self._process, Bpmn.boundary_event):
-            if Bpmn.error_event_definition not in boundary_event:
+        for boundary_event in iter_xmldict_for_key(self._process, BPMN.boundary_event):
+            if BPMN.error_event_definition not in boundary_event:
                 continue
             if boundary_event['@attachedToRef'] == self.id:
                 error_gateways.append(boundary_event)
@@ -503,9 +503,9 @@ class BPMNTask(BPMNComponent):
     def _generate_bavs_params(self):
         # Smart Transport stuff
         if self.workflow_properties.use_closure_transport \
-                    and Bpmn.extension_elements in self._task \
-                    and 'camunda:inputOutput' in self._task[Bpmn.extension_elements]:
-            params = self._task[Bpmn.extension_elements]['camunda:inputOutput']
+                    and BPMN.extension_elements in self._task \
+                    and 'camunda:inputOutput' in self._task[BPMN.extension_elements]:
+            params = self._task[BPMN.extension_elements]['camunda:inputOutput']
             input_params = [
                 form_param_config(param)
                 for param in iter_xmldict_for_key(params, 'camunda:inputParameter')

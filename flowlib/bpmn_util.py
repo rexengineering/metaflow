@@ -20,7 +20,7 @@ from flowlib.config import (
     DEFAULT_USE_SHARED_NAMESPACE
 )
 
-class Bpmn:
+class BPMN:
     association            = 'bpmn:association'
     boundary_event         = 'bpmn:boundaryEvent'
     condition_expression   = 'bpmn:conditionExpression'
@@ -76,7 +76,7 @@ def raw_proc_to_digraph(proc: OrderedDict):
     call dependencies of all of the BPMN components in the process.
     """
     digraph = dict()
-    for sequence_flow in iter_xmldict_for_key(proc, Bpmn.sequence_flow):
+    for sequence_flow in iter_xmldict_for_key(proc, BPMN.sequence_flow):
         source_ref = sequence_flow['@sourceRef']
         target_ref = sequence_flow['@targetRef']
         if source_ref not in digraph:
@@ -91,7 +91,7 @@ def outgoing_sequence_flow_table(proc: OrderedDict):
     edge id's flowing from that component.
     """
     outflows = {}
-    for sequence_flow in iter_xmldict_for_key(proc, Bpmn.sequence_flow):
+    for sequence_flow in iter_xmldict_for_key(proc, BPMN.sequence_flow):
         source_id = sequence_flow['@sourceRef']
         if source_id not in outflows:
             outflows[source_id] = []
@@ -106,14 +106,14 @@ def get_annotations(process: OrderedDict, source_ref=None):
     """
     if source_ref is not None:
         targets = set()
-        for association in iter_xmldict_for_key(process, Bpmn.association):
+        for association in iter_xmldict_for_key(process, BPMN.association):
             if source_ref is None or association['@sourceRef'] == source_ref:
                 targets.add(association['@targetRef'])
     else:
         targets = None
-    for annotation in iter_xmldict_for_key(process, Bpmn.text_annotation):
+    for annotation in iter_xmldict_for_key(process, BPMN.text_annotation):
         if targets is None or annotation['@id'] in targets:
-            text = annotation[Bpmn.text]
+            text = annotation[BPMN.text]
             if text.startswith('rexflow:'):
                 yield (annotation,yaml.safe_load(text.replace('\xa0', '')))
 
@@ -595,15 +595,15 @@ class BPMNComponent:
         if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
 
-        if Bpmn.timer_event_definition in spec:
+        if BPMN.timer_event_definition in spec:
             self._is_timer = True
             for key in ['timeDate', 'timeDuration', 'timeCycle']:
                 tag = f'bpmn:{key}'
-                if tag in spec[Bpmn.timer_event_definition]:
+                if tag in spec[BPMN.timer_event_definition]:
                     # run a validation against the spec so we can fail the apply rather than on run
                     # this will raise if there's anything seriously wrong. The finer points - like
                     # ranges and such - are verified by the individual component types.
-                    self._timer_description = [key, spec[Bpmn.timer_event_definition][tag]['#text']]
+                    self._timer_description = [key, spec[BPMN.timer_event_definition][tag]['#text']]
                     self._timer_aspects, self._timer_dynamic = TimedEventManager.validate_spec(key, self._timer_description[1])
                     break
             assert self._timer_description, "timerEventDefinition has invalid timer type"

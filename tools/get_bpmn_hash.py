@@ -7,7 +7,7 @@ from collections import OrderedDict
 import xmltodict
 
 from flowlib.bpmn import BPMNProcess
-from flowlib.bpmn_util import Bpmn
+from flowlib.bpmn_util import BPMN
 
 
 def main(*args):
@@ -16,9 +16,9 @@ def main(*args):
         with open(path, 'rb') as file_obj:
             xmldict = xmltodict.parse(file_obj)
             assert xmldict is not None
-            assert Bpmn.definitions in xmldict
-            assert Bpmn.process in xmldict[Bpmn.definitions]
-            process = BPMNProcess(xmldict[Bpmn.definitions][Bpmn.process])
+            assert BPMN.definitions in xmldict
+            assert BPMN.process in xmldict[BPMN.definitions]
+            process = BPMNProcess(xmldict[BPMN.definitions][BPMN.process])
             result[path] = process.hash
     return result
 

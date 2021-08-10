@@ -7,7 +7,7 @@ from flowlib.timer_util import TimedEventManager, ValidationResults
 from typing import Mapping
 import os
 
-from .bpmn_util import BPMNComponent, WorkflowProperties, get_edge_transport, Bpmn
+from .bpmn_util import BPMNComponent, WorkflowProperties, get_edge_transport, BPMN
 
 from .k8s_utils import (
     create_deployment,
@@ -48,7 +48,7 @@ class BPMNCatchEvent(BPMNComponent):
                 assert aspects.recurrence > aspects.UNBOUNDED, f'Unbounded recurrence is not allowed for timed catch events'
                 assert aspects.recurrence <= self.MAX_RECURRANCE, f'Recurrance must be between 1 and {self.MAX_RECURRANCE}, inclusive'
         else:
-            if Bpmn.message_event_definition not in event:
+            if BPMN.message_event_definition not in event:
                 raise ValueError(
                     f"Catch event {self.id} is neither timer nor message catch event.")
 

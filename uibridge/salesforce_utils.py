@@ -5,7 +5,9 @@ import json
 import logging
 import os
 import queue
+import xmltodict
 
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from simple_salesforce import Salesforce
@@ -29,19 +31,32 @@ class CustomField:
         self._type = type
         self._length = length
 
+    def xml_dict(self) -> OrderedDict:
+        # <fields>
+        #     <fullName>{self._name}</fullName>
+        #     <externalId>false</externalId>
+        #     <label>{self._label}</label>
+        #     <length>{self._length}</length>
+        #     <required>false</required>
+        #     <trackHistory>false</trackHistory>
+        #     <trackTrending>false</trackTrending>
+        #     <type>{self._type}</type>
+        # </fields>
+        return OrderedDict({
+            'fields' : OrderedDict({
+                'fullName'      : self._name,
+                'externalId'    : False,
+                'label'         : self._label,
+                'length'        : self._length,
+                'required'      : False,
+                'trackHistory'  : False,
+                'trackTrending' : False,
+                'type'          : self._type,
+            })
+        })
+
     def __str__(self):
-        return f"""
-<fields>
-    <fullName>{self._name}</fullName>
-    <externalId>false</externalId>
-    <label>{self._label}</label>
-    <length>{self._length}</length>
-    <required>false</required>
-    <trackHistory>false</trackHistory>
-    <trackTrending>false</trackTrending>
-    <type>{self._type}</type>
-</fields>
-"""
+        return xmltodict.unparse(self.xml_dict())
 
 class CustomObject:
     def __init__(self, name:str, label:str):
@@ -68,39 +83,68 @@ class CustomObject:
     def add_field(self, fld:CustomField):
         self._fields.append(fld)
 
-    def __str__(self):
-        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <allowInChatterGroups>false</allowInChatterGroups>
-    <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
-    <deploymentStatus>Deployed</deploymentStatus>
-    <enableActivities>false</enableActivities>
-    <enableBulkApi>true</enableBulkApi>
-    <enableFeeds>false</enableFeeds>
-    <enableHistory>true</enableHistory>
-    <enableLicensing>false</enableLicensing>
-    <enableReports>true</enableReports>
-    <enableSearch>true</enableSearch>
-    <enableSharing>true</enableSharing>
-    <enableStreamingApi>true</enableStreamingApi>
-    <externalSharingModel>Private</externalSharingModel>
-    <label>Rexflow {self._name}</label>
-    <nameField>
-        <label>Rexflow_{self._name}</label>
-        <trackHistory>false</trackHistory>
-        <type>Text</type>
-    </nameField>
-    <pluralLabel>Rexflow {self._label}s</pluralLabel>
-    <searchLayouts/>
-    <sharingModel>ReadWrite</sharingModel>
-    <visibility>Public</visibility>
-"""
+    def xml_dict(self) -> OrderedDict:
+        # <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+        #     <allowInChatterGroups>false</allowInChatterGroups>
+        #     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
+        #     <deploymentStatus>Deployed</deploymentStatus>
+        #     <enableActivities>false</enableActivities>
+        #     <enableBulkApi>true</enableBulkApi>
+        #     <enableFeeds>false</enableFeeds>
+        #     <enableHistory>true</enableHistory>
+        #     <enableLicensing>false</enableLicensing>
+        #     <enableReports>true</enableReports>
+        #     <enableSearch>true</enableSearch>
+        #     <enableSharing>true</enableSharing>
+        #     <enableStreamingApi>true</enableStreamingApi>
+        #     <externalSharingModel>Private</externalSharingModel>
+        #     <label>Rexflow {self._name}</label>
+        #     <nameField>
+        #         <label>Rexflow_{self._name}</label>
+        #         <trackHistory>false</trackHistory>
+        #         <type>Text</type>
+        #     </nameField>
+        #     <pluralLabel>Rexflow {self._label}s</pluralLabel>
+        #     <searchLayouts/>
+        #     <sharingModel>ReadWrite</sharingModel>
+        #     <visibility>Public</visibility>
 
-        field:CustomField
+        fields:list[OrderedDict] = []
         for field in self._fields:
-            xml += str(field)
-        xml += '</CustomObject>'
+            fields.append(field.xml_dict()['fields'])
+
+        xml = OrderedDict({
+            'CustomObject' : OrderedDict({
+                '@xmlns'                  : 'http://soap.sforce.com/2006/04/metadata',
+                'allowInChatterGroups'    : False,
+                'compactLayoutAssignment' : 'SYSTEM',
+                'deploymentStatus'        : 'Deployed',
+                'enableActivities'        : False,
+                'enableBulkApi'           : True,
+                'enableFeeds'             : False,
+                'enableHistory'           : True,
+                'enableLicensing'         : False,
+                'enableReports'           : True,
+                'enableSearch'            : True,
+                'enableSharing'           : True,
+                'enableStreamingApi'      : True,
+                'externalSharingModel'    : 'Private',
+                'label'                   : f'Rexflow {self._name}',
+                'nameField' : OrderedDict({
+                    'label'        : f'Rexflow_{self._name}',
+                    'trackHistory' : False,
+                    'type'         : 'Text',
+                }),
+                'pluralLabel'  : f'Rexflow {self._label}s',
+                'sharingModel' : 'ReadWrite',
+                'visibility'   : 'Public',
+                'fields'       : fields,
+            })
+        })
         return xml
+
+    def __str__(self):
+        return xmltodict.unparse(self.xml_dict())
 
     def form_json(self) -> str:
         field_map = {}
@@ -118,52 +162,87 @@ class CustomObject:
 class Profile:
     def __init__(self, name:str):
         self._name = name
-        self._objs = []
+        self._objs:list[CustomObject] = []
 
     def add_obj(self, obj:CustomObject):
         self._objs.append(obj)
 
-    def __str__(self):
-        xml = """<?xml version="1.0" encoding="UTF-8"?>
-    <Profile xmlns="http://soap.sforce.com/2006/04/metadata">
-        <userPermissions>
-            <enabled>true</enabled>
-            <name>ApiEnabled</name>
-        </userPermissions>
-"""
+    def xml_dict(self) -> OrderedDict:
+        # <?xml version="1.0" encoding="UTF-8"?>
+        # <Profile xmlns="http://soap.sforce.com/2006/04/metadata">
+        #     <userPermissions>
+        #         <enabled>true</enabled>
+        #         <name>ApiEnabled</name>
+        #     </userPermissions>
+        #     <fieldPermissions>
+        #         <field>{label}</field>
+        #         <editable>true</editable>
+        #         <hidden>false</hidden>
+        #         <readable>true</readable>
+        #     </fieldPermissions>
+        fields:list[OrderedDict] = []
+        obj:CustomObject
+        field:CustomField
         for obj in self._objs:
             for field in obj._fields:
                 label = f'{obj._name}.{field._name}'
                 assert len(label) < 41, f'boom! {label} exceeds max length'
-                xml += f"""<fieldPermissions>
-            <field>{label}</field>
-            <editable>true</editable>
-            <hidden>false</hidden>
-            <readable>true</readable>
-        </fieldPermissions>
-"""
+                fld_xml = OrderedDict({
+                    'field' : label,
+                    'editable' : True,
+                    'hidden' : False,
+                    'readable' : True,
+                })
+                fields.append(fld_xml)
 
-        xml += '</Profile>'
+        xml = OrderedDict({
+            'Profile' : OrderedDict({
+                '@xmlns' : 'http://soap.sforce.com/2006/04/metadata',
+                'userPermissions' : OrderedDict({
+                    'enabled' : True,
+                    'name' : 'ApiEnabled',
+                }),
+                'fieldPermissions' : fields,
+            })
+        })
         return xml
 
-package_xml = """<?xml version="1.0" encoding="UTF-8"?>
-<Package xmlns="http://soap.sforce.com/2006/04/metadata">
-    <types>
-        <name>CustomObject</name>
-        <members>*</members>
-    </types>
-    <types>
-        <name>CustomField</name>
-        <members>*</members>
-    </types>
-    <types>
-        <name>Profile</name>
-        <members>*</members>
-    </types>
-    <version>52.0</version>
-    <fullName>rexflow_model</fullName>
-</Package>
-"""
+    def __str__(self):
+        return xmltodict.unparse(self.xml_dict())
+
+# <?xml version="1.0" encoding="UTF-8"?>
+# <Package xmlns="http://soap.sforce.com/2006/04/metadata">
+#     <types>
+#         <name>CustomObject</name>
+#         <members>*</members>
+#     </types>
+#     <types>
+#         <name>CustomField</name>
+#         <members>*</members>
+#     </types>
+#     <types>
+#         <name>Profile</name>
+#         <members>*</members>
+#     </types>
+#     <version>52.0</version>
+#     <fullName>rexflow_model</fullName>
+# </Package>
+package_xml = xmltodict.unparse(
+    OrderedDict({
+        'Package' : OrderedDict({
+            '@xmlns' : 'http://soap.sforce.com/2006/04/metadata',
+            'types' : [
+                OrderedDict({'name' : 'CustomObject', 'members' : '*'}),
+                OrderedDict({'name' : 'CustomField' , 'members' : '*'}),
+                OrderedDict({'name' : 'Profile',      'members' : '*'}),
+            ],
+            'version' : '52.0',
+            'fullname' : 'rexflow_model',
+        })
+    })
+)
+
+
 
 class SalesforceManager:
     def __init__(self, wf:Workflow, profile:dict):
@@ -268,7 +347,6 @@ class SalesforceManager:
         with ZipFile(archive, 'w') as zip_archive:
             filex = ZipInfo('package.xml')
             zip_archive.writestr(filex, package_xml)
-
             task:WorkflowTask
             for task in self._wf.tasks.values():
                 obj = CustomObject(self.get_salesforce_table_name(task), self._wf.did)
