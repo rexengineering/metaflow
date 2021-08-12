@@ -7,6 +7,7 @@ import os
 import re
 import requests
 import threading
+import uuid
 from typing import Any, Dict, List, NoReturn, Tuple
 
 from etcd3.events import DeleteEvent, PutEvent
@@ -16,6 +17,7 @@ from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
+    DataType,
     ENCRYPTED,
     EVAL,
     DATA_ID,
@@ -32,6 +34,45 @@ from .graphql_wrappers import (
 from .prism_api.client import PrismApiClient
 
 class Workflow:
+    # forward decl for Workflow
+    pass
+
+class PostRequest:
+    def __init__(self, parent:Workflow, next_task:dict, next_headers:dict, data:dict):
+        self._guid         = uuid.uuid4().hex
+        self._parent       = parent
+        self._next_task    = next_task
+        self._next_headers = next_headers
+        self._data         = data
+        self._svc_response = None
+
+    def __call__(self):
+        try:
+            call = requests.post if self._next_task['method'] == 'POST' else requests.get
+            self._svc_response = call(self._next_task['k8s_url'], headers=self._next_headers, json=self._data)
+            self._svc_response.raise_for_status()
+            # try:
+            #     self.save_traceid(svc_response.headers, iid)
+            # except Exception as exn:
+            #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
+            # self._shadow_to_kafka(data, next_headers)
+            logging.info(self._svc_response)
+        except Exception as exn:
+            logging.exception(
+                f"failed making a call to {self._next_task['k8s_url']} on wf {iid}\nheaders:{self._next_headers}", #\ndata:{self._data}",
+                exc_info=exn,
+            )
+        self._parent.set_post_response(self._guid, self._svc_response)
+
+    @property
+    def guid(self):
+        return self._guid
+
+    @property
+    def response(self):
+        return self._svc_response
+
+class Workflow:
     def __init__(self, did : str, tids : List[str], bridge_cfg : dict, flowd_host : str, flowd_port : int):
         self.did = did
         self.bridge_cfg = bridge_cfg
@@ -43,6 +84,7 @@ class Workflow:
         self.cancel_watch = None
         self.instance_headers = {}
         self.instance_data = {}
+        self.reponses = {}
 
         for tid in tids:
             self.tasks[tid] = WorkflowTask(self,tid)
@@ -235,27 +277,22 @@ class Workflow:
             # need to append the form data collected here.
             data = {}
             for fld in task.get_form(iid):
-                data[fld[DATA_ID]] = fld[DATA]
+                if fld[TYPE] not in [DataType.WORKFLOW, DataType.COPY]:
+                    data[fld[DATA_ID]] = fld[DATA]
             if iid in self.instance_data:
                 data.update(self.instance_data[iid])
-            logging.info(f'-- headers {next_headers} data {data}')
+            logging.info(f'-- next_task {next_task}\n-- headers {next_headers}\n-- data {data}')
 
-            try:
-                call = requests.post if next_task['method'] == 'POST' else requests.get
-                svc_response = call(next_task['k8s_url'], headers=next_headers, json=data)
-                svc_response.raise_for_status()
-                # try:
-                #     self.save_traceid(svc_response.headers, iid)
-                # except Exception as exn:
-                #     logging.exception("Failed to save trace id on WF Instance", exc_info=exn)
-                # self._shadow_to_kafka(data, next_headers)
-                logging.info(svc_response)
-                return svc_response
-            except Exception as exn:
-                logging.exception(
-                    f"failed making a call to {next_task['k8s_url']} on wf {iid}\nheaders:{next_headers}", #\ndata:{data}",
-                    exc_info=exn,
-                )
+            req = PostRequest(self, next_task, next_headers, data)
+            thd = threading.Thread(target=req)
+            thd.start()
+            return req.guid
+
+    def set_post_response(self, guid:str, response):
+        self.reponses[guid] = response
+
+    def get_post_response(self, guid:str):
+        return self.responses.get(guid, None)
 
     def get_wf_map(self):
         """
