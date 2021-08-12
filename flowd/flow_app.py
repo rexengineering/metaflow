@@ -22,7 +22,7 @@ from flowlib.constants import (
     WorkflowInstanceKeys,
     Headers,
 )
-from flowlib import token_api
+from flowlib.token_api import TokenPool
 TIMEOUT_SECONDS = 10
 
 
@@ -79,14 +79,17 @@ class FlowApp(QuartApp):
     def __init__(self, **kws):
         super().__init__(__name__, **kws)
         self.etcd = get_etcd()
-        self.counter = Counter('my_counter', 'A basic counter.',['name'])
-        self.gauge = Gauge('workflow', 'workflows number in different states', ['name'])
+        self.counter = Counter('my_counter', 'A basic counter.', ['name'])
+        self.gauge = Gauge(
+            'workflow', 'workflows number in different states', ['name'])
         self.app.route('/health', methods=['GET'])(self.health)
         self.app.route('/', methods=['POST'])(self.root_route)
-        self.app.route(INSTANCE_FAIL_ENDPOINT_PATH, methods=(['POST']))(self.fail_route)
-        self.app.route(WF_MAP_ENDPOINT_PATH, methods=['GET', 'POST'])(self.wf_map)
+        self.app.route(INSTANCE_FAIL_ENDPOINT_PATH,
+                       methods=(['POST']))(self.fail_route)
+        self.app.route(WF_MAP_ENDPOINT_PATH, methods=[
+                       'GET', 'POST'])(self.wf_map)
         self.app.route('/metrics', methods=['GET'])(self.metrics)
-    
+
     def metrics(self):
         self.counter.labels(name='metric_scrapes').inc()
         etcd = get_etcd(is_not_none=True)
@@ -125,7 +128,7 @@ class FlowApp(QuartApp):
         self.gauge.labels(name="Stopped").set(wf_stopped)
         self.gauge.labels(name="Error").set(wf_error)
         return generate_latest()
-    
+
     async def health(self):
         self.etcd.get('Is The Force With Us?')
         return flow_result(0, "Ok.")
@@ -282,7 +285,8 @@ class FlowApp(QuartApp):
             result['error_code'] = payload['error_code']
 
         if 'input_headers_encoded' in payload:
-            hdrs = convert_envoy_hdr_msg_to_dict(payload['input_headers_encoded'])
+            hdrs = convert_envoy_hdr_msg_to_dict(
+                payload['input_headers_encoded'])
             result['input_headers'] = hdrs
             if Headers.X_HEADER_TASK_ID.lower() in hdrs:
                 task_id = hdrs[Headers.X_HEADER_TASK_ID.lower()]
@@ -292,15 +296,18 @@ class FlowApp(QuartApp):
             input_is_json = (hdrs.get('content-type')) == 'application/json'
 
         if 'input_data_encoded' in payload:
-            result['input_data'] = process_data(payload['input_data_encoded'], input_is_json)
+            result['input_data'] = process_data(
+                payload['input_data_encoded'], input_is_json)
 
         if 'output_headers_encoded' in payload:
-            hdrs = convert_envoy_hdr_msg_to_dict(payload['output_headers_encoded'])
+            hdrs = convert_envoy_hdr_msg_to_dict(
+                payload['output_headers_encoded'])
             output_is_json = (hdrs.get('content-type')) == 'application/json'
             result['output_headers'] = hdrs
 
         if 'output_data_encoded' in payload:
-            result['output_data'] = process_data(payload['output_data_encoded'], output_is_json)
+            result['output_data'] = process_data(
+                payload['output_data_encoded'], output_is_json)
 
         self.etcd.put(keys.result, json.dumps(result))
         self.etcd.put(keys.content_type, 'application/json')
