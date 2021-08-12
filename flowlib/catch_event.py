@@ -3,7 +3,7 @@ Implements the BPMNCatchEvent object, which inherits BPMNComponent.
 """
 
 from collections import OrderedDict
-from flowlib.timer_util import TimedEventManager
+from flowlib.timer_util import TimedEventManager, ValidationResults
 from typing import Mapping
 import os
 
@@ -44,10 +44,10 @@ class BPMNCatchEvent(BPMNComponent):
         if self._is_timer:
             # dynamic timer specifications contain substitutions and/or functions, so the validation
             # actually happens in-context when the timer is created by the wf.
-            if not self._timer_dynamic and self._timer_aspects is not None \
-                    and self._timer_aspects.timer_type == TimedEventManager.TIME_CYCLE:
-                assert self._timer_aspects.recurrance > 0, f'Unbounded recurrance is not allowed for timed catch events'
-                assert self._timer_aspects.recurrance <= self.MAX_RECURRANCE, f'Recurrance must be between 1 and {self.MAX_RECURRANCE}, inclusive'
+            if not self._timer_dynamic and self._timer_aspects is not None and self._timer_aspects.is_cycle:
+                aspects:ValidationResults = self._timer_aspects
+                assert aspects.recurrence > aspects.UNBOUNDED, f'Unbounded recurrence is not allowed for timed catch events'
+                assert aspects.recurrence <= self.MAX_RECURRANCE, f'Recurrance must be between 1 and {self.MAX_RECURRANCE}, inclusive'
         else:
             if BPMN_MESSAGE_EVENT_DEFINITION not in event:
                 raise ValueError(
@@ -114,7 +114,7 @@ class BPMNCatchEvent(BPMNComponent):
         [
             {
                 "name": "KAFKA_GROUP_ID",
-                "value": service_name,
+                "value": f'rexflow_{service_name}',
             },
             {
                 "name": "FORWARD_URL",

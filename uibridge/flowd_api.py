@@ -12,6 +12,7 @@ from typing import Any, Dict, List, NoReturn, Tuple
 from etcd3.events import DeleteEvent, PutEvent
 
 from flowlib import flow_pb2, etcd_utils, executor
+from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
@@ -20,6 +21,9 @@ from .graphql_wrappers import (
     DATA_ID,
     DEFAULT,
     DATA,
+    ID,
+    KEY,
+    META_DATA,
     TEXT,
     TYPE,
     UNKNOWN,
@@ -74,8 +78,7 @@ class Workflow:
         return None
 
     def get_status(self) -> str:
-        status, _ = self.etcd.get(WorkflowKeys.state_key(self.did))
-        return status.decode('utf-8')
+        return self._get_etcd_value(WorkflowKeys.state_key(self.did))
 
     def watch_instances(self):
         """
@@ -108,22 +111,71 @@ class Workflow:
         response = await PrismApiClient.complete_workflow(endpoint,iid)
         logging.info(f'Notifying {endpoint} that {iid} has completed state ({state}); response {response}')
 
-    def create_instance(self, graphql_uri:str):
+    def create_instance(self, did:str, graphql_uri:str, meta:list):
+        """
+        Run a workflow instance. If did is none, run the workflow for this UI-BRIDGE,
+        else resolve the DID to a workflow deployment fia the workflow map, and ask
+        flowd to run that workflow instance.
+        """
+        wf_id = None
+        if did is not None:
+            # pull the current workflow map from flowd
+            wf_map = self.get_wf_map()
+            logging.info(f'Searching workflow map for {did}')
+            for k,v in wf_map.items():
+                # the did might be the process id from the BPMN, or the
+                # deployment id from k8s, so account for both
+                # v is a list of workflow info, so if > 1 then we take the
+                # first one.
+                wf_info = v[0]
+                logging.info(f'-- Trying {k} {wf_info[ID]}')
+                if did.upper() in [k.upper(), wf_info[ID].upper()]:    # ignore case
+                    wf_id = wf_info[ID]
+                    logging.info(f'Found {wf_id}!')
+                    break
+            if wf_id is None:
+                raise ValueError(f'Workflow {did} is not available')
+        else:
+            wf_id = self.did
+
+        md = [
+            flow_pb2.StringPair(key=m[KEY], value=m[VALUE])
+            for m in meta
+        ]
+        print(md)
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
             response = flowd.RunWorkflow(flow_pb2.RunRequest(
-                workflow_id=self.did, args=None,
-                stopped=False, start_event_id=None
+                workflow_id=wf_id, args=None,
+                stopped=False, start_event_id=None,
+                metadata=md
             ))
             data = json.loads(response.data)
             if graphql_uri:
-                iid = data['id']
+                iid = data[ID]
                 self.etcd.put(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
             return data
 
-    def get_instances(self):
+    def cancel_instance(self, iid:str):
+        if iid in self.get_instances():
+            status = self.get_instance_status(iid)
+            if status not in ['STOPPED','ERROR']:
+                poster = FlowPost(iid, None, '{}')
+                response = poster.cancel_instance()
+                logging.info(response)
+                status = self.get_instance_status(iid)
+            return status
+        raise ValueError(f'{iid} is not a known instance')
+
+    def get_instances(self, meta:dict = None) -> list:
+        metadata = None
+        if meta is not None:
+            metadata = [
+                flow_pb2.StringPair(key=k, value=v)
+                for k,v in meta.items()
+            ]
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
             request = flow_pb2.PSRequest(
-                kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False,
+                kind=flow_pb2.INSTANCE, ids = [], include_kubernetes=False, metadata=metadata
             )
             response = flowd.PSQuery(request)
             logging.info(f'get_instances req:{request} res:{response}')
@@ -137,11 +189,20 @@ class Workflow:
         status = self._get_etcd_value(WorkflowInstanceKeys.state_key(iid))
         return status or UNKNOWN
 
-    def _get_etcd_value(self, key:str):
-        ret, _ = self.etcd.get(key)
-        if ret:
-            return ret.decode('utf-8')
+    def get_instance_meta_data(self, iid:str) -> list:
+        meta = self._get_etcd_value(WorkflowInstanceKeys.metadata_key(iid))
+        if meta is not None:
+            return json.loads(meta)
         return None
+
+    def _get_etcd_value(self, key:str):
+        def __logic(etcd):
+            ret, _ = etcd.get(key)
+            if ret:
+                return ret.decode('utf-8')
+            return None
+
+        return etcd_utils.locked_call(key, __logic)
 
     def get_task_ids(self):
         return self.tasks.keys()
@@ -178,7 +239,7 @@ class Workflow:
             if iid in self.instance_data:
                 data.update(self.instance_data[iid])
             logging.info(f'-- headers {next_headers} data {data}')
-            
+
             try:
                 call = requests.post if next_task['method'] == 'POST' else requests.get
                 svc_response = call(next_task['k8s_url'], headers=next_headers, json=data)
@@ -196,7 +257,26 @@ class Workflow:
                     exc_info=exn,
                 )
 
-
+    def get_wf_map(self):
+        """
+        Pull the current workflow map from flowd. This allows us to map generic workflow names to specific workflow
+        deployments.
+        """
+        try:
+            resp = requests.get(f'http://{self.flowd_host}:9002/wf_map')
+            """
+            {'message': 'Ok',
+             'status': 0,
+             'wf_map': {'AmortTable': [{'id': 'amorttable-8135e8f8',
+                            'start_event_urls': ['http://start-startevent-1-amorttable-8135e8f8.amorttable-8135e8f8:5000/'],
+                            'user_opaque_metadata': {}}]}}
+            """
+            return resp.json()['wf_map']
+        except Exception as exn:
+            logging.exception(
+                f"failed making a call to {next_task['k8s_url']} on wf {iid}\nheaders:{next_headers}", #\ndata:{data}",
+                exc_info=exn,
+            )
 class WorkflowTask:
     def __init__(self, wf:Workflow, tid:str):
         self.wf = wf
@@ -303,8 +383,6 @@ class WorkflowTask:
         for fld in fields:
             ret[fld[DATA_ID]] = fld[DATA]
         return ret
-
-    
 
 if __name__ == "__main__":
     # flowd_run_workflow_instance("tde-15839350")

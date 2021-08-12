@@ -1,5 +1,5 @@
-'''Utility library for working with BPMN documents.
-'''
+"""Utility library for working with BPMN documents.
+"""
 
 from collections import OrderedDict
 from io import IOBase, StringIO, BytesIO
@@ -81,11 +81,10 @@ class BPMNProcess:
             for annot in all_annotations
             if annot['bpmn:text'].startswith('rexflow_global_properties')
         ]
-        assert len(global_annotations) <= 1, "Must have at most one global rexflow annotation."
+        assert len(global_annotations) <= 1, "Can have at most one global rexflow annotation."
 
         self.annotation = global_annotations[0] if len(global_annotations) else None
         self.properties = WorkflowProperties(self.annotation)
-
         if not self.properties.id:
             self.properties.update({
                 "id": to_valid_k8s_name(process['@id']),
@@ -400,7 +399,7 @@ class BPMNProcess:
             if CREATE_DEV_INGRESS:
                 results.append(create_rexflow_ingress_vs(
                     self.namespace,
-                    f'/{ui_bridge_service_name}-{self.namespace}',
+                    to_valid_k8s_name(f'{ui_bridge_service_name}-{self.namespace}'),
                     f'/{ui_bridge_service_name}-{self.namespace}',
                     UI_BRIDGE_PORT,
                     f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
@@ -408,7 +407,7 @@ class BPMNProcess:
 
         if self.properties.passthrough_target is not None:
             results.extend(self._get_passthrough_services())
-    
+
         if self.properties.notification_kafka_topic is not None:
             results.extend(self._get_workflow_publisher_specs())
 

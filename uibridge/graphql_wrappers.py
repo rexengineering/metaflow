@@ -5,13 +5,25 @@ queries and mutations
 import typing
 from typing import Any, Dict, List
 
+class DataType:
+    COPY = 'COPY'
+    TEXT = 'TEXT'
+    CURRENCY = 'CURRENCY'
+    INTEGER = 'INTEGER'
+    FLOAT = 'FLOAT'
+    BOOLEAN = 'BOOLEAN'
+    PERCENTAGE = 'PERCENTAGE'
+    TABLE = 'TABLE'
+    WORKFLOW = 'WORKFLOW'
+
 # validator types
-BOOLEAN = 'BOOLEAN'
-INTERVAL = 'INTERVAL'
-PERCENTAGE = 'PERCENTAGE'
-POSITIVE = 'POSITIVE'
-REGEX = 'REGEX'
-REQUIRED = 'REQUIRED'
+class Validator:
+    BOOLEAN = 'BOOLEAN'
+    INTERVAL = 'INTERVAL'
+    PERCENTAGE = 'PERCENTAGE'
+    POSITIVE = 'POSITIVE'
+    REGEX = 'REGEX'
+    REQUIRED = 'REQUIRED'
 
 # graphql field names
 BODY1      = 'BODY1'
@@ -26,11 +38,14 @@ EVAL       = 'EVAL'
 FIELD      = 'field'
 FIELDS     = 'fields'
 GRAPHQL_URI= 'graphqlUri'
+ID         = 'id'
 IID        = 'iid'
 IID_LIST   = 'iid_list'
 IID_STATUS = 'iid_status'
+KEY        = 'key'
 LABEL      = 'label'
 MESSAGE    = 'message'
+META_DATA  = 'meta_data'
 ORDER      = 'order'
 PASSED     = 'passed'
 RESET      = 'reset'
@@ -71,9 +86,22 @@ def field_validation_result(data_id:str, passed:bool, results:List):
         RESULTS: results,
     }
 
-def create_workflow_instance_input(iid: str, graphql_uri: str):
+def meta_data(key:str, val:str):
     return {
+        KEY: key,
+        VALUE: val,
+    }
+
+def create_workflow_instance_input(iid: str, did:str, graphql_uri: str, meta:list):
+    return {
+        DID: did,
         GRAPHQL_URI: graphql_uri,
+        META_DATA: meta,
+    }
+
+def cancel_workflow_instance_input(iid:str):
+    return {
+        IID: iid,
     }
 
 def task_mutations_form_input(iid:str, tid:str):
@@ -116,10 +144,19 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         TASKS: tasks,
     }
 
-def workflow_instance_info(iid:str, iid_status:str, graphql_uri:str):
+def cancel_instance_payload(did:str, iid:str, state:str, status:str):
+    return {
+        DID: did,
+        IID: iid,
+        IID_STATUS: state,
+        STATUS: status,
+    }
+
+def workflow_instance_info(iid:str, iid_status:str, meta:list, graphql_uri:str):
     return {
         IID: iid,
         IID_STATUS: iid_status,
+        META_DATA: meta,
         GRAPHQL_URI: graphql_uri,
     }
 

@@ -67,6 +67,8 @@ class FlowPost:
         shadow_url: str = None,
         workflow_obj: Workflow = None,
         bpmn_component_obj: BPMNComponent = None,
+        force_fail: bool = False,
+        force_fail_code: int = 500,
     ):
         """Utility for making calls between one task and another. Lazily calculates
         information as needed. Parameters:
@@ -89,6 +91,9 @@ class FlowPost:
         topic). If provided, the traffic is shadowed to this URL after the call.
         If shadow_url is None, we look up the appropriate url (which is slower).
         If shadow_url is '', then flowpost does not attempt to shadow traffic.
+
+        Debugging can be assisted by using the force_fail and force_fail_code parameters.
+        When set, any all to send() will fail with the provided force_fail_code (default 500.)
         """
         self._instance_id = instance_id
         self._task_id = task_id
@@ -104,6 +109,10 @@ class FlowPost:
         self._workflow_id, _ = split_key(instance_id)
         self._was_sent = False
         self._executor = get_executor()
+        # to test failure modes this value will force all
+        # calls made to fail.
+        self._forcefail = force_fail
+        self._forcefail_code = force_fail_code
 
     def send(self) -> FlowPostResult:
         assert not self._was_sent
@@ -122,6 +131,11 @@ class FlowPost:
                 headers=headers,
                 timeout=TIMEOUT,
             )
+
+            if self._forcefail:
+                logging.info(f'force failing call with code {self._forcefail_code}')
+                response.status_code = self._forcefail_code
+
             try:
                 response.raise_for_status()
             except requests.exceptions.HTTPError as exn:
@@ -190,6 +204,25 @@ class FlowPost:
             'failed_task_id': self.task_id,
             'error_code': ErrorCodes.FAILED_TASK,
             'error_msg': f'Task {self.task_id} failed.',
+        }
+        return self._send_error_payload(payload)
+
+    def cancel_instance(self) -> FlowPostResult:
+        """Call this method to cancel a workflow instance.
+
+        The implementation of marking a workflow instance as failed is currently
+        handled by making a POST to the /instancefail endpoint of flowd. See
+        `flowd/flow_app.py` for the code.
+        """
+        payload = {
+            'from_envoy': False,
+            'input_data': {},
+            'input_headers': {},
+            'output_data': {},
+            'output_headers': {},
+            'failed_instance_id': self.instance_id,
+            'error_code': ErrorCodes.CANCELED_INSTANCE,
+            'error_msg': f'Instance {self.instance_id} cancelled.',
         }
         return self._send_error_payload(payload)
 

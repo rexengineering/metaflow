@@ -33,7 +33,7 @@ from .config import (
 
 )
 from .reliable_wf_utils import create_kafka_transport
-from .constants import Headers
+from .constants import Headers, to_valid_k8s_name
 
 Upstream = namedtuple(
     'Upstream',
@@ -139,7 +139,7 @@ class BPMNTask(BPMNComponent):
                 'namespace': self.namespace,
                 'port': ASYNC_BRIDGE_LISTEN_PORT,
                 'container': self._service_properties.container,
-                'host': f'bridge-{self._worker_service_name}',
+                'host': to_valid_k8s_name(f'bridge-{self._worker_service_name}-{self.id}'),
                 'hash_used': self.workflow_properties.namespace_shared,
                 'id_hash': self.workflow_properties.id_hash,
             })

@@ -14,7 +14,8 @@ from flowlib.workflow import Workflow, get_workflows
 
 from flowlib.config import (
     INSTANCE_FAIL_ENDPOINT_PATH,
-    WF_MAP_ENDPOINT_PATH
+    WF_MAP_ENDPOINT_PATH,
+    UI_BRIDGE_INIT_PATH,
 )
 from flowlib.constants import (
     BStates,
@@ -41,14 +42,14 @@ def convert_envoy_hdr_msg_to_dict(headers_bytes):
 
 
 def process_data(encoded_str, data_should_be_json):
-    '''Accepts a string of b64-encoded data. Tries the following steps, saving
+    """Accepts a string of b64-encoded data. Tries the following steps, saving
     the result each time. If any of the steps fails, it returns the most recent
     success. If no processing step succeeds (i.e. the result of decoding the
     data not an ascii-representable string), then we just return the original
     input: the base64-encoded string. Steps:
     1. Try to decode the base64-encoded string into something ascii-readable.
     2. If data_should_be_json, then we try to load the json into a python dict.
-    '''
+    """
     result = encoded_str
     # Step 1: Try to make it a human-readable string
     try:
@@ -183,7 +184,11 @@ class FlowApp(QuartApp):
                     )
 
             if timer_pool_id is not None:
-                token_api.token_fail(timer_pool_id)
+                # if we're tracking tokens, we're not any more as the workflow instance
+                # is being failed.
+                for pool_name in timer_pool_id.split(','):
+                    logging.info(f'Erasing token pool {pool_name}')
+                    TokenPool.erase(pool_name)
 
             incoming_data = None
             try:
@@ -209,14 +214,14 @@ class FlowApp(QuartApp):
                 self.etcd.put(keys.content_type, 'application/octet-stream')
             if workflow.process.properties.is_recoverable:
                 self.etcd.replace(state_key, BStates.STOPPING, BStates.STOPPED)
-        return 'Another happy landing (:'
+        return 'Another happy landing (https://i.gifer.com/PNk.gif)'
 
     def wf_map(self):
-        '''Get a map from workflow ID's to workflow deployment ID's.
+        """Get a map from workflow ID's to workflow deployment ID's.
 
         Note that this mapping does not assume the workflow ID is "baked" into
         the workflow deployment ID, which it presently is.
-        '''
+        """
         etcd = get_etcd(is_not_none=True)
         wf_map = {}
         for workflow in get_workflows():
@@ -234,17 +239,22 @@ class FlowApp(QuartApp):
                     'start_event_urls': start_event_urls,
                     'user_opaque_metadata': workflow.properties.user_opaque_metadata,
                 })
+                if workflow.process.user_tasks:
+                    bridge = workflow.process.user_tasks[0]._service_properties
+                    wf_map[wf_id].append({
+                        'bridge_url':  f'http://{bridge._host}.{workflow.process.namespace}:{bridge._port}/'
+                    })
         return flow_result(0, 'Ok', wf_map=wf_map)
 
     def _put_payload(self, payload: dict, keys: WorkflowInstanceKeys, workflow: Workflow):
-        '''Accepts incoming JSON and saves the error payload. Error data from Envoy
+        """Accepts incoming JSON and saves the error payload. Error data from Envoy
         looks slightly different than error data from flowpost(), simply because
         it's harder to manipulate data within the confines of the Envoy codebase.
         Therefore, we have a separate helper method _put_payload_from_envoy() that
         cleans up and stores the data. If the `from_flowpost` key is in the result,
         we don't use that helper; otherwise, we know the data came from Envoy, and we
         do use the helper.
-        '''
+        """
         if payload.get('from_envoy', True):
             self._put_payload_from_envoy(payload, keys, workflow)
         else:
@@ -254,7 +264,7 @@ class FlowApp(QuartApp):
     def _put_payload_from_envoy(
         self, payload: dict, keys: WorkflowInstanceKeys, workflow: Workflow
     ):
-        '''Take all of the incoming data from envoy and make it as close to JSON as we
+        """Take all of the incoming data from envoy and make it as close to JSON as we
         can. The error data from BAVS looks like:
         {
             'input_headers_encoded': base64-encoded dump of headers of request to the task
@@ -275,7 +285,7 @@ class FlowApp(QuartApp):
         since we're putting a `json.dumps()` into the `result` key, we put `application/json`
         into the `content-type` key so that consumers of the result payload may know how
         to process the data.
-        '''
+        """
         input_is_json = False
         output_is_json = False
         result = {}

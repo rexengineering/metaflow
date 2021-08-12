@@ -12,5 +12,6 @@
             {"type" : "REQUIRED"},
             {"type" : "POSITIVE"}
         ]
-    }
+    },
+    {"dataId":"seller", "type":"WORKFLOW", "order":5, "label":"Seller", "data":"Underpants", "encrypted":"False"}
 ]

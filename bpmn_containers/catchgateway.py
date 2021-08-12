@@ -41,9 +41,11 @@ from flowlib.constants import (
     Headers,
     flow_result,
     TIMER_DESCRIPTION,
+    TIMER_RECOVER_POLICY,
 )
 from flowlib.timer_util import (
     TimedEventManager,
+    TimerErrorCode,
 )
 
 from flowlib.config import get_kafka_config, INSTANCE_FAIL_ENDPOINT, CATCH_LISTEN_PORT
@@ -87,10 +89,10 @@ Where timer_type is timeDate, timeCycle, or timeDuration
                     Infinite recurrences are not permitted, hence
                     R/<duration> or R0/<duration> are invalid.
 
-'''
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION)
 """
 TIMED_EVENT_DESCRIPTION = os.getenv(TIMER_DESCRIPTION, None)
+TIMED_EVENT_RECOVERY_POLICY = os.getenv(TIMER_RECOVER_POLICY, 'fail')
 IS_TIMED_EVENT          = TIMED_EVENT_DESCRIPTION is not None
 IS_TIMED_START_EVENT    = IS_TIMED_EVENT and FUNCTION == FUNCTION_START
 IS_TIMED_CATCH_EVENT    = IS_TIMED_EVENT and FUNCTION == FUNCTION_CATCH
@@ -115,9 +117,9 @@ class EventCatchPoller:
         self.timed_manager = None
         self._catch_manager = catch_manager
         if IS_TIMED_EVENT:
-            callback, name = (self.create_instance, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
-            logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION}')
-            self.timed_manager = TimedEventManager(TIMED_EVENT_DESCRIPTION, callback, IS_TIMED_START_EVENT)
+            callback, name = (self.create_instance_timer_callback, 'start') if IS_TIMED_START_EVENT else (self.make_call_impl, 'catch')
+            logging.info(f'Timed {name} event {TIMED_EVENT_DESCRIPTION} RecPol:{TIMED_EVENT_RECOVERY_POLICY}')
+            self.timed_manager = TimedEventManager(WF_ID, TIMED_EVENT_DESCRIPTION, callback, self.timer_error_callback, TIMED_EVENT_RECOVERY_POLICY, IS_TIMED_START_EVENT)
 
     def start(self):
         assert self.future is None
@@ -131,7 +133,13 @@ class EventCatchPoller:
     def get_event(self):
         msg = kafka.poll(KAFKA_POLLING_PERIOD)
         return msg
-    
+
+    def timer_error_callback(self, iid:str, code:TimerErrorCode, message:str):
+        if code == TimerErrorCode.TIMER_ERROR_FAIL_IID:
+            # the idd needs to be terminated
+            poster = FlowPost(iid, None, '{}')
+            response = poster.cancel_instance()
+
     def create_timed_instance(self, incoming_data:str, content_type:str) -> NoReturn:
         # create_timer(self, wf_inst_id, token_stack, args)
         # --> proxies call to create_instance(incoming_data, content_type, instance_id)
@@ -160,6 +168,10 @@ class EventCatchPoller:
         else:
             if not etcd.replace(keys.state, States.STARTING, States.ERROR):
                 logging.error(f'Failed to transition {keys.state} from STARTING -> ERROR.')
+
+    def create_instance_timer_callback(self, token_stack, incoming_data, content_type, instance_id=None):
+        """Callback passed to timer manager that accepts a (unused) token_stack"""
+        return self.create_instance(incoming_data, content_type, instance_id)
 
     def create_instance(self, incoming_data, content_type, instance_id=None) -> Dict[str, object]:
         # Allow instance_id to be passed into this function in case a caller needs
@@ -225,9 +237,7 @@ class EventCatchPoller:
             self._catch_manager.handle_incoming, json.loads(data)
             return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
 
-        # return self.make_call_impl(token_stack, data, flow_id, wf_id, content_type)
-
-    def make_call_impl(self, token_stack:str, data:str, flow_id:str, wf_id:str, content_type:str):
+    def make_call_impl(self, token_stack:str, data:str, flow_id:str, wf_id:str, content_type:str) -> bool:
         next_headers = {
             Headers.X_HEADER_FLOW_ID: str(flow_id),
             Headers.X_HEADER_WORKFLOW_ID: str(wf_id),
@@ -243,10 +253,10 @@ class EventCatchPoller:
             data=data,
             url=FORWARD_URL,
             retries=TOTAL_ATTEMPTS - 1,
-            headers=next_headers,
+            headers=next_headers
         )
-        poster.send()
-
+        resp:FlowPostResult = poster.send()
+        return resp.message == FlowPostStatus.SUCCESS
 
     def __call__(self):
         while True:  # do forever
@@ -267,9 +277,8 @@ class EventCatchPoller:
                     assert Headers.X_HEADER_FLOW_ID in headers
                     assert Headers.X_HEADER_WORKFLOW_ID in headers
                     assert headers[Headers.X_HEADER_WORKFLOW_ID].decode() == WF_ID
-                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower())
-                    if token_header:
-                        token_header = token_header.decode()
+                    logging.info(headers)
+                    token_header = headers.get(Headers.X_HEADER_TOKEN_POOL_ID.lower(), b'').decode()
 
                     self._make_call(
                         data.decode(),
@@ -318,7 +327,7 @@ class IntermediateCatchEventManager:
         self._cleanup_period = cleanup_period_seconds
         self._etcd_cleanup_timer = threading.Timer(self._cleanup_period, self._cleanup)
         self._etcd_cleanup_timer.start()
-    
+
     def _cleanup(self):
         """To avoid polluting etcd with lots of unused events, we delete the data for
         un-matured events after they've sat for more than two days."""

@@ -58,7 +58,7 @@ class BPMNStartEvent(BPMNComponent):
 
         # if this is a timed start event, verify that the timer aspects are valid
         if self._timer_aspects:
-            assert self._timer_aspects.recurrance >=0, f'Invalid recurrance for start event \'{self._timer_aspects.recurrance}\''
+            assert self._timer_aspects.recurrence >=0, f'Invalid recurrence for start event \'{self._timer_aspects.recurrence}\''
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict, edge_map: OrderedDict) -> list:

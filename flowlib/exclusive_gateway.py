@@ -119,10 +119,6 @@ class BPMNXGateway(BPMNComponent):
         # Note: we may or may not take this out for FEEL...
         assert default_path is not None, "Must have a default path"
 
-        # TODO: Work with Jon to see what a BPMN document would look like with more than
-        # two outgoing edges from a BPMN diagram.
-        assert len(conditional_paths) == 1, "Not implemented."
-
         # Add k8s specs for the actual XGW
         service_name = self.service_properties.host
         port = self.service_properties.port
