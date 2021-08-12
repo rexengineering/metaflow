@@ -7,6 +7,7 @@ import os
 import re
 import requests
 import threading
+import uuid
 from typing import Any, Dict, List, NoReturn, Tuple
 
 from etcd3.events import DeleteEvent, PutEvent
@@ -32,8 +33,14 @@ from .graphql_wrappers import (
 )
 from .prism_api.client import PrismApiClient
 
+class Workflow:
+    # forward decl for Workflow
+    pass
+
 class PostRequest:
-    def __init__(self, next_task:dict, next_headers:dict, data:dict):
+    def __init__(self, parent:Workflow, next_task:dict, next_headers:dict, data:dict):
+        self._guid         = uuid.uuid4().hex
+        self._parent       = parent
         self._next_task    = next_task
         self._next_headers = next_headers
         self._data         = data
@@ -55,7 +62,13 @@ class PostRequest:
                 f"failed making a call to {self._next_task['k8s_url']} on wf {iid}\nheaders:{self._next_headers}", #\ndata:{self._data}",
                 exc_info=exn,
             )
+        self._parent.set_post_response(self._guid, self._svc_response)
 
+    @property
+    def guid(self):
+        return self._guid
+
+    @property
     def response(self):
         return self._svc_response
 
@@ -71,6 +84,7 @@ class Workflow:
         self.cancel_watch = None
         self.instance_headers = {}
         self.instance_data = {}
+        self.reponses = {}
 
         for tid in tids:
             self.tasks[tid] = WorkflowTask(self,tid)
@@ -269,11 +283,16 @@ class Workflow:
                 data.update(self.instance_data[iid])
             logging.info(f'-- next_task {next_task}\n-- headers {next_headers}\n-- data {data}')
 
-            req = PostRequest(next_task, next_headers, data)
+            req = PostRequest(self, next_task, next_headers, data)
             thd = threading.Thread(target=req)
             thd.start()
-            # thd.join()
-            # return req.response()
+            return req.guid
+
+    def set_post_response(self, guid:str, response):
+        self.reponses[guid] = response
+
+    def get_post_response(self, guid:str):
+        return self.responses.get(guid, None)
 
     def get_wf_map(self):
         """
