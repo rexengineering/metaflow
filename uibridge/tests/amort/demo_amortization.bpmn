@@ -53,7 +53,7 @@
   xgw_expression_type: python
   salesforce:
     enabled: true
-    file: sf_ghester_test.json</bpmn:text>
+    file: sf_ghester_prod.json</bpmn:text>
     </bpmn:textAnnotation>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">

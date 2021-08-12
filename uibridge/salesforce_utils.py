@@ -242,8 +242,6 @@ package_xml = xmltodict.unparse(
     })
 )
 
-
-
 class SalesforceManager:
     def __init__(self, wf:Workflow, profile:dict):
         self._wf = wf
@@ -329,11 +327,9 @@ class SalesforceManager:
         return f'rf{did_pref}{tid_pref}'
 
     def create_salesforce_assets(self):
-        # TODO: have to derive path to server key
-        # TODO: Move all these constants to either etcd
         obj_exists = 0
         objects = []
-        pr = Profile('System Administrator (MFA)')
+        pr = Profile(self._profile['profile']) # System Administrator (MFA)
 
         # create a file heir as follows:
         # ./package.xml
