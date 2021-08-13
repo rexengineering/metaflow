@@ -79,7 +79,7 @@ class REXFlowUIBridge(AsyncService):
                 self.salesforce = False
                 self._sf_manager = None
             elif not success:
-                logging.error('Salesforce resources required but do not exist')
+                logging.error('Salesforce resources required but do not exist - Salesforce disabled')
                 self.salesforce = False
                 self._sf_manager = None
             else:

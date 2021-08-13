@@ -19,6 +19,7 @@ from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
     DataType,
+    is_ignored_data_type,
     ENCRYPTED,
     EVAL,
     DATA_ID,
@@ -292,7 +293,7 @@ class Workflow:
             # need to append the form data collected here.
             data = {}
             for fld in task.get_form(iid):
-                if fld[TYPE] not in [DataType.WORKFLOW, DataType.COPY]:
+                if not is_ignored_data_type(fld[TYPE]):
                     data[fld[DATA_ID]] = fld[DATA]
             if iid in self.instance_data:
                 data.update(self.instance_data[iid])
