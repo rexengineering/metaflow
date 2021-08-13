@@ -365,6 +365,11 @@ class SalesforceManager:
                     logging.info(f'Salesforce object {obj._name} has no actionable fields - ignoring')
                     continue
 
+                # save the salesinfo json, even if the object already exists to make
+                # sure the information in etcd is correct
+                j = obj.form_json()
+                self.put_salesforce_info(task.tid, j)
+
                 # validate the the object does not already exist
                 if obj.exists(self._sf):
                     logging.info(f'{obj._name} already exists - skipping')
@@ -373,10 +378,6 @@ class SalesforceManager:
 
                 objects.append(obj)
                 pr.add_obj(obj)
-
-                # save the salesinfo json
-                j = obj.form_json()
-                self.put_salesforce_info(task.tid, j)
 
                 filex = ZipInfo(f'objects/{obj._name}.object')
                 obj_xml = str(obj)
