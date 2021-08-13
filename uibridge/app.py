@@ -83,6 +83,7 @@ class REXFlowUIBridge(AsyncService):
                 self.salesforce = False
                 self._sf_manager = None
             else:
+                logging.info('Starting Salesforce Manager')
                 self._sf_manager.start()
 
         self.workflow.start()

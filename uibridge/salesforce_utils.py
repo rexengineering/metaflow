@@ -253,6 +253,7 @@ class SalesforceManager:
         self._sf = self.get_client()
 
     def start(self):
+        logging.info("Starting SalesforceManager")
         assert self._future is None
         self._running = True
         self._future = self._executor.submit(self)
@@ -288,6 +289,7 @@ class SalesforceManager:
             self._queue.task_done()
 
     def post(self, iid:str, task:WorkflowTask, data:dict):
+        logging.info('sf queue {iid} {task} {data}')
         self._queue.put([iid, task, data])
 
     def get_salesforce_info(self, tid:str) -> dict:
