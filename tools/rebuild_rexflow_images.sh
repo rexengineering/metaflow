@@ -17,3 +17,5 @@ docker build -t passthrough-container -f deploy/build-passthrough-container/Dock
 docker build -t async-bridge -f deploy/build-async-bridge/Dockerfile --target container .
 
 docker build -t workflow-publisher -f deploy/build-workflow-publisher/Dockerfile --target container .
+
+docker build -t ui-bridge -f uibridge/Dockerfile.uibridge --target container .

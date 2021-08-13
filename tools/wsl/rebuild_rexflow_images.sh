@@ -14,7 +14,4 @@ docker build -t parallel-gateway -f tools/wsl/Dockerfile.parallel --target paral
 
 docker build -t passthrough-container -f tools/wsl/Dockerfile.passthrough --target passthrough-container .
 
-
-
-
-
+docker build -t ui-bridge -f uibridge/Dockerfile.uibridge .
