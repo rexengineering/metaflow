@@ -298,6 +298,10 @@ class Workflow:
                 data.update(self.instance_data[iid])
             logging.info(f'-- next_task {next_task}\n-- headers {next_headers}\n-- data {data}')
 
+            # in the use case that this ui-bridge is also the next client in the
+            # workflow chain (as in two user tasks linked directly together), we've
+            # found that calling ourselves directly results in Bad Things(tm). So,
+            # we make this call in another thread to avoid this.
             req = PostRequest(self, next_task, next_headers, data)
             thd = threading.Thread(target=req)
             thd.start()

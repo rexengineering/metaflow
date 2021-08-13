@@ -74,12 +74,16 @@ class REXFlowUIBridge(AsyncService):
             logging.info(f'Deploying/validating Salesforce resources')
             success, count = self._sf_manager.create_salesforce_assets()
             # success True means the resources exist - the count is the number of resources deployed
-            if success:
-                self._sf_manager.start()
-            else:
+            if count == 0:
+                logging.error('User task forms do not have any persistable fields - Salesforce disabled')
+                self.salesforce = False
+                self._sf_manager = None
+            elif not success:
                 logging.error('Salesforce resources required but do not exist')
                 self.salesforce = False
                 self._sf_manager = None
+            else:
+                self._sf_manager.start()
 
         self.workflow.start()
 

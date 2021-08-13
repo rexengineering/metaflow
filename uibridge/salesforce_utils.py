@@ -21,6 +21,7 @@ from flowlib.constants import (
 )
 from flowlib.etcd_utils import locked_call
 from flowlib.executor import get_executor
+from uibridge import graphql_wrappers as gql
 
 class CustomField:
     def __init__(self, name:str, label:str, type:str, length:int):
@@ -237,7 +238,7 @@ package_xml = xmltodict.unparse(
                 OrderedDict({'name' : 'Profile',      'members' : '*'}),
             ],
             'version' : '52.0',
-            'fullname' : 'rexflow_model',
+            'fullName' : 'rexflow_model',
         })
     })
 )
@@ -343,26 +344,37 @@ class SalesforceManager:
         with ZipFile(archive, 'w') as zip_archive:
             filex = ZipInfo('package.xml')
             zip_archive.writestr(filex, package_xml)
+
             task:WorkflowTask
             for task in self._wf.tasks.values():
                 obj = CustomObject(self.get_salesforce_table_name(task), self._wf.did)
+
+                form = task.get_form(None,False)
+                field_cnt = 0
+                for field in form:
+                    # certain field types aren't suitable for persistance
+                    if not gql.is_ignored_data_type(field[gql.TYPE]):
+                        cf = CustomField(field[gql.DATA_ID], field[gql.LABEL], 'Text', 180)
+                        obj.add_field(cf)
+                        field_cnt += 1
+
+                # if we don't have any fields to save, then ignore this object completely.
+                if field_cnt == 0:
+                    logging.info(f'Salesforce object {obj._name} has no actionable fields - ignoring')
+                    continue
+
+                # validate the the object does not already exist
+                if obj.exists(self._sf):
+                    logging.info(f'{obj._name} already exists - skipping')
+                    obj_exists += 1
+                    continue
+
                 objects.append(obj)
                 pr.add_obj(obj)
-                form = task.get_form(None,False)
-
-                for field in form:
-                    cf = CustomField(field['dataId'], field['label'], 'Text', 180)
-                    obj.add_field(cf)
 
                 # save the salesinfo json
                 j = obj.form_json()
                 self.put_salesforce_info(task.tid, j)
-
-                if obj.exists(self._sf):
-                    # validate the the object does now already exist
-                    logging.info(f'{obj._name} already exists - skipping')
-                    obj_exists += 1
-                    continue
 
                 filex = ZipInfo(f'objects/{obj._name}.object')
                 obj_xml = str(obj)
@@ -375,7 +387,7 @@ class SalesforceManager:
 
         if len(objects) == 0:
             logging.info("No objects to create - leaving")
-            return True, obj_exists
+            return (obj_exists > 0), obj_exists
 
         with open('bogus.zip', 'wb') as f:
             f.write(archive.getbuffer())
