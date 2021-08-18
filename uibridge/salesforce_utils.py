@@ -418,7 +418,10 @@ class SalesforceManager:
         """
         """
         sf_info = self.get_salesforce_info(task.tid)
-        assert sf_info is not None, f'{self._wf.did} {task.tid} does not have salesforce support'
+        # for some reason assert works strangely here inside the executor, so ...
+        if sf_info is None:
+            logging.error(f'{self._wf.did} {task.tid} does not have salesforce support')
+            return
         if 'records' not in sf_info:
             sf_info['records'] = {}
         sf_recid = sf_info['records'].get(iid, None)
