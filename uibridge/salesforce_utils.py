@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import queue
+import uuid
 import xmltodict
 
 from collections import OrderedDict
@@ -283,13 +284,15 @@ class SalesforceManager:
     def __call__(self):
         while self._running:
             iid, task, data = self._queue.get()
+            logging.info(f'sf deque {iid} {task} {data}')
             if iid is not None:
                 self.post_salesforce_data(iid, task, data)
                 logging.info("processed event successfully.")
             self._queue.task_done()
+        logging.info('salesforce deque exiting')
 
     def post(self, iid:str, task:WorkflowTask, data:dict):
-        logging.info('sf queue {iid} {task} {data}')
+        logging.info(f'sf queue {iid} {task} {data}')
         self._queue.put([iid, task, data])
 
     def get_salesforce_info(self, tid:str) -> dict:
@@ -392,13 +395,14 @@ class SalesforceManager:
             logging.info("No objects to create - leaving")
             return (obj_exists > 0), obj_exists
 
-        with open('bogus.zip', 'wb') as f:
+        zipname = f'/opt/rexflow/sf_obj_{uuid.uuid4().hex}.zip'
+        with open(zipname, 'wb') as f:
             f.write(archive.getbuffer())
 
         archive.close()
 
         # now deploy the schema to salesforce
-        result = self._sf.deploy('/opt/rexflow/bogus.zip', True, allowMissingFiles=True, testLevel='NoTestRun')
+        result = self._sf.deploy(zipname, True, allowMissingFiles=True, testLevel='NoTestRun')
         async_id = result['asyncId']
         deployment_finished = False
         successful          = False
