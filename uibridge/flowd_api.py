@@ -341,11 +341,18 @@ class WorkflowTask:
         self.tid = tid
         self._fields = {}   # the immutable complete set of form information
         self._values = {}   # the immutable initial set of form data
+        self._has_persistent_fields = False
         form, _ = wf.etcd.get(WorkflowKeys.field_key(wf.did,tid))
         if form:
             self._fields = self._normalize_fields(form)
             for k,v in self._fields.items():
                 self._values[k] = v[DATA]
+                if not is_ignored_data_type(v[TYPE]):
+                    self._has_persistent_fields = True
+        logging.info(f'task {self.tid} has_persistent_fields {self._has_persistent_fields}')
+
+    def has_persistent_fields(self):
+        return self._has_persistent_fields
 
     def get_form(self, iid:str, reset:bool = False):
         """

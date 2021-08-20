@@ -132,8 +132,8 @@ def task_mutation_save(_,info,input):
     status = FAILURE
     tid    = input[TID]
     iid    = input[IID]
-    wf     = info.context[WORKFLOW]
-    task   = wf.task(tid)
+    wf:Workflow       = info.context[WORKFLOW]
+    task:WorkflowTask = wf.task(tid)
     sf     = info.context.get('salesforce', False)
     sf_mgr:SalesforceManager = info.context.get('sf_mgr', None)
     logging.info(f'Salesforce info {sf} {sf_mgr}')
@@ -141,7 +141,7 @@ def task_mutation_save(_,info,input):
         all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
         flds = task.update(iid, input[FIELDS])
         status = SUCCESS
-        if sf:
+        if sf and task.has_persistent_fields():
             sf_mgr.post(iid, task, flds)
     return gql.task_validate_payload(iid, tid, status, all_passed, field_results)
 
