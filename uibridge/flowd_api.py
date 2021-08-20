@@ -13,11 +13,13 @@ from typing import Any, Dict, List, NoReturn, Tuple
 from etcd3.events import DeleteEvent, PutEvent
 
 from flowlib import flow_pb2, etcd_utils, executor
+from flowlib.etcd_utils import locked_call
 from flowlib.flowpost import FlowPost, FlowPostResult, FlowPostStatus
 from flowlib.flowd_utils import get_flowd_connection
 from flowlib.constants import WorkflowKeys, WorkflowInstanceKeys, States, TEST_MODE_URI, Headers
 from .graphql_wrappers import (
     DataType,
+    is_ignored_data_type,
     ENCRYPTED,
     EVAL,
     DATA_ID,
@@ -194,7 +196,7 @@ class Workflow:
             data = json.loads(response.data)
             if graphql_uri:
                 iid = data[ID]
-                self.etcd.put(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
+                self._put_etcd_value(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
             return data
 
     def cancel_instance(self, iid:str):
@@ -244,7 +246,21 @@ class Workflow:
                 return ret.decode('utf-8')
             return None
 
-        return etcd_utils.locked_call(key, __logic)
+        return locked_call(key, __logic)
+
+    def _put_etcd_value(self, key:str, data:Any):
+        # data must be bytes
+        if isinstance(data, str):
+            data = data.encode()
+        elif isinstance(data, dict):
+            data = json.dumps(data).encode()
+        assert isinstance(data, bytes), 'Data must be bytes'
+
+        def __logic(etcd):
+            etcd.put(key, data)
+
+        locked_call(key, __logic)
+
 
     def get_task_ids(self):
         return self.tasks.keys()
@@ -277,12 +293,16 @@ class Workflow:
             # need to append the form data collected here.
             data = {}
             for fld in task.get_form(iid):
-                if fld[TYPE] not in [DataType.WORKFLOW, DataType.COPY]:
+                if not is_ignored_data_type(fld[TYPE]):
                     data[fld[DATA_ID]] = fld[DATA]
             if iid in self.instance_data:
                 data.update(self.instance_data[iid])
             logging.info(f'-- next_task {next_task}\n-- headers {next_headers}\n-- data {data}')
 
+            # in the use case that this ui-bridge is also the next client in the
+            # workflow chain (as in two user tasks linked directly together), we've
+            # found that calling ourselves directly results in Bad Things(tm). So,
+            # we make this call in another thread to avoid this.
             req = PostRequest(self, next_task, next_headers, data)
             thd = threading.Thread(target=req)
             thd.start()
@@ -314,6 +334,7 @@ class Workflow:
                 f"failed making a call to {next_task['k8s_url']} on wf {iid}\nheaders:{next_headers}", #\ndata:{data}",
                 exc_info=exn,
             )
+
 class WorkflowTask:
     def __init__(self, wf:Workflow, tid:str):
         self.wf = wf
@@ -338,7 +359,7 @@ class WorkflowTask:
             form, _ = self.wf.etcd.get(iid_key)
             if form is None:
                 form, _ = self.wf.etcd.get(tid_key)
-                self.wf.etcd.put(iid_key, form)
+                self.wf._put_etcd_value(iid_key, form)
                 logging.info(f'Form for {iid_key} did not exist - {form}')
                 reset = True # run any initializers since we're creating the form
         else:
@@ -377,8 +398,9 @@ class WorkflowTask:
             flds[f[DATA_ID]][DATA] = f[DATA]
         key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
         val = json.dumps(list(flds.values()))
-        self.wf.etcd.put(key, val)
-        logging.info(f'Form {key} updated {val}')
+
+        self.wf._put_etcd_value(key, val)
+
         return flds
 
     def _normalize_fields(self, form:str) -> Dict[str, Any]:

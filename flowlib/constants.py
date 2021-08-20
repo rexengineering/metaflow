@@ -8,11 +8,10 @@ These are the valid states for a workflow and the workflow instances, specified 
 so that all parts necessarily use the same values and to avoid embedding literal
 constants everywhere.
 """
-
-BPMN_INTERMEDIATE_CATCH_EVENT = 'bpmn:intermediateCatchEvent'
-BPMN_START_EVENT = 'bpmn:startEvent'
-BPMN_TIMER_EVENT_DEFINITION = 'bpmn:timerEventDefinition'
-BPMN_MESSAGE_EVENT_DEFINITION = 'bpmn:messageEventDefinition'
+class Literals:
+    GLOBAL_PROPERTIES_KEY = 'rexflow_global_properties'
+    REXFLOW               = 'rexflow'
+    SALESFORCE            = 'salesforce'
 
 TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
 TIMER_RECOVER_POLICY = 'TIMER_RECOVERY_POLICY'
@@ -159,6 +158,10 @@ class WorkflowKeys:
     @classmethod
     def timed_events_key(cls, did):
         return f'{cls.key_of(did)}/timed_events'
+
+    @classmethod
+    def salesforce_info(cls, did, tid):
+        return f'{cls.key_of(did)}/salesforce/{tid}'
 
 
 # TODO: There seems to be a proliferation of instance-related keys in ETCD.

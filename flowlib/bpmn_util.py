@@ -7,7 +7,7 @@ from hashlib import sha1, sha256
 import re
 import json
 from flowlib.constants import (
-    BPMN_TIMER_EVENT_DEFINITION,
+    Literals,
     TIMER_DESCRIPTION,
     TIMER_RECOVER_POLICY,
     to_valid_k8s_name,
@@ -20,7 +20,29 @@ from flowlib.config import (
     DEFAULT_USE_SHARED_NAMESPACE
 )
 
-
+class BPMN:
+    association            = 'bpmn:association'
+    boundary_event         = 'bpmn:boundaryEvent'
+    condition_expression   = 'bpmn:conditionExpression'
+    definitions            = 'bpmn:definitions'
+    documentation          = 'bpmn:documentation'
+    end_event              = 'bpmn:endEvent'
+    error_event_definition = 'bpmn:errorEventDefinition'
+    exclusive_gateway      = 'bpmn:exclusiveGateway'
+    extension_elements     = 'bpmn:extensionElements'
+    incoming               = 'bpmn:incoming'
+    intermediate_throw_event = 'bpmn:intermediateThrowEvent'
+    intermediate_catch_event = 'bpmn:intermediateCatchEvent'
+    message_event_definition = 'bpmn:messageEventDefinition'
+    parallel_gateway       = 'bpmn:parallelGateway'
+    process                = 'bpmn:process'
+    sequence_flow          = 'bpmn:sequenceFlow'
+    service_task           = 'bpmn:serviceTask'
+    start_event            = 'bpmn:startEvent'
+    text                   = 'bpmn:text'
+    text_annotation        = 'bpmn:textAnnotation'
+    timer_event_definition = 'bpmn:timerEventDefinition'
+    user_task              = 'bpmn:userTask'
 def get_edge_transport(edge, default_transport):
     transport = default_transport
     # Zeebe has no way to set any ancillary properties on the edge; therefore,
@@ -54,7 +76,7 @@ def raw_proc_to_digraph(proc: OrderedDict):
     call dependencies of all of the BPMN components in the process.
     """
     digraph = dict()
-    for sequence_flow in iter_xmldict_for_key(proc, 'bpmn:sequenceFlow'):
+    for sequence_flow in iter_xmldict_for_key(proc, BPMN.sequence_flow):
         source_ref = sequence_flow['@sourceRef']
         target_ref = sequence_flow['@targetRef']
         if source_ref not in digraph:
@@ -69,7 +91,7 @@ def outgoing_sequence_flow_table(proc: OrderedDict):
     edge id's flowing from that component.
     """
     outflows = {}
-    for sequence_flow in iter_xmldict_for_key(proc, 'bpmn:sequenceFlow'):
+    for sequence_flow in iter_xmldict_for_key(proc, BPMN.sequence_flow):
         source_id = sequence_flow['@sourceRef']
         if source_id not in outflows:
             outflows[source_id] = []
@@ -84,14 +106,14 @@ def get_annotations(process: OrderedDict, source_ref=None):
     """
     if source_ref is not None:
         targets = set()
-        for association in iter_xmldict_for_key(process, 'bpmn:association'):
+        for association in iter_xmldict_for_key(process, BPMN.association):
             if source_ref is None or association['@sourceRef'] == source_ref:
                 targets.add(association['@targetRef'])
     else:
         targets = None
-    for annotation in iter_xmldict_for_key(process, 'bpmn:textAnnotation'):
+    for annotation in iter_xmldict_for_key(process, BPMN.text_annotation):
         if targets is None or annotation['@id'] in targets:
-            text = annotation['bpmn:text']
+            text = annotation[BPMN.text]
             if text.startswith('rexflow:'):
                 yield (annotation,yaml.safe_load(text.replace('\xa0', '')))
 
@@ -311,6 +333,8 @@ class WorkflowProperties:
         self._prefix_passthrough_with_namespace = False
         self._catch_event_expiration = 72
         self._timer_recovery_policy = TimerRecoveryPolicy.RECOVER_FAIL
+        self._use_salesforce = False
+        self._salesforce_profile = None
         if annotations is not None:
             if 'rexflow' in annotations:
                 self.update(annotations['rexflow'])
@@ -509,6 +533,12 @@ class WorkflowProperties:
             except ValueError:
                 pass
 
+        if Literals.SALESFORCE in annotations:
+            hive = annotations[Literals.SALESFORCE]
+            self._use_salesforce     = hive.get('enabled', False)
+            if self._use_salesforce:
+                self._salesforce_profile = json.dumps(hive)
+
 class BPMNComponent:
     """
     This is an abstract class for any BPMN Component. A Component may be a Task, Gateway,
@@ -565,15 +595,15 @@ class BPMNComponent:
         if self._annotation is not None and 'preexisting' in self._annotation:
             self._is_preexisting = self._annotation['preexisting']
 
-        if BPMN_TIMER_EVENT_DEFINITION in spec:
+        if BPMN.timer_event_definition in spec:
             self._is_timer = True
             for key in ['timeDate', 'timeDuration', 'timeCycle']:
                 tag = f'bpmn:{key}'
-                if tag in spec[BPMN_TIMER_EVENT_DEFINITION]:
+                if tag in spec[BPMN.timer_event_definition]:
                     # run a validation against the spec so we can fail the apply rather than on run
                     # this will raise if there's anything seriously wrong. The finer points - like
                     # ranges and such - are verified by the individual component types.
-                    self._timer_description = [key, spec[BPMN_TIMER_EVENT_DEFINITION][tag]['#text']]
+                    self._timer_description = [key, spec[BPMN.timer_event_definition][tag]['#text']]
                     self._timer_aspects, self._timer_dynamic = TimedEventManager.validate_spec(key, self._timer_description[1])
                     break
             assert self._timer_description, "timerEventDefinition has invalid timer type"

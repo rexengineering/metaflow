@@ -15,7 +15,8 @@
           <camunda:connectorId>happiness</camunda:connectorId>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_09h99g5</bpmn:incoming>
+      <bpmn:incoming>Flow_1ysg3id</bpmn:incoming>
+      <bpmn:incoming>Flow_0ppqqqh</bpmn:incoming>
       <bpmn:outgoing>Flow_0485f4p</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_0485f4p" sourceRef="amortize" targetRef="show_table" />
@@ -27,7 +28,26 @@
       <bpmn:incoming>Flow_0485f4p</bpmn:incoming>
       <bpmn:outgoing>Flow_1ucusod</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_09h99g5" sourceRef="get_terms" targetRef="amortize" />
+    <bpmn:sequenceFlow id="Flow_09h99g5" sourceRef="get_terms" targetRef="FindBestRateDecision" />
+    <bpmn:exclusiveGateway id="FindBestRateDecision" name="Find Best Rate?">
+      <bpmn:incoming>Flow_09h99g5</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ysg3id</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1mmrozg</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_1ysg3id" name="use provided rate" sourceRef="FindBestRateDecision" targetRef="amortize">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">req_json['findrate'] == 'False'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1mmrozg" sourceRef="FindBestRateDecision" targetRef="amort_best_rate" />
+    <bpmn:sequenceFlow id="Flow_0ppqqqh" sourceRef="amort_best_rate" targetRef="amortize" />
+    <bpmn:serviceTask id="amort_best_rate" name="Research Best Rate">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>research_best_rate</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1mmrozg</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ppqqqh</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:textAnnotation id="TextAnnotation_1gcjsvw">
       <bpmn:documentation>Get two numbers</bpmn:documentation>
       <bpmn:text>rexflow:
@@ -50,20 +70,41 @@
     <bpmn:association id="Association_1qs7vdg" sourceRef="amortize" targetRef="TextAnnotation_0gjsqdz" />
     <bpmn:textAnnotation id="TextAnnotation_1mpg83g">
       <bpmn:text>rexflow_global_properties:
-  xgw_expression_type: python
-  salesforce:
-    enabled: true
-    file: sf_ghester_prod.json</bpmn:text>
+  xgw_expression_type: python</bpmn:text>
     </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="TextAnnotation_08d8yc8">
+      <bpmn:text>rexflow:
+  service:
+    host: amort-best-rate
+    port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_16xhsdy" sourceRef="amort_best_rate" targetRef="TextAnnotation_08d8yc8" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="AmortTable">
-      <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
-        <dc:Bounds x="160" y="40" width="260" height="82" />
+      <bpmndi:BPMNShape id="TextAnnotation_08d8yc8_di" bpmnElement="TextAnnotation_08d8yc8">
+        <dc:Bounds x="570" y="610" width="140" height="82" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0ppqqqh_di" bpmnElement="Flow_0ppqqqh">
+        <di:waypoint x="670" y="480" />
+        <di:waypoint x="710" y="480" />
+        <di:waypoint x="710" y="407" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1mmrozg_di" bpmnElement="Flow_1mmrozg">
+        <di:waypoint x="540" y="392" />
+        <di:waypoint x="540" y="480" />
+        <di:waypoint x="570" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ysg3id_di" bpmnElement="Flow_1ysg3id">
+        <di:waypoint x="565" y="367" />
+        <di:waypoint x="660" y="367" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="571" y="349" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_09h99g5_di" bpmnElement="Flow_09h99g5">
         <di:waypoint x="440" y="367" />
-        <di:waypoint x="660" y="367" />
+        <di:waypoint x="515" y="367" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1ucusod_di" bpmnElement="Flow_1ucusod">
         <di:waypoint x="940" y="367" />
@@ -92,6 +133,12 @@
       <bpmndi:BPMNShape id="Activity_0n7rayl_di" bpmnElement="show_table">
         <dc:Bounds x="840" y="327" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0cwcy2d_di" bpmnElement="FindBestRateDecision" isMarkerVisible="true">
+        <dc:Bounds x="515" y="342" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="501" y="312" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_1gcjsvw_di" bpmnElement="TextAnnotation_1gcjsvw">
         <dc:Bounds x="310" y="180" width="192" height="54" />
       </bpmndi:BPMNShape>
@@ -100,6 +147,12 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="TextAnnotation_0gjsqdz_di" bpmnElement="TextAnnotation_0gjsqdz">
         <dc:Bounds x="630" y="157" width="160" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
+        <dc:Bounds x="160" y="80" width="250" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1411xxy_di" bpmnElement="amort_best_rate">
+        <dc:Bounds x="570" y="440" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Association_0kjjvp5_di" bpmnElement="Association_0kjjvp5">
         <di:waypoint x="383" y="327" />
@@ -112,6 +165,10 @@
       <bpmndi:BPMNEdge id="Association_1qs7vdg_di" bpmnElement="Association_1qs7vdg">
         <di:waypoint x="704" y="327" />
         <di:waypoint x="689" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_16xhsdy_di" bpmnElement="Association_16xhsdy">
+        <di:waypoint x="624" y="520" />
+        <di:waypoint x="631" y="610" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

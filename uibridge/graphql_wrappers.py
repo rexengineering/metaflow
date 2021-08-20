@@ -16,6 +16,12 @@ class DataType:
     TABLE = 'TABLE'
     WORKFLOW = 'WORKFLOW'
 
+# these are DataType's that are ignored in form processing
+IGNORED_DATA_TYPES = [DataType.COPY, DataType.WORKFLOW]
+
+def is_ignored_data_type(type:DataType) -> bool:
+    return type in IGNORED_DATA_TYPES
+
 # validator types
 class Validator:
     BOOLEAN = 'BOOLEAN'

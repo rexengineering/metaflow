@@ -18,6 +18,8 @@ from flowlib import executor, user_task
 from flowlib.constants import Headers, flow_result, TEST_MODE_URI
 from . import graphql_handlers, flowd_api
 from .async_service import AsyncService
+from .salesforce_utils import SalesforceManager
+from uibridge import salesforce_utils
 
 
 BASEDIR = os.path.dirname(__file__)
@@ -61,6 +63,29 @@ class REXFlowUIBridge(AsyncService):
         )
 
         self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, BRIDGE_CONFIG, flowd_host, flowd_port)
+        # assure salesforce resources exist (if required)
+        self.salesforce = os.environ.get('USE_SALESFORCE', 'false').lower() == 'true'
+        if self.salesforce:
+            # retrieve the salesforce profile from the environment
+            sf_profile_json = os.environ.get('SALESFORCE_PROFILE', None)
+            assert sf_profile_json is not None, 'Could not retrieve SALESFORCE_PROFILE from environment'
+            sf_profile = json.loads(sf_profile_json)
+            self._sf_manager = SalesforceManager(self.workflow, sf_profile)
+            logging.info(f'Deploying/validating Salesforce resources')
+            success, count = self._sf_manager.create_salesforce_assets()
+            # success True means the resources exist - the count is the number of resources deployed
+            if count == 0:
+                logging.error('User task forms do not have any persistable fields - Salesforce disabled')
+                self.salesforce = False
+                self._sf_manager = None
+            elif not success:
+                logging.error('Salesforce resources required but do not exist - Salesforce disabled')
+                self.salesforce = False
+                self._sf_manager = None
+            else:
+                logging.info('Starting Salesforce Manager')
+                self._sf_manager.start()
+
         self.workflow.start()
 
         self.app.route('/graphql', methods=['GET'])(self.graphql_playground)
@@ -130,10 +155,17 @@ class REXFlowUIBridge(AsyncService):
         global request
         data = await request.get_json()
         logging.info(request, data)
+        context = {
+            'request':request, 
+            'workflow': self.workflow,
+            'salesforce': self.salesforce,
+        }
+        if self.salesforce:
+            context['sf_mgr'] = self._sf_manager
         success, result = graphql_sync(
             self.graphql_schema,
             data,
-            context_value = {'request':request, 'workflow': self.workflow},
+            context_value = context,
             debug=self.app.debug
         )
         status_code = 200 if success else 400

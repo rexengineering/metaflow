@@ -1,3 +1,4 @@
+from uibridge.salesforce_utils import SalesforceManager
 from flowlib.constants import WorkflowInstanceKeys
 import json
 import logging
@@ -5,6 +6,7 @@ import typing
 from .validators import validator_factory
 from . import graphql_wrappers as gql
 from .graphql_wrappers import (
+    is_ignored_data_type,
     DATA,
     DID,
     FAILURE,
@@ -130,11 +132,17 @@ def task_mutation_save(_,info,input):
     status = FAILURE
     tid    = input[TID]
     iid    = input[IID]
-    task   = info.context[WORKFLOW].task(tid)
+    wf     = info.context[WORKFLOW]
+    task   = wf.task(tid)
+    sf     = info.context.get('salesforce', False)
+    sf_mgr:SalesforceManager = info.context.get('sf_mgr', None)
+    logging.info(f'Salesforce info {sf} {sf_mgr}')
     if task:
         all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
-        task.update(iid, input[FIELDS])
+        flds = task.update(iid, input[FIELDS])
         status = SUCCESS
+        if sf:
+            sf_mgr.post(iid, task, flds)
     return gql.task_validate_payload(iid, tid, status, all_passed, field_results)
 
 @task_mutation.field('complete')
@@ -161,7 +169,7 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
     # to give a currently 'proposed' form value set
     for in_field in fields:
         task_field = task.field(in_field[DATA_ID])
-        if task_field[TYPE] in [gql.DataType.WORKFLOW, gql.DataType.COPY]:
+        if is_ignored_data_type(task_field[TYPE]):
             continue
         logging.info(f'updating {in_field[DATA_ID]} {eval_locals[in_field[DATA_ID]]} with {in_field[DATA]}')
         eval_locals[in_field[DATA_ID]] = in_field[DATA]
@@ -173,7 +181,7 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
         field_id   = in_field[DATA_ID]
         task_field = task.field(field_id)
         # do not validate static fields
-        if task_field[TYPE] in [gql.DataType.WORKFLOW, gql.DataType.COPY]:
+        if is_ignored_data_type(task_field[TYPE]):
             continue
         # TODO: handle decryption here if in_field is marked encrypted
         try:

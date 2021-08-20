@@ -29,6 +29,7 @@ from .constants import WorkflowKeys, to_valid_k8s_name
 from .user_task import BPMNUserTask
 
 from .bpmn_util import (
+    BPMN,
     HealthProperties,
     iter_xmldict_for_key,
     raw_proc_to_digraph,
@@ -60,6 +61,7 @@ from .config import (
     CREATE_DEV_INGRESS,
     PASSTHROUGH_IMAGE,
 )
+from flowlib import user_task
 
 
 ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
@@ -70,16 +72,16 @@ class BPMNProcess:
     def __init__(self, process: OrderedDict):
         self._process = process
         self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
-        self.entry_points = [entry_point for entry_point in iter_xmldict_for_key(self._process, 'bpmn:startEvent')]
+        self.entry_points = [entry_point for entry_point in iter_xmldict_for_key(self._process, BPMN.start_event)]
         assert len(self.entry_points) > 0, "Must have at least one StartEvent."
 
         # TODO: figure out how to do annotations on multiple start events
         # annotations = list(get_annotations(process, self.entry_points[0]['@id']))
-        all_annotations = iter_xmldict_for_key(self._process, 'bpmn:textAnnotation')
+        all_annotations = iter_xmldict_for_key(self._process, BPMN.text_annotation)
         global_annotations = [
-            yaml.safe_load(annot['bpmn:text'].replace('\xa0', ''))
+            yaml.safe_load(annot[BPMN.text].replace('\xa0', ''))
             for annot in all_annotations
-            if annot['bpmn:text'].startswith('rexflow_global_properties')
+            if annot[BPMN.text].startswith('rexflow_global_properties')
         ]
         assert len(global_annotations) <= 1, "Can have at most one global rexflow annotation."
 
@@ -112,21 +114,21 @@ class BPMNProcess:
         # Now, create all of the BPMN Components.
         # Start with Tasks:
         self.tasks: List[BPMNTask] = []
-        for task in iter_xmldict_for_key(process, 'bpmn:serviceTask'):
+        for task in iter_xmldict_for_key(process, BPMN.service_task):
             bpmn_task = BPMNTask(task, process, self.properties)
             self.tasks.append(bpmn_task)
             self.component_map[task['@id']] = bpmn_task
 
         # Exclusive Gateways (conditional)
         self.xgateways: List[BPMNXGateway] = []
-        for gw in iter_xmldict_for_key(process, 'bpmn:exclusiveGateway'):
+        for gw in iter_xmldict_for_key(process, BPMN.exclusive_gateway):
             bpmn_gw = BPMNXGateway(gw, process, self.properties)
             self.xgateways.append(bpmn_gw)
             self.component_map[gw['@id']] = bpmn_gw
 
         # Parallel Gateways
         self.pgateways: List[BPMNParallelGateway] = []
-        for gw in iter_xmldict_for_key(process, 'bpmn:parallelGateway'):
+        for gw in iter_xmldict_for_key(process, BPMN.parallel_gateway):
             bpmn_gw = BPMNParallelGateway(gw, process, self.properties)
             self.pgateways.append(bpmn_gw)
             self.component_map[gw['@id']] = bpmn_gw
@@ -142,21 +144,21 @@ class BPMNProcess:
 
         # Don't forget BPMN End Events!
         self.end_events: List[BPMNEndEvent] = []
-        for eev in iter_xmldict_for_key(process, 'bpmn:endEvent'):
+        for eev in iter_xmldict_for_key(process, BPMN.end_event):
             end_event = BPMNEndEvent(eev, process, self.properties)
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
 
         # Throw Events.
         self.throws: List[BPMNThrowEvent] = []
-        for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            assert 'bpmn:incoming' in event, "Must have incoming edge to Throw Event."
+        for event in iter_xmldict_for_key(process, BPMN.intermediate_throw_event):
+            assert BPMN.incoming in event, "Must have incoming edge to Throw Event."
             bpmn_throw = BPMNThrowEvent(event, process, self.properties)
             self.throws.append(bpmn_throw)
             self.component_map[event['@id']] = bpmn_throw
 
         self.catches: List[BPMNCatchEvent] = []
-        for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
+        for event in iter_xmldict_for_key(process, BPMN.intermediate_catch_event):
             bpmn_catch = BPMNCatchEvent(event, process, self.properties)
             self.catches.append(bpmn_catch)
             self.component_map[event['@id']] = bpmn_catch
@@ -171,7 +173,7 @@ class BPMNProcess:
         # 2. The k8s specs are generated in this file by the BPMNComponent class, not in
         #    the .to_kubernetes() method of the BPMNUserTask.
         # Essentially, the BPMNUserTask object is just used for bookkeeping.
-        self.user_task_definitions = [defn for defn in iter_xmldict_for_key(process, 'bpmn:userTask')]
+        self.user_task_definitions = [defn for defn in iter_xmldict_for_key(process, BPMN.user_task)]
         if len(self.user_task_definitions):
             self._ui_bridge_service_properties = ServiceProperties()
 
@@ -247,17 +249,17 @@ class BPMNProcess:
     def from_workflow_id(cls, workflow_id):
         etcd = get_etcd(is_not_none=True)
         process_xml = etcd.get(WorkflowKeys.proc_key(workflow_id))[0]
-        process_dict = xmltodict.parse(process_xml)['bpmn:process']
+        process_dict = xmltodict.parse(process_xml)[BPMN.process]
         process = cls(process_dict)
         return process
 
     def to_xml(self):
-        return xmltodict.unparse(OrderedDict([('bpmn:process', self._process)]))
+        return xmltodict.unparse(OrderedDict([(BPMN.process, self._process)]))
 
     def to_digraph(self, digraph: dict = None):
         if digraph is None:
             digraph = dict()
-        for sequence_flow in iter_xmldict_for_key(self._process, 'bpmn:sequenceFlow'):
+        for sequence_flow in iter_xmldict_for_key(self._process, BPMN.sequence_flow):
             source_ref = sequence_flow['@sourceRef']
             target_ref = sequence_flow['@targetRef']
             if source_ref not in digraph:
@@ -379,8 +381,20 @@ class BPMNProcess:
                 {
                     'name': 'BRIDGE_CONFIG',
                     'value': json.dumps(bridge_config),
-                }
+                },
+                {
+                    'name': 'USE_SALESFORCE',
+                    'value': self.properties._use_salesforce,
+                },
             ]
+            if self.properties._use_salesforce:
+                ui_bridge_env += [
+                    {
+                        'name': 'SALESFORCE_PROFILE',
+                        'value': self.properties._salesforce_profile
+                    },
+                ]
+
             results.append(create_deployment(
                 self.namespace,
                 ui_bridge_service_name,
@@ -489,7 +503,7 @@ class BPMNProcess:
         for task in self.tasks:
             if not task.is_passthrough:
                 continue
-            
+
             key = f'{task.service_name}.{task.namespace}'
             if key not in services:
                 target_url = f'http://{task.service_name}'

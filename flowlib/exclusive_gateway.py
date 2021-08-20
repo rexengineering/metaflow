@@ -6,7 +6,7 @@ from collections import OrderedDict
 import json
 from typing import Mapping
 
-from .bpmn_util import BPMNComponent, outgoing_sequence_flow_table, get_edge_transport
+from .bpmn_util import BPMNComponent, outgoing_sequence_flow_table, get_edge_transport, BPMN
 from .reliable_wf_utils import create_kafka_transport
 from .k8s_utils import (
     create_deployment,
@@ -73,9 +73,9 @@ class BPMNXGateway(BPMNComponent):
             transport_type = get_edge_transport(edge, self.workflow_properties.transport)
             assert transport_type in ['kafka', 'rpc'], \
                 f"transport_type {transport_type} not implemented for xgw."
-            if 'bpmn:conditionExpression' in edge:
+            if BPMN.condition_expression in edge:
                 bpmn_component = component_map[edge['@targetRef']]
-                expr = edge['bpmn:conditionExpression']['#text']
+                expr = edge[BPMN.condition_expression]['#text']
                 if transport_type == 'kafka':
                     transport = create_kafka_transport(self, bpmn_component)
                     self.kafka_topics.append(transport.kafka_topic)

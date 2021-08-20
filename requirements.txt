@@ -16,6 +16,7 @@ gql[aiohttp]==3.0.0a5
 pydantic==1.8.*
 isodate
 requests
+simple_salesforce
 # Optional development dependency
 grpcio-tools
 pudb
