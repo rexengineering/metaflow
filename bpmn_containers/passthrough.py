@@ -101,4 +101,4 @@ class PassthroughApp(QuartApp):
 
 if __name__ == '__main__':
     app = PassthroughApp(bind=f'0.0.0.0:{LISTEN_PORT}')
-    app.run()
+    app.run_serve()

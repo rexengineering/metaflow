@@ -173,4 +173,4 @@ if __name__ == '__main__':
         kafka_topic,
         bind=f'0.0.0.0:{WORKFLOW_PUBLISHER_LISTEN_PORT}'
     )
-    app.run()
+    app.run_serve()

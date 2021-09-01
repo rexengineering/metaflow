@@ -32,6 +32,9 @@ class QuartApp:
         self.shutdown_event.set()
 
     def run(self):
+        raise NotImplementedError('run() is not implemented in QuartApp! Use run_serve() instead.')
+
+    def run_serve(self):
         logging.debug('QuartApp.run() called...')
         try:
             loop = asyncio.get_event_loop()

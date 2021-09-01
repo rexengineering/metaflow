@@ -125,4 +125,4 @@ class ExclusiveGatewayApp(QuartApp):
 
 if __name__ == '__main__':
     app = ExclusiveGatewayApp(bind=f'0.0.0.0:{XGW_LISTEN_PORT}')
-    app.run()
+    app.run_serve()

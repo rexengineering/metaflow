@@ -214,4 +214,4 @@ class EventThrowApp(QuartApp):
 
 if __name__ == '__main__':
     app = EventThrowApp(bind='0.0.0.0:5000')
-    app.run()
+    app.run_serve()

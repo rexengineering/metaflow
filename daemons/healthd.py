@@ -308,4 +308,4 @@ if __name__ == '__main__':
     # Cold start - No workflow and/or probe data are in etcd.
     logging.basicConfig(format=get_log_format('healthd'), level=logging.INFO)
     app = HealthApp(bind='0.0.0.0:5050')
-    app.run()
+    app.run_serve()

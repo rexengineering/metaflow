@@ -346,4 +346,4 @@ class EventCatchApp(QuartApp):
 
 if __name__ == '__main__':
     app = EventCatchApp(bind=f'0.0.0.0:5000')
-    app.run()
+    app.run_serve()

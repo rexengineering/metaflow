@@ -27,4 +27,4 @@ if __name__ == '__main__':
     root_handler.setLevel(log_level)
     root_handler.setFormatter(logging.Formatter(log_format))
     app = REXFlowUIBridge(bind=f'0.0.0.0:{UI_BRIDGE_PORT}', config=config)
-    app.run()
+    app.run_serve()
