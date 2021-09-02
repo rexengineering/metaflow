@@ -49,4 +49,4 @@ def build_app():
 
 if __name__ == '__main__':
     # The following must run in the main thread.
-    build_app().run()
+    build_app().run_serve()
