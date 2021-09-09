@@ -1,0 +1,4 @@
+nameOverride: rexflow-ui-bridge
+
+build:
+   build_from: ../..
