@@ -1,12 +1,7 @@
 import argparse
-import json
 import logging
-import os
-import xmltodict
-import yaml
 
 from flowlib import flow_pb2
-from flowlib import bpmn_util
 from flowlib.flowd_utils import get_flowd_connection
 
 __help__ = 'validate sufficiently annotated BPMN file(s)'
@@ -32,11 +27,11 @@ def __refine_args__(parser: argparse.ArgumentParser):
     return parser
 
 
-def validate_action(namespace: argparse.Namespace, *args, **kws):
-    '''apply_action(namespace)
+def grpc_validate(namespace: argparse.Namespace):
+    '''grpc_validate(namespace)
     Arguments:
         namespace: argparse.Namespace - Argument map of command line inputs
-    Returns toplevel exit code.
+    Returns map from specification file names to GPRC response data.
     '''
     responses = dict()
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
@@ -48,6 +43,16 @@ def validate_action(namespace: argparse.Namespace, *args, **kws):
                         include_kubernetes=namespace.include_kubernetes
                     )
                 )
+    return responses
+
+
+def validate_action(namespace: argparse.Namespace, *args, **kws):
+    '''apply_action(namespace)
+    Arguments:
+        namespace: argparse.Namespace - Argument map of command line inputs
+    Returns toplevel exit code.
+    '''
+    responses = grpc_validate(namespace)
     status = 0
     for spec, response in responses.items():
         if response.status < 0:

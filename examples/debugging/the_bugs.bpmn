@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_13bh3ot" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.8.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="Process_153xtxw" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_1hw4b7k</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1hw4b7k" sourceRef="StartEvent_1" targetRef="Activity_1c2f1n2" />
+    <bpmn:serviceTask id="Activity_1c2f1n2" name="Find the bugs">
+      <bpmn:documentation>rexflow:
+  service:
+    port: 5000
+
+</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>debuggee</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1hw4b7k</bpmn:incoming>
+      <bpmn:outgoing>Flow_0bcrruh</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0bcrruh" sourceRef="Activity_1c2f1n2" targetRef="Activity_1dnacgy" />
+    <bpmn:endEvent id="Event_0rg7abs">
+      <bpmn:incoming>Flow_0sibdqs</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0sibdqs" sourceRef="Activity_1dnacgy" targetRef="Event_0rg7abs" />
+    <bpmn:serviceTask id="Activity_1dnacgy" name="Squash the bugs">
+      <bpmn:documentation>rexflow:
+  service:
+    port: 5000
+
+</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>debuggee</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0bcrruh</bpmn:incoming>
+      <bpmn:outgoing>Flow_0sibdqs</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_153xtxw">
+      <bpmndi:BPMNEdge id="Flow_1hw4b7k_di" bpmnElement="Flow_1hw4b7k">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0bcrruh_di" bpmnElement="Flow_0bcrruh">
+        <di:waypoint x="370" y="117" />
+        <di:waypoint x="430" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0sibdqs_di" bpmnElement="Flow_0sibdqs">
+        <di:waypoint x="530" y="117" />
+        <di:waypoint x="592" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0dy1umv_di" bpmnElement="Activity_1c2f1n2">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0rg7abs_di" bpmnElement="Event_0rg7abs">
+        <dc:Bounds x="592" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0rqshk3_di" bpmnElement="Activity_1dnacgy">
+        <dc:Bounds x="430" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -100,27 +100,32 @@ class BPMNTask(BPMNComponent):
         super().__init__(task, process, global_props, default_is_preexisting=default_is_preexisting)
         self._task = task
 
-        self._target_port = self.service_properties.port
-        if self._annotation is not None:
-            # First priority: check for properties set in an annotation.
-            assert 'service' in self._annotation, \
-                "Must annotate Service Task with service information."
-            assert 'host' in self._annotation['service'], \
-                "Must annotate Service Task with service host."
-            if 'targetPort' in self._annotation['service']:
-                self._target_port = self._annotation['service']['targetPort']
-        elif BPMN.extension_elements in task:
+        # Metadata should be processed in reverse priority, and independent of
+        # other metadata sources.
+        if BPMN.documentation in task and task[BPMN.documentation].startswith('rexflow:'):
+            # Third priority: check for annotations in the documentation.
+            self.update_annotations(yaml.safe_load(task[BPMN.documentation])['rexflow'])
+        if BPMN.extension_elements in task:
             # Second priority: check for Camunda extensions.
             extensions = task[BPMN.extension_elements]
-            if 'camunda:connector' in extensions:
+            if (('camunda:connector' in extensions)
+                and ('camunda:connectorId' in extensions['camunda:connector'])):
+
                 hostname = extensions['camunda:connector']['camunda:connectorId']
                 self._service_properties.update({
                     'host': hostname,
                     'container': hostname,
                 })
-        elif BPMN.documentation in task and task[BPMN.documentation].startswith('rexflow:'):
-            # Third priority: check for annotations in the documentation.
-            self.update_annotations(yaml.safe_load(task[BPMN.documentation]))
+        # TODO: This ad hoc property usage is a nasty hack, and should have
+        # never been introduced into the code base.  Rename `targetPort` to
+        # `target_port` and make it a proper service property.
+        if ((self._annotation is not None)
+            and ('service' in self._annotation)
+            and ('targetPort' in self._annotation['service'])):
+            # First priority: check for properties set in an annotation.
+            self._target_port = self._annotation['service']['targetPort']
+        else:
+            self._target_port = self.service_properties.port
 
         # The `.service_properties` and `.call_properties` properties of BPMNComponent
         # classes are used by _other_ BPMNComponents to know how to communicate with this
