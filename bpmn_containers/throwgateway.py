@@ -208,8 +208,8 @@ class EventThrowApp(QuartApp):
         except Exception as exn:
             logging.exception("ooph", exc_info=exn)
 
-    def run(self):
-        super().run()
+    def run_serve(self):
+        super().run_serve()
 
 
 if __name__ == '__main__':

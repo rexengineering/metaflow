@@ -53,7 +53,7 @@ class PassthroughApp(QuartApp):
     async def post(self):
         result = await self.passthrough(requests.post)
         return result
-    
+
     async def get(self):
         result = self.passthrough(requests.get)
         return result
@@ -94,9 +94,9 @@ class PassthroughApp(QuartApp):
     def _shutdown(self):
         pass
 
-    def run(self):
+    def run_serve(self):
         # bring up the web server (this call blocks)
-        super().run()
+        super().run_serve()
 
 
 if __name__ == '__main__':

@@ -647,14 +647,14 @@ class EventCatchApp(QuartApp):
     def _shutdown(self):
         self.manager.stop()
 
-    def run(self):
+    def run_serve(self):
         # Only run the kafka poller if there is a properly-configured
         # kafka client
         if kafka is not None:
             self.manager.start()
 
         # now bring up the web server (this call blocks)
-        super().run()
+        super().run_serve()
 
 
 if __name__ == '__main__':

@@ -297,9 +297,9 @@ class HealthApp(QuartApp):
     def _shutdown(self):
         self.manager.stop()
 
-    def run(self):
+    def run_serve(self):
         self.manager.start()
-        super().run()
+        super().run_serve()
 
 
 if __name__ == '__main__':
