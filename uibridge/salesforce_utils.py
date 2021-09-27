@@ -274,7 +274,7 @@ class SalesforceManager:
 
         assert isinstance(data,bytes), 'Data must be bytes'
 
-        key = WorkflowKeys.salesforce_info(self._wf.did, tid)
+        key = WorkflowKeys.salesforce_info_key(self._wf.did, tid)
         def __logic(etcd):
             logging.info(f'salesforce writing {data}')
             etcd.put(key, data)
@@ -283,20 +283,20 @@ class SalesforceManager:
 
     def __call__(self):
         while self._running:
-            iid, task, data = self._queue.get()
-            logging.info(f'sf deque {iid} {task} {data}')
+            iid, xid, task, data = self._queue.get()
+            logging.info(f'sf deque {iid} {xid} {task} {data}')
             if iid is not None:
-                self.post_salesforce_data(iid, task, data)
+                self.post_salesforce_data(iid, xid, task, data)
                 logging.info("processed event successfully.")
             self._queue.task_done()
         logging.info('salesforce deque exiting')
 
-    def post(self, iid:str, task:WorkflowTask, data:dict):
-        logging.info(f'sf queue {iid} {task} {data}')
-        self._queue.put([iid, task, data])
+    def post(self, iid:str, xid:str, task:WorkflowTask, data:dict):
+        logging.info(f'sf queue {iid} {xid} {task} {data}')
+        self._queue.put([iid, xid, task, data])
 
     def get_salesforce_info(self, tid:str) -> dict:
-        key = WorkflowKeys.salesforce_info(self._wf.did, tid)
+        key = WorkflowKeys.salesforce_info_key(self._wf.did, tid)
         def __logic(etcd):
             data, _ = etcd.get(key)
             if data is not None:
@@ -414,7 +414,7 @@ class SalesforceManager:
 
         return successful, len(objects)
 
-    def post_salesforce_data(self, iid:str, task:WorkflowTask, data:dict):
+    def post_salesforce_data(self, iid:str, xid:str, task:WorkflowTask, data:dict):
         """
         """
         sf_info = self.get_salesforce_info(task.tid)
@@ -429,7 +429,7 @@ class SalesforceManager:
         data_dict['did__c'] = self._wf.did
         data_dict['iid__c'] = iid
         data_dict['tid__c'] = task.tid
-        data_dict['xid__c'] = 'n/a'
+        data_dict['xid__c'] = 'n/a' if xid is None else xid
         logging.info(f'form data {data}\n sf_info {sf_info}')
         for rf_key, sf_key in sf_info['salesforce']['field_map'].items():
             if rf_key in data.keys():

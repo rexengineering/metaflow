@@ -35,9 +35,9 @@ class PrismApiClient:
             url = url
         )
         return transport
-    
+
     @classmethod
-    async def notify_task_started(cls, url:str, iid:str, tid:str):
+    async def notify_task_started(cls, url:str, iid:str, tid:str, xid:str):
         """
         notify PRISM that the given task has started
         """
@@ -50,6 +50,7 @@ class PrismApiClient:
                 'startTaskInput' : entities.StartTaskInput(
                     iid=iid,
                     tid=tid,
+                    xid=xid,
                 ).dict(),
             }
 
@@ -61,7 +62,7 @@ class PrismApiClient:
             )
             logger.info(payload)
             return payload.status
-            
+
     @classmethod
     async def complete_workflow(cls, url:str, iid:str):
         async with Client(

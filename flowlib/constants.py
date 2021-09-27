@@ -160,7 +160,7 @@ class WorkflowKeys:
         return f'{cls.key_of(did)}/timed_events'
 
     @classmethod
-    def salesforce_info(cls, did, tid):
+    def salesforce_info_key(cls, did, tid):
         return f'{cls.key_of(did)}/salesforce/{tid}'
 
 
@@ -238,6 +238,10 @@ class WorkflowInstanceKeys:
     @classmethod
     def task_form_key(cls, iid, tid):
         return f'{cls.form_key(iid)}/{tid}'
+
+    @classmethod
+    def exchange_form_key(cls, iid:str, xid:str) -> str:
+        return f'{cls.form_key(iid)}/xid/{xid}'
 
     @classmethod
     def ui_server_uri_key(cls, iid):

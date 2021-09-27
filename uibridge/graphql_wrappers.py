@@ -34,6 +34,7 @@ class Validator:
 # graphql field names
 BODY1      = 'BODY1'
 CONSTRAINT = 'constraint'
+CREATE_STOPPED = 'create_stopped'
 DATA       = 'data'
 DATA_ID    = 'dataId'
 DEFAULT    = 'default'
@@ -68,6 +69,7 @@ VALUE      = 'value'
 VARIANT    = 'variant'
 WORKFLOW   = 'workflow'
 UNKNOWN    = 'UNKNOWN'
+XID        = 'xid'
 
 SUCCESS = 'SUCCESS'
 FAILURE = 'FAILURE'
@@ -150,6 +152,10 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         TASKS: tasks,
     }
 
+def start_instance_payload(did:str, iid:str, status:str, tasks:List[str]) -> dict:
+    # we are using the same payload as create instance
+    return create_instance_payload(did,iid,status,tasks)
+
 def cancel_instance_payload(did:str, iid:str, state:str, status:str):
     return {
         DID: did,
@@ -201,18 +207,20 @@ def task_field_data(data_id:str, type:str, order:int, label:str, data:str, defva
         VALIDATORS: validators,
     }
 
-def task_form_payload(iid:str, tid:str, status:str, fields:List):
+def task_form_payload(iid:str, tid:str, xid:str, status:str, fields:List):
     return {
         IID: iid,
         TID: tid,
+        XID: xid,
         STATUS: status,
         FIELDS: fields,
     }
 
-def task_validate_payload(iid:str, tid:str, status:str, passed:bool, results:List):
+def task_validate_payload(iid:str, tid:str, xid:str, status:str, passed:bool, results:List):
     return {
         IID: iid,
         TID: tid,
+        XID: xid,
         STATUS: status,
         PASSED: passed,
         RESULTS: results,
@@ -222,10 +230,11 @@ def task_save_payload(iid:str, tid:str, status:str, passed:bool, results:List):
     # cheat - right now the TaskValidatePayload is the same as TaskSavePayload
     return task_validate_payload(iid, tid, status, passed, results)
 
-def task_complete_payload(iid:str, tid:str, status:str):
+def task_complete_payload(iid:str, tid:str, xid:str, status:str):
     return {
         IID: iid,
         TID: tid,
+        XID: xid,
         STATUS: status,
     }
 

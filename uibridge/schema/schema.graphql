@@ -37,6 +37,8 @@ scalar WorkflowInstanceId
 
 scalar WorkflowDeployemntId
 
+scalar ExchangeId
+
 scalar TaskId
 
 scalar DataId
@@ -166,7 +168,12 @@ input GetInstanceInput {
 input CreateWorkflowInstanceInput {
     did: String
     graphqlUri: String!
+    create_stopped: Boolean = true
     meta_data: [MetaDataInput]
+}
+
+input StartWorkflowInstanceInput {
+    iid: WorkflowInstanceId!
 }
 
 input CancelWorkflowInstanceInput {
@@ -202,6 +209,26 @@ input TaskMutationCompleteInput {
     tid:TaskId!
 }
 
+input TaskExchangeMutationFormInput {
+    xid:ExchangeId!
+    reset: Boolean
+}
+
+input TaskExchangeMutationValidateInput {
+    xid:ExchangeId!
+    entire: Boolean
+    fields: [TaskFieldInput!]!
+}
+
+input TaskExchangeMutationSaveInput {
+    xid:ExchangeId!
+    fields: [TaskFieldInput!]!
+}
+
+input TaskExchangeMutationCompleteInput {
+    xid:ExchangeId!
+}
+
 # Payloads
 type MetaData {
     key: String!
@@ -209,6 +236,13 @@ type MetaData {
 }
 
 type CreateInstancePayload {
+    did: WorkflowDeployemntId!
+    iid: WorkflowInstanceId!
+    status: OperationStatus!
+    tasks: [TaskId!]!
+}
+
+type StartInstancePayload {
     did: WorkflowDeployemntId!
     iid: WorkflowInstanceId!
     status: OperationStatus!
@@ -237,32 +271,36 @@ type GetInstancePayload {
 }
 
 type TaskFormPayload {
-    iid: WorkflowInstanceId
+    iid: WorkflowInstanceId!
     tid: TaskId!
+    xid: ExchangeId!
     status: OperationStatus!
     fields: [TaskFieldData!]!
 }
 
 type TaskValidatePayload {
-    iid: WorkflowInstanceId!
-    tid: TaskId!
-    status: OperationStatus!
-    passed: Boolean!
-    results: [FieldValidationResult!]!
+    iid: WorkflowInstanceId
+    tid: TaskId
+    xid: ExchangeId
+    status: OperationStatus
+    passed: Boolean
+    results: [FieldValidationResult]
 }
 
 type TaskSavePayload {
-    iid: WorkflowInstanceId!
-    tid: TaskId!
-    status: OperationStatus!
-    passed: Boolean!
-    results: [FieldValidationResult!]!
+    iid: WorkflowInstanceId
+    tid: TaskId
+    xid: ExchangeId
+    status: OperationStatus
+    passed: Boolean
+    results: [FieldValidationResult]
 }
 
 type TaskCompletePayload {
-    iid: WorkflowInstanceId!
-    tid: TaskId!
-    status: OperationStatus!
+    iid: WorkflowInstanceId
+    tid: TaskId
+    xid: ExchangeId
+    status: OperationStatus
 }
 
 # Mutations
@@ -274,6 +312,7 @@ type Query {
 
 type Mutation {
     createInstance(input: CreateWorkflowInstanceInput!) : CreateInstancePayload
+    startInstance(input: StartWorkflowInstanceInput!) : StartInstancePayload
     cancelInstance(input: CancelWorkflowInstanceInput!) : CancelInstancePayload
     tasks: TaskMutation
 }
@@ -283,4 +322,13 @@ type TaskMutation {
     validate(input: TaskMutationValidateInput!) : TaskValidatePayload
     save(input: TaskMutationSaveInput!) : TaskSavePayload
     complete(input: TaskMutationCompleteInput!) : TaskCompletePayload
+    exchange: TaskExchangeMutation
 }
+
+type TaskExchangeMutation {
+    form(input: TaskExchangeMutationFormInput!) : TaskFormPayload
+    validate(input: TaskExchangeMutationValidateInput!) : TaskValidatePayload
+    save(input: TaskExchangeMutationSaveInput!) : TaskSavePayload
+    complete(input: TaskExchangeMutationCompleteInput!) : TaskCompletePayload
+}
+
