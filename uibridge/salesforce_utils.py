@@ -435,7 +435,7 @@ class SalesforceManager:
             if rf_key in data.keys():
                 data_dict[sf_key] = data[rf_key]['data']
 
-        logging.info(f'salesforce posting {data_dict}')
+        logging.info(f'salesforce post {sf_recid} {data_dict}')
         sf_obj = getattr(self._sf, sf_info['salesforce']['table'])
         if sf_recid is not None:
             response = sf_obj.upsert(sf_recid, data_dict)
