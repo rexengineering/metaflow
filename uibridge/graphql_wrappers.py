@@ -62,6 +62,7 @@ STATUS     = 'status'
 TASKS      = 'tasks'
 TEXT       = 'TEXT'
 TID        = 'tid'
+TID_LIST   = 'tid_list'
 TYPE       = 'type'
 VALIDATOR  = 'validator'
 VALIDATORS = 'validators'
@@ -152,10 +153,6 @@ def create_instance_payload(did:str, iid:str, status:str, tasks:List[str]):
         TASKS: tasks,
     }
 
-def start_instance_payload(did:str, iid:str, status:str, tasks:List[str]) -> dict:
-    # we are using the same payload as create instance
-    return create_instance_payload(did,iid,status,tasks)
-
 def cancel_instance_payload(did:str, iid:str, state:str, status:str):
     return {
         DID: did,
@@ -164,12 +161,13 @@ def cancel_instance_payload(did:str, iid:str, state:str, status:str):
         STATUS: status,
     }
 
-def workflow_instance_info(iid:str, iid_status:str, meta:list, graphql_uri:str):
+def workflow_instance_info(iid:str, iid_status:str, meta:list, graphql_uri:str, tid_list:list):
     return {
         IID: iid,
         IID_STATUS: iid_status,
         META_DATA: meta,
         GRAPHQL_URI: graphql_uri,
+        TID_LIST: tid_list,
     }
 
 def get_instances_payload(did:str, did_status:str, iid_list:List, tasks:List[str]):

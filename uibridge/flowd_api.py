@@ -109,7 +109,7 @@ class Workflow:
     def get_iid_tid_for_xid(self, xid:str) -> list:
         return self.exchange_ids[xid]
 
-    def get_xid_for_iid(self, iid:str):
+    def get_tid_list(self, iid:str) -> dict:
         ret = {}
         for xid,vals in self.exchange_ids.items():
             i,tid = vals
@@ -119,6 +119,7 @@ class Workflow:
                 else:
                     ret[tid] = [xid]
         return ret
+
     def get_semaphore(self):
         return self.semaphore
 

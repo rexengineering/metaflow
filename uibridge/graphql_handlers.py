@@ -59,17 +59,16 @@ def mutation_get_instance(_,info, input=None):
 
     iid_info = []
     for iid in iid_list:
-        xid_list = workflow.get_xid_for_iid(iid)
-
-        uri = workflow.get_instance_graphql_uri(iid)
-        meta = workflow.get_instance_meta_data(iid)
+        tid_list = workflow.get_tid_list(iid)
+        uri      = workflow.get_instance_graphql_uri(iid)
+        meta     = workflow.get_instance_meta_data(iid)
         if meta is not None:
             meta = [
                 gql.meta_data(k, v)
                 for k,v in meta.items()
             ]
         iid_status = workflow.get_instance_status(iid)
-        iid_info.append(gql.workflow_instance_info(iid, iid_status, meta, uri))
+        iid_info.append(gql.workflow_instance_info(iid, iid_status, meta, uri, tid_list))
     return gql.get_instances_payload(workflow.did, status, iid_info, workflow.get_task_ids())
 
 # Workflow Mutations
@@ -85,15 +84,6 @@ def mutation_create_instance(_,info,input):
     logging.info(f'{uri} {stopped}')
     data = workflow.create_instance(did, stopped, uri, meta)
     return gql.create_instance_payload(workflow.did, data['id'], SUCCESS, workflow.get_task_ids())
-
-@mutation.field('startInstance')
-def mutation_start_instance(_,info,input):
-    workflow = info.context[WORKFLOW]
-    iid      = input[IID]
-    data     = workflow.start_instance(iid)
-    #TODO: Once STOPPED actually works as intended, we need to examine data for
-    # a proper return code.
-    return gql.start_instance_payload(workflow.did, iid, SUCCESS, workflow.get_task_ids())
 
 @mutation.field('cancelInstance')
 def mutation_stop_instance(_, info, input):

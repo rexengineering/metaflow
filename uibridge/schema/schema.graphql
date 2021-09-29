@@ -172,10 +172,6 @@ input CreateWorkflowInstanceInput {
     meta_data: [MetaDataInput]
 }
 
-input StartWorkflowInstanceInput {
-    iid: WorkflowInstanceId!
-}
-
 input CancelWorkflowInstanceInput {
     iid: WorkflowInstanceId!
 }
@@ -242,13 +238,6 @@ type CreateInstancePayload {
     tasks: [TaskId!]!
 }
 
-type StartInstancePayload {
-    did: WorkflowDeployemntId!
-    iid: WorkflowInstanceId!
-    status: OperationStatus!
-    tasks: [TaskId!]!
-}
-
 type CancelInstancePayload {
     did: WorkflowDeployemntId!
     iid: WorkflowInstanceId!
@@ -256,11 +245,17 @@ type CancelInstancePayload {
     status: OperationStatus!
 }
 
+type TaskExchangeInfo {
+    tid: TaskId!
+    xid_list: [ExchangeId!]
+}
+
 type WorkflowInstanceInfo {
     iid: WorkflowInstanceId!
     iid_status: WorkflowStatus!
     meta_data: [MetaData]
     graphqlUri: String
+    tid_list: [TaskExchangeInfo]
 }
 
 type GetInstancePayload {
@@ -312,7 +307,6 @@ type Query {
 
 type Mutation {
     createInstance(input: CreateWorkflowInstanceInput!) : CreateInstancePayload
-    startInstance(input: StartWorkflowInstanceInput!) : StartInstancePayload
     cancelInstance(input: CancelWorkflowInstanceInput!) : CancelInstancePayload
     tasks: TaskMutation
 }

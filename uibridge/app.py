@@ -123,7 +123,7 @@ class REXFlowUIBridge(AsyncService):
             if not ui_srv_url.startswith(TEST_MODE_URI):
                 response = await PrismApiClient.notify_task_started(ui_srv_url, iid, tid, xid)
                 logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {xid} {response}')
-            return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
+            return {'status': 200, 'message': f'xid {xid}'}
 
         return {'status':500, 'message': 'Unwise to execute user-task infused workflows from flowctl'}
 
@@ -162,7 +162,7 @@ class REXFlowUIBridge(AsyncService):
         data = await request.get_json()
         logging.info(request, data)
         context = {
-            'request':request, 
+            'request':request,
             'workflow': self.workflow,
             'salesforce': self.salesforce,
         }
