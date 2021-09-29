@@ -71,9 +71,15 @@ VARIANT    = 'variant'
 WORKFLOW   = 'workflow'
 UNKNOWN    = 'UNKNOWN'
 XID        = 'xid'
+XID_LIST   = 'xid_list'
+XID_STATE  = 'xid_state'
 
 SUCCESS = 'SUCCESS'
 FAILURE = 'FAILURE'
+class XidState:
+    START    = 'STARTED'
+    SAVED    = 'SAVED'
+    COMPLETE = 'COMPLETE'
 
 def validator(type:str, constraint:str) -> Dict[str,Any]:
     return {
@@ -93,6 +99,12 @@ def field_validation_result(data_id:str, passed:bool, results:List):
         DATA_ID: data_id,
         PASSED: passed,
         RESULTS: results,
+    }
+
+def task_exchange_info(tid:str, xid_list:list):
+    return {
+        TID: tid,
+        XID_LIST: xid_list,
     }
 
 def meta_data(key:str, val:str):
@@ -161,20 +173,32 @@ def cancel_instance_payload(did:str, iid:str, state:str, status:str):
         STATUS: status,
     }
 
+def exchange_info(xid:str, state:str):
+    return {
+        XID: xid,
+        XID_STATE: state,
+    }
+
+def task_exchange_info(tid:str, xid_list:list):
+    return {
+        TID: tid,
+        XID_LIST: xid_list, # list of exchange_info
+    }
+
 def workflow_instance_info(iid:str, iid_status:str, meta:list, graphql_uri:str, tid_list:list):
     return {
         IID: iid,
         IID_STATUS: iid_status,
         META_DATA: meta,
         GRAPHQL_URI: graphql_uri,
-        TID_LIST: tid_list,
+        TID_LIST: tid_list, # list of task_exchange_info
     }
 
 def get_instances_payload(did:str, did_status:str, iid_list:List, tasks:List[str]):
     return {
         DID: did,
         DID_STATUS: did_status,
-        IID_LIST: iid_list,
+        IID_LIST: iid_list, # list of workflow_instance_info
         TASKS: tasks,
     }
 
@@ -224,9 +248,9 @@ def task_validate_payload(iid:str, tid:str, xid:str, status:str, passed:bool, re
         RESULTS: results,
     }
 
-def task_save_payload(iid:str, tid:str, status:str, passed:bool, results:List):
+def task_save_payload(iid:str, tid:str, xid:str, status:str, passed:bool, results:List):
     # cheat - right now the TaskValidatePayload is the same as TaskSavePayload
-    return task_validate_payload(iid, tid, status, passed, results)
+    return task_validate_payload(iid, tid, xid, status, passed, results)
 
 def task_complete_payload(iid:str, tid:str, xid:str, status:str):
     return {

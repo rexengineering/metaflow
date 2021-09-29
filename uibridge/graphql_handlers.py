@@ -59,7 +59,14 @@ def mutation_get_instance(_,info, input=None):
 
     iid_info = []
     for iid in iid_list:
-        tid_list = workflow.get_tid_list(iid)
+        tid_list = []
+        for tid,xids in workflow.get_tid_list(iid).items():
+            xid_list = [
+                gql.exchange_info(x[0],x[1])
+                for x in xids
+            ]
+            tid_list.append(gql.task_exchange_info(tid, xid_list))
+        logging.info(tid_list)
         uri      = workflow.get_instance_graphql_uri(iid)
         meta     = workflow.get_instance_meta_data(iid)
         if meta is not None:
@@ -219,7 +226,7 @@ def task_mutation_exchange_save(_,info,input):
         all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
         flds = task.update(iid, xid, input[FIELDS])
         status = SUCCESS
-        if sf:
+        if sf and sf_mgr:
             sf_mgr.post(iid, xid, task, flds)
     return gql.task_validate_payload(iid, tid, xid, status, all_passed, field_results)
 

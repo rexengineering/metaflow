@@ -109,6 +109,19 @@ enum FieldInitializerType {
     EVAL
 }
 
+"""
+States for an exchange. 
+STARTED - Notification that the exchange has started, but no other interaction
+          has taken place
+SAVED   - The form for the exchange has been saved at least once
+COMPLETE- The exchange has completed, but the form data is still available.
+"""
+enum ExchangeState {
+    STARTED
+    SAVED
+    COMPLETE
+}
+
 """A task will request a list of data elements"""
 type Task {
     iid: WorkflowInstanceId
@@ -245,9 +258,14 @@ type CancelInstancePayload {
     status: OperationStatus!
 }
 
+type ExchangeInfo {
+    xid: ExchangeId!
+    xid_state: ExchangeState!
+}
+
 type TaskExchangeInfo {
     tid: TaskId!
-    xid_list: [ExchangeId!]
+    xid_list: [ExchangeInfo]
 }
 
 type WorkflowInstanceInfo {
