@@ -87,10 +87,14 @@ class Workflow:
         self.instance_headers = {}
         self.instance_data = {}
         self.reponses = {}
+        self.semaphore = threading.Semaphore()
 
         for tid in tids:
             self.tasks[tid] = WorkflowTask(self,tid)
         logging.info(f'Workflow object initialized to process workflow {did}')
+
+    def get_semaphore(self):
+        return self.semaphore
 
     def start(self):
         self.timer = threading.Timer(1, self.watch_instances)
@@ -158,7 +162,7 @@ class Workflow:
     def create_instance(self, did:str, graphql_uri:str, meta:list):
         """
         Run a workflow instance. If did is none, run the workflow for this UI-BRIDGE,
-        else resolve the DID to a workflow deployment fia the workflow map, and ask
+        else resolve the DID to a workflow deployment via the workflow map, and ask
         flowd to run that workflow instance.
         """
         wf_id = None
@@ -182,22 +186,42 @@ class Workflow:
         else:
             wf_id = self.did
 
-        md = [
+        metadata = [
             flow_pb2.StringPair(key=m[KEY], value=m[VALUE])
             for m in meta
         ]
-        print(md)
+        print(metadata)
         with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
-            response = flowd.RunWorkflow(flow_pb2.RunRequest(
-                workflow_id=wf_id, args=None,
-                stopped=False, start_event_id=None,
-                metadata=md
-            ))
-            data = json.loads(response.data)
-            if graphql_uri:
-                iid = data[ID]
-                self._put_etcd_value(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
-            return data
+            # RACE CONDITION!
+            #
+            # We call flowd here to run the workflow, but if the first event in the
+            # workflow is a user task, we will get a call back into app.init_route()
+            # before we return here. The implication is that we don't know what the
+            # iid is yet, as flowd has not returned, and our caller doesn't have
+            # the iid (as we haven't returned it to them yet)
+            #
+            # graphql_handlers.mutation_create_instance()
+            # -> workflow.create_instance()
+            #    -> flowd.RunWorkflow()
+            #       -> catchgateway.create_instance()
+            #          -> executor()
+            #             -> catchgateway.run_instance() <= via executor
+            #                -> app.init_route() # BOOM! iid is unknown
+            #       -> return iid
+            #    -> return iid
+            # -> return iid <= caller learns IID at this point
+            #
+            with self.get_semaphore():
+                response = flowd.RunWorkflow(flow_pb2.RunRequest(
+                    workflow_id=wf_id, args=None,
+                    stopped=False, start_event_id=None,
+                    metadata=metadata
+                ))
+                data = json.loads(response.data)
+                if graphql_uri:
+                    iid = data[ID]
+                    self._put_etcd_value(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
+                return data
 
     def cancel_instance(self, iid:str):
         if iid in self.get_instances():

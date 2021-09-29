@@ -96,7 +96,7 @@ class REXFlowUIBridge(AsyncService):
 
     async def init_route(self):
         '''
-        entry point for when the bridge gets called by the rexflow.
+        entry point for when the bridge gets called by rexflow.
         '''
         # TODO: When the WF Instance is created, we want the <instance_path>/user_tasks/<user_task_id> to be set to PENDING (or something like that)
         iid = request.headers[Headers.X_HEADER_FLOW_ID]
@@ -107,19 +107,24 @@ class REXFlowUIBridge(AsyncService):
         if Headers.X_HEADER_TOKEN_POOL_ID in request.headers.keys():
             self.workflow.register_instance_header(iid, f'{Headers.X_HEADER_TOKEN_POOL_ID}:{request.headers[Headers.X_HEADER_TOKEN_POOL_ID]}')
         req_json = await request.get_json()
-        self.workflow.set_instance_data(iid, req_json)
-        ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
         logging.info(req_json)
+        self.workflow.set_instance_data(iid, req_json)
+
+        # guard the ui_srv_url fetch as it may not exist yet
+        with self.workflow.get_semaphore():
+            ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
 
         # upstream cycle timer events can call this access point multiple times for the
         # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
         # specific interaction
         #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
-        if ui_srv_url and not ui_srv_url.startswith(TEST_MODE_URI):
-            response = await PrismApiClient.notify_task_started(ui_srv_url, iid, tid)
-            logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
+        if ui_srv_url:
+            if not ui_srv_url.startswith(TEST_MODE_URI):
+                response = await PrismApiClient.notify_task_started(ui_srv_url, iid, tid)
+                logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
+            return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
 
-        return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
+        return {'status':500, 'message': 'Unwise to execute user-task infused workflows from flowctl'}
 
     async def _happy_path(self, headers, json):
         import requests, functools, asyncio
