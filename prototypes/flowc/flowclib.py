@@ -41,7 +41,7 @@ SERVICE_TASK_FUNCTION_TEMPLATE = '''def {function_name}(environment):
 '''
 
 JINJA_ENVIRONMENT = jinja2.Environment(
-    loader=jinja2.PackageLoader('prototypes.jriehl.flowc', '.'),
+    loader=jinja2.PackageLoader('prototypes.flowc', '.'),
     autoescape=jinja2.select_autoescape(['.py']),
 )
 
