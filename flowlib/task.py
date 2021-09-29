@@ -3,17 +3,20 @@ Implements the BPMNTask object, which inherits BPMNComponent.
 '''
 
 from collections import OrderedDict, namedtuple
-from typing import List, Mapping
-
+import json
+from typing import List, Mapping, Any
 import yaml
 
 from .bpmn_util import (
+    BPMN,
     WorkflowProperties,
+    ServiceProperties,
+    CallProperties,
+    HealthProperties,
     BPMNComponent,
     get_edge_transport,
     iter_xmldict_for_key,
 )
-
 from .k8s_utils import (
     create_deployment,
     create_service,
@@ -22,12 +25,16 @@ from .k8s_utils import (
 )
 from .config import (
     CREATE_DEV_INGRESS,
+    DEFAULT_USE_PREEXISTING_SERVICES,
     FLOWD_HOST,
     FLOWD_PORT,
     INSTANCE_FAIL_ENDPOINT_PATH,
+    ASYNC_BRIDGE_IMAGE,
+    ASYNC_BRIDGE_LISTEN_PORT,
+
 )
 from .reliable_wf_utils import create_kafka_transport
-from .constants import Headers
+from .constants import Headers, to_valid_k8s_name
 
 Upstream = namedtuple(
     'Upstream',
@@ -84,8 +91,13 @@ def form_param_config(param):
 class BPMNTask(BPMNComponent):
     '''Wrapper for BPMN service task metadata.
     '''
-    def __init__(self, task: OrderedDict, process: OrderedDict, global_props: WorkflowProperties):
-        super().__init__(task, process, global_props)
+    def __init__(self,
+        task: OrderedDict,
+        process: OrderedDict,
+        global_props: WorkflowProperties,
+        default_is_preexisting: bool = DEFAULT_USE_PREEXISTING_SERVICES,
+    ):
+        super().__init__(task, process, global_props, default_is_preexisting=default_is_preexisting)
         self._task = task
 
         self._target_port = self.service_properties.port
@@ -97,26 +109,57 @@ class BPMNTask(BPMNComponent):
                 "Must annotate Service Task with service host."
             if 'targetPort' in self._annotation['service']:
                 self._target_port = self._annotation['service']['targetPort']
-        elif 'bpmn:extensionElements' in task:
+        elif BPMN.extension_elements in task:
             # Second priority: check for Camunda extensions.
-            extensions = task['bpmn:extensionElements']
+            extensions = task[BPMN.extension_elements]
             if 'camunda:connector' in extensions:
                 hostname = extensions['camunda:connector']['camunda:connectorId']
-                self._service_properties._host = hostname
-                self._service_properties._container_name = hostname
-        elif 'bpmn:documentation' in task and task['bpmn:documentation'].startswith('rexflow:'):
+                self._service_properties.update({
+                    'host': hostname,
+                    'container': hostname,
+                })
+        elif BPMN.documentation in task and task[BPMN.documentation].startswith('rexflow:'):
             # Third priority: check for annotations in the documentation.
-            self.update_annotations(yaml.safe_load(task['bpmn:documentation']))
+            self.update_annotations(yaml.safe_load(task[BPMN.documentation]))
+
+        # The `.service_properties` and `.call_properties` properties of BPMNComponent
+        # classes are used by _other_ BPMNComponents to know how to communicate with this
+        # BPMNComponent. Therefore, we want the `_service_properties` and `_call_properties`
+        # properties of this BPMNComponent to refer to where we want people to send traffic
+        # to. If this is a synchronous task, we're fine; just leave them as-is. But if
+        # we are an asynchronous task, we want other components to communicate with
+        # the Async Service Bridge and NOT the actual service.
+        # Because we (the BPMNTask implementor) care about the location of the worker
+        # service, we save that info before fudging it.
+        self._worker_service_name = self.service_name
+        self._worker_call_properties = self._call_properties
+        self._worker_service_properties = self._service_properties
+        if self._service_properties.asynchronous:
+            self._service_properties = ServiceProperties()
+            self._service_properties.update({
+                'namespace': self.namespace,
+                'port': ASYNC_BRIDGE_LISTEN_PORT,
+                'container': self._service_properties.container,
+                'host': to_valid_k8s_name(f'bridge-{self._worker_service_name}-{self.id}'),
+                'hash_used': self.workflow_properties.namespace_shared,
+                'id_hash': self.workflow_properties.id_hash,
+            })
+            self._call_properties = CallProperties()
+            self._call_properties.update({
+                'path': '/',
+                'method': 'POST',
+            })
 
         if self._is_preexisting and self._annotation is not None:
-            assert 'namespace' in self._annotation['service'], \
-                "Must provide namespace of preexisting service."
-            self._namespace = self._annotation['service']['namespace']
+            self._namespace = self._annotation['service'].get('namespace', global_props.namespace)
             if 'health' not in self._annotation:
                 # Can't make guarantee about where the service implementor put
                 # their health endpoint, so (for now) require it to be specified.
                 self._health_properties = None
         self._process = process
+        self.is_passthrough = (
+            self._is_preexisting and (self._global_props.passthrough_target is not None)
+        )
 
     def _generate_envoyfilter(self, upstreams: List[Upstream], component_map, edge_map) -> dict:
         '''Generates a EnvoyFilter that appends the `bavs-filter` that we wrote to the Envoy
@@ -143,7 +186,7 @@ class BPMNTask(BPMNComponent):
             envoyfilter_name += '-' + self.workflow_properties.id_hash
 
         namespace = self._namespace  # namespace in which the k8s objects live.
-        if self._global_props.traffic_shadow_service_props:
+        if self._global_props.notification_kafka_topic:
             shadow_svc = self._global_props.traffic_shadow_service_props
             shadow_call = self._global_props.traffic_shadow_call_props
             host = f'{shadow_svc.host}.{shadow_svc.namespace}.svc.cluster.local'
@@ -160,8 +203,8 @@ class BPMNTask(BPMNComponent):
 
         # Error Gateway stuff
         error_gateways = []
-        for boundary_event in iter_xmldict_for_key(self._process, 'bpmn:boundaryEvent'):
-            if 'bpmn:errorEventDefinition' not in boundary_event:
+        for boundary_event in iter_xmldict_for_key(self._process, BPMN.boundary_event):
+            if BPMN.error_event_definition not in boundary_event:
                 continue
             if boundary_event['@attachedToRef'] == self.id:
                 error_gateways.append(boundary_event)
@@ -184,28 +227,7 @@ class BPMNTask(BPMNComponent):
                     ))
                 )
 
-        # Smart Transport stuff
-        if self.workflow_properties.use_closure_transport \
-                    and 'bpmn:extensionElements' in self._task \
-                    and 'camunda:inputOutput' in self._task['bpmn:extensionElements']:
-            params = self._task['bpmn:extensionElements']['camunda:inputOutput']
-            input_params = [
-                form_param_config(param)
-                for param in iter_xmldict_for_key(params, 'camunda:inputParameter')
-            ]
-            input_param_names = [param['name'] for param in input_params]
-            if '.' in input_param_names:
-                assert len(input_param_names) == 1, "Can only have one top-level input param."
-            output_params = [
-                form_param_config(param)
-                for param in iter_xmldict_for_key(params, 'camunda:outputParameter')
-            ]
-            output_param_values = [param['value'] for param in output_params]
-            if '.' in output_param_values:
-                assert len(output_param_values) == 1, "Can only have one top-level output param."
-        else:
-            input_params = []
-            output_params = []
+        input_params, output_params = self._generate_bavs_params()
 
         flowd_host = FLOWD_HOST
         if not flowd_host.endswith('.svc.cluster.local'):
@@ -214,9 +236,9 @@ class BPMNTask(BPMNComponent):
             'inbound_upstream': self._make_upstreamconfig(Upstream(
                 self.envoy_host,
                 self._target_port,
-                self.call_properties.path,
-                self.call_properties.method,
-                self.call_properties.total_attempts,
+                self._worker_call_properties.path,
+                self._worker_call_properties.method,
+                self._worker_call_properties.total_attempts,
                 self.id,
             )),
             'forward_upstreams': [
@@ -310,7 +332,8 @@ class BPMNTask(BPMNComponent):
         outgoing_edges = list(edge_map[self.id])
         assert len(outgoing_edges) > 0, "Cannot have dead end on service task."
 
-        upstreams = [] # list of Upstreams. This gets passed into the Envoyfilter config.
+        # List of Upstreams representing outbound edges
+        upstreams = [] # type: List[Upstream]
 
         for edge in outgoing_edges:
             assert edge['@sourceRef'] == self.id, "NewGradProgrammerError: invalid edge map."
@@ -346,10 +369,98 @@ class BPMNTask(BPMNComponent):
                     )
                 )
 
-        k8s_objects.append(self._generate_envoyfilter(upstreams, component_map, edge_map))
+        if not self._worker_service_properties.asynchronous:
+            k8s_objects.append(self._generate_envoyfilter(upstreams, component_map, edge_map))
+        else:
+            # We need to create the AsyncServiceBridge.
+            k8s_objects.extend(
+                self._generate_async_bridge(upstreams, component_map, edge_map)
+            )
         if not self._is_preexisting:
             k8s_objects.extend(self._generate_microservice())
         return k8s_objects
+
+    def _generate_async_bridge(
+        self,
+        upstreams: List[Upstream],
+        component_map: Mapping[str, BPMNComponent],
+        edge_map: Mapping[str, Any],
+    ) -> List[dict]:
+        '''Generates K8s manifest for the Async Service Bridge
+        '''
+        assert self._worker_service_properties.asynchronous
+
+        result = []
+
+        # generate forward tasks
+        forward_tasks = []
+        for upstream in upstreams:
+            forward_tasks.append({
+                'method': upstream.method,
+                'k8s_url': f'http://{upstream.full_hostname}:{upstream.port}{upstream.path}',
+                'task_id': upstream.task_id,
+                'total_attempts': upstream.total_attempts,
+            })
+        worker_url = f"http://{self._worker_service_properties.host}.{self.namespace}"
+        worker_url += f":{self._worker_service_properties.port}"
+        worker_url += self._worker_call_properties.path
+
+        bavs_params = {}
+        if self.workflow_properties.use_closure_transport:
+            bavs_params['input_params'], bavs_params['output_params'] = self._generate_bavs_params()
+
+        env_config = [
+            {
+                "name": "ASYNC_TASK_URL",
+                "value": worker_url
+            },
+            {
+                "name": "ASYNC_BRIDGE_HOST",
+                "value": self.k8s_url,
+            },
+            {
+                "name": "ASYNC_TASK_ID",
+                "value": self.id,
+            },
+            {
+                "name": "CLOSURE_TRANSPORT",
+                "value": "true" if self.workflow_properties.use_closure_transport else "false",
+            },
+            {
+                "name": "ASYNC_BRIDGE_FORWARD_TASKS",
+                "value": json.dumps(forward_tasks),
+            },
+            {
+                "name": "ASYNC_BRIDGE_CONTEXT_PARAMETERS",
+                "value": json.dumps(bavs_params),
+            },
+            {
+                "name": "WF_ID",
+                "value": self.workflow_properties.id,
+            }
+        ]
+        result.append(create_service(
+            self.namespace,
+            self.service_name,
+            self.service_properties.port,
+        ))
+        result.append(create_deployment(
+            self.namespace,
+            self.service_name,
+            ASYNC_BRIDGE_IMAGE,
+            ASYNC_BRIDGE_LISTEN_PORT,
+            env_config,
+            etcd_access=True,
+            kafka_access=True,
+            priority_class=self.workflow_properties.priority_class,
+            health_props=HealthProperties(),
+        ))
+        result.append(create_serviceaccount(
+            self.namespace,
+            self.service_name,
+        ))
+
+        return result
 
     def _generate_microservice(self):
         k8s_objects = []
@@ -365,28 +476,54 @@ class BPMNTask(BPMNComponent):
         uri_prefix = f'/{service_name}' if namespace == 'default' \
             else f'/{namespace}/{service_name}'
 
-        k8s_objects.append(create_serviceaccount(namespace, self.service_name))
+        k8s_objects.append(create_serviceaccount(namespace, self._worker_service_name))
         k8s_objects.append(
-            create_service(namespace, self.service_name, port, target_port=target_port)
+            create_service(namespace, self._worker_service_name, port, target_port=target_port)
         )
         k8s_objects.append(create_deployment(
             namespace,
-            self.service_name,
-            self.service_properties.container,
+            self._worker_service_name,
+            self._worker_service_properties.container,
             target_port,
             env=[],
             priority_class=self.workflow_properties.priority_class,
+            health_props=self.health_properties,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(
                 namespace,
-                f'{self.service_name}-{self._global_props.id_hash}',
+                f'{self._worker_service_name}-{self._global_props.id_hash}',
                 uri_prefix=uri_prefix,
                 dest_port=port,
-                dest_host=f'{self.service_name}.{namespace}.svc.cluster.local',
+                dest_host=f'{self._worker_service_name}.{namespace}.svc.cluster.local',
             ))
 
         return k8s_objects
+
+    def _generate_bavs_params(self):
+        # Smart Transport stuff
+        if self.workflow_properties.use_closure_transport \
+                    and BPMN.extension_elements in self._task \
+                    and 'camunda:inputOutput' in self._task[BPMN.extension_elements]:
+            params = self._task[BPMN.extension_elements]['camunda:inputOutput']
+            input_params = [
+                form_param_config(param)
+                for param in iter_xmldict_for_key(params, 'camunda:inputParameter')
+            ]
+            input_param_names = [param['name'] for param in input_params]
+            if '.' in input_param_names:
+                assert len(input_param_names) == 1, "Can only have one top-level input param."
+            output_params = [
+                form_param_config(param)
+                for param in iter_xmldict_for_key(params, 'camunda:outputParameter')
+            ]
+            output_param_values = [param['value'] for param in output_params]
+            if '.' in output_param_values:
+                assert len(output_param_values) == 1, "Can only have one top-level output param."
+        else:
+            input_params = []
+            output_params = []
+        return input_params, output_params
 
     def _make_upstreamconfig(self, upstream: Upstream):
         return {

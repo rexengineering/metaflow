@@ -1,5 +1,5 @@
-'''Utility library for working with BPMN documents.
-'''
+"""Utility library for working with BPMN documents.
+"""
 
 from collections import OrderedDict
 from io import IOBase, StringIO, BytesIO
@@ -10,7 +10,7 @@ import logging
 import os
 import subprocess
 import sys
-from typing import Mapping, Set
+from typing import Mapping, Set, List
 
 import boto3
 from botocore.exceptions import ClientError
@@ -29,6 +29,8 @@ from .constants import WorkflowKeys, to_valid_k8s_name
 from .user_task import BPMNUserTask
 
 from .bpmn_util import (
+    BPMN,
+    HealthProperties,
     iter_xmldict_for_key,
     raw_proc_to_digraph,
     BPMNComponent,
@@ -54,8 +56,12 @@ from .config import (
     UI_BRIDGE_NAME,
     UI_BRIDGE_PORT,
     UI_BRIDGE_INIT_PATH,
+    WORKFLOW_PUBLISHER_LISTEN_PORT,
+    WORFKLOW_PUBLISHER_IMAGE,
     CREATE_DEV_INGRESS,
+    PASSTHROUGH_IMAGE,
 )
+from flowlib import user_task
 
 
 ISTIO_VERSION = os.getenv('ISTIO_VERSION', '1.8.2')
@@ -66,22 +72,21 @@ class BPMNProcess:
     def __init__(self, process: OrderedDict):
         self._process = process
         self.hash = hashlib.sha256(json.dumps(self._process).encode()).hexdigest()[:8]
-        self.entry_points = [entry_point for entry_point in iter_xmldict_for_key(self._process, 'bpmn:startEvent')]
+        self.entry_points = [entry_point for entry_point in iter_xmldict_for_key(self._process, BPMN.start_event)]
         assert len(self.entry_points) > 0, "Must have at least one StartEvent."
 
         # TODO: figure out how to do annotations on multiple start events
         # annotations = list(get_annotations(process, self.entry_points[0]['@id']))
-        all_annotations = iter_xmldict_for_key(self._process, 'bpmn:textAnnotation')
+        all_annotations = iter_xmldict_for_key(self._process, BPMN.text_annotation)
         global_annotations = [
-            yaml.safe_load(annot['bpmn:text'].replace('\xa0', ''))
+            yaml.safe_load(annot[BPMN.text].replace('\xa0', ''))
             for annot in all_annotations
-            if annot['bpmn:text'].startswith('rexflow_global_properties')
+            if annot[BPMN.text].startswith('rexflow_global_properties')
         ]
-        assert len(global_annotations) <= 1, "Must have at most one global rexflow annotation."
+        assert len(global_annotations) <= 1, "Can have at most one global rexflow annotation."
 
         self.annotation = global_annotations[0] if len(global_annotations) else None
         self.properties = WorkflowProperties(self.annotation)
-
         if not self.properties.id:
             self.properties.update({
                 "id": to_valid_k8s_name(process['@id']),
@@ -99,7 +104,7 @@ class BPMNProcess:
         self._sequence_flow_table = outgoing_sequence_flow_table(process)
 
         # Maps an Id (eg. "Event_25dst7" or "Gateway_2sh38s") to a BPMNComponent Object.
-        self.component_map = {} # type: Mapping[str, BPMNComponent]
+        self.component_map: Mapping[str, BPMNComponent] = {}
 
         # NOTE: As per `README.namespacing.md`, if we are in a shared namespace then we
         # append a small hash to the end of every k8s object in order to avoid conflicts.
@@ -108,28 +113,28 @@ class BPMNProcess:
 
         # Now, create all of the BPMN Components.
         # Start with Tasks:
-        self.tasks = []
-        for task in iter_xmldict_for_key(process, 'bpmn:serviceTask'):
+        self.tasks: List[BPMNTask] = []
+        for task in iter_xmldict_for_key(process, BPMN.service_task):
             bpmn_task = BPMNTask(task, process, self.properties)
             self.tasks.append(bpmn_task)
             self.component_map[task['@id']] = bpmn_task
 
         # Exclusive Gateways (conditional)
-        self.xgateways = []
-        for gw in iter_xmldict_for_key(process, 'bpmn:exclusiveGateway'):
+        self.xgateways: List[BPMNXGateway] = []
+        for gw in iter_xmldict_for_key(process, BPMN.exclusive_gateway):
             bpmn_gw = BPMNXGateway(gw, process, self.properties)
             self.xgateways.append(bpmn_gw)
             self.component_map[gw['@id']] = bpmn_gw
 
         # Parallel Gateways
-        self.pgateways = []
-        for gw in iter_xmldict_for_key(process, 'bpmn:parallelGateway'):
+        self.pgateways: List[BPMNParallelGateway] = []
+        for gw in iter_xmldict_for_key(process, BPMN.parallel_gateway):
             bpmn_gw = BPMNParallelGateway(gw, process, self.properties)
             self.pgateways.append(bpmn_gw)
             self.component_map[gw['@id']] = bpmn_gw
 
         # Don't forget BPMN Start Event!
-        self.start_events = []
+        self.start_events: List[BPMNStartEvent] = []
         for entry_point in self.entry_points:
             bpmn_start_event = BPMNStartEvent(entry_point, process, self.properties)
             self.start_events.append(bpmn_start_event)
@@ -138,22 +143,22 @@ class BPMNProcess:
             self.component_map[entry_point['@id']] = bpmn_start_event
 
         # Don't forget BPMN End Events!
-        self.end_events = []
-        for eev in iter_xmldict_for_key(process, 'bpmn:endEvent'):
+        self.end_events: List[BPMNEndEvent] = []
+        for eev in iter_xmldict_for_key(process, BPMN.end_event):
             end_event = BPMNEndEvent(eev, process, self.properties)
             self.end_events.append(end_event)
             self.component_map[eev['@id']] = end_event
 
         # Throw Events.
-        self.throws = []
-        for event in iter_xmldict_for_key(process, 'bpmn:intermediateThrowEvent'):
-            assert 'bpmn:incoming' in event, "Must have incoming edge to Throw Event."
+        self.throws: List[BPMNThrowEvent] = []
+        for event in iter_xmldict_for_key(process, BPMN.intermediate_throw_event):
+            assert BPMN.incoming in event, "Must have incoming edge to Throw Event."
             bpmn_throw = BPMNThrowEvent(event, process, self.properties)
             self.throws.append(bpmn_throw)
             self.component_map[event['@id']] = bpmn_throw
 
-        self.catches = []
-        for event in iter_xmldict_for_key(process, 'bpmn:intermediateCatchEvent'):
+        self.catches: List[BPMNCatchEvent] = []
+        for event in iter_xmldict_for_key(process, BPMN.intermediate_catch_event):
             bpmn_catch = BPMNCatchEvent(event, process, self.properties)
             self.catches.append(bpmn_catch)
             self.component_map[event['@id']] = bpmn_catch
@@ -168,7 +173,7 @@ class BPMNProcess:
         # 2. The k8s specs are generated in this file by the BPMNComponent class, not in
         #    the .to_kubernetes() method of the BPMNUserTask.
         # Essentially, the BPMNUserTask object is just used for bookkeeping.
-        self.user_task_definitions = [defn for defn in iter_xmldict_for_key(process, 'bpmn:userTask')]
+        self.user_task_definitions = [defn for defn in iter_xmldict_for_key(process, BPMN.user_task)]
         if len(self.user_task_definitions):
             self._ui_bridge_service_properties = ServiceProperties()
 
@@ -185,7 +190,7 @@ class BPMNProcess:
             self._ui_bridge_call_properties.update({
                 'path': UI_BRIDGE_INIT_PATH,
             })
-        self.user_tasks = []
+        self.user_tasks: List[BPMNUserTask] = []
         for defn in self.user_task_definitions:
             bpmn_user_task = BPMNUserTask(
                 defn, process, self.properties, self._ui_bridge_service_properties,
@@ -194,7 +199,7 @@ class BPMNProcess:
             self.user_tasks.append(bpmn_user_task)
             self.component_map[defn['@id']] = bpmn_user_task
 
-        self.all_components = []
+        self.all_components: List[BPMNComponent] = []
         self.all_components.extend(self.tasks)
         self.all_components.extend(self.xgateways)
         self.all_components.extend(self.pgateways)
@@ -236,23 +241,25 @@ class BPMNProcess:
                 self._sequence_flow_table
             )
             kafka_topics.extend(component.kafka_topics)
+        if self.properties.notification_kafka_topic:
+            kafka_topics.append(self.properties.notification_kafka_topic)
         return set(kafka_topics)
 
     @classmethod
     def from_workflow_id(cls, workflow_id):
         etcd = get_etcd(is_not_none=True)
         process_xml = etcd.get(WorkflowKeys.proc_key(workflow_id))[0]
-        process_dict = xmltodict.parse(process_xml)['bpmn:process']
+        process_dict = xmltodict.parse(process_xml)[BPMN.process]
         process = cls(process_dict)
         return process
 
     def to_xml(self):
-        return xmltodict.unparse(OrderedDict([('bpmn:process', self._process)]))
+        return xmltodict.unparse(OrderedDict([(BPMN.process, self._process)]))
 
     def to_digraph(self, digraph: dict = None):
         if digraph is None:
             digraph = dict()
-        for sequence_flow in iter_xmldict_for_key(self._process, 'bpmn:sequenceFlow'):
+        for sequence_flow in iter_xmldict_for_key(self._process, BPMN.sequence_flow):
             source_ref = sequence_flow['@sourceRef']
             target_ref = sequence_flow['@targetRef']
             if source_ref not in digraph:
@@ -374,8 +381,20 @@ class BPMNProcess:
                 {
                     'name': 'BRIDGE_CONFIG',
                     'value': json.dumps(bridge_config),
-                }
+                },
+                {
+                    'name': 'USE_SALESFORCE',
+                    'value': self.properties._use_salesforce,
+                },
             ]
+            if self.properties._use_salesforce:
+                ui_bridge_env += [
+                    {
+                        'name': 'SALESFORCE_PROFILE',
+                        'value': self.properties._salesforce_profile
+                    },
+                ]
+
             results.append(create_deployment(
                 self.namespace,
                 ui_bridge_service_name,
@@ -383,7 +402,8 @@ class BPMNProcess:
                 UI_BRIDGE_PORT,
                 ui_bridge_env,
                 etcd_access=True,
-                use_service_account=False
+                use_service_account=False,
+                health_props=HealthProperties(),
             ))
             results.append(create_service(
                 self.namespace,
@@ -393,11 +413,17 @@ class BPMNProcess:
             if CREATE_DEV_INGRESS:
                 results.append(create_rexflow_ingress_vs(
                     self.namespace,
-                    ui_bridge_service_name,
+                    to_valid_k8s_name(f'{ui_bridge_service_name}-{self.namespace}'),
                     f'/{ui_bridge_service_name}-{self.namespace}',
                     UI_BRIDGE_PORT,
                     f'{UI_BRIDGE_NAME}.{self.namespace}.svc.cluster.local'
                 ))
+
+        if self.properties.passthrough_target is not None:
+            results.extend(self._get_passthrough_services())
+
+        if self.properties.notification_kafka_topic is not None:
+            results.extend(self._get_workflow_publisher_specs())
 
         # Now, add the REXFlow labels
         for k8s_spec in results:
@@ -432,6 +458,113 @@ class BPMNProcess:
 
         return result
 
+    def _get_workflow_publisher_specs(self):
+        results = []
+        env_config = [
+            {
+                "name": "REXFLOW_PUBLISHER_KAFKA_TOPIC",
+                "value": self.properties.notification_kafka_topic,
+            },
+            {
+                "name": "REXFLOW_PUBLISHER_WORKFLOW_ID",
+                "value": self.properties.id,
+            }
+        ]
+        results.append(create_deployment(
+            self.namespace,
+            self.properties.traffic_shadow_service_props.host,
+            WORFKLOW_PUBLISHER_IMAGE,
+            WORKFLOW_PUBLISHER_LISTEN_PORT,
+            env_config,
+            etcd_access=True,
+            kafka_access=True,
+            priority_class=self.properties.priority_class,
+        ))
+        results.append(create_service(
+            self.namespace,
+            self.properties.traffic_shadow_service_props.host,
+            WORKFLOW_PUBLISHER_LISTEN_PORT,
+        ))
+        results.append(create_serviceaccount(
+            self.namespace,
+            self.properties.traffic_shadow_service_props.host,
+        ))
+        return results
+
     @property
     def xmldict(self) -> OrderedDict:
         return self._process
+
+    def _get_passthrough_services(self):
+        result = []
+
+        # Maps from f"{service_name}.{namespace}"  --> list of url's for that service
+        services = {}
+        for task in self.tasks:
+            if not task.is_passthrough:
+                continue
+
+            key = f'{task.service_name}.{task.namespace}'
+            if key not in services:
+                target_url = f'http://{task.service_name}'
+                if self.properties.prefix_passthrough_with_namespace:
+                    target_url += f'.{task.namespace}'
+                target_url += '.' + self.properties.passthrough_target
+                services[key] = {
+                    'target_url': target_url,
+                    'target_port': task._target_port,
+                    'targets': [],
+                    'service_name': task.service_name,
+                    'namespace': task.namespace,
+                    'service_port': task.service_properties.port,
+                }
+
+            services[key]['targets'].append({
+                # TODO: See if this works with Gary's path templating.
+                'path': task.call_properties.path.replace('{', '<').replace('}', '>'),
+                'method': task.call_properties.method,
+            })
+
+        for service_key in services.keys():
+            result.extend(self._generate_passthrough_service(services[service_key]))
+        return result
+
+    def _generate_passthrough_service(self, config):
+        result = []
+        service_name = config['service_name']
+        target_port = config['target_port']
+        namespace = config['namespace']
+        service_port = config['service_port']
+
+        env_config = [
+            {
+                'name': 'REXFLOW_PASSTHROUGH_CONFIG', 
+                'value': json.dumps(config),
+            },
+        ]
+        result.append(
+            create_deployment(
+                namespace,
+                service_name,
+                PASSTHROUGH_IMAGE,
+                target_port,
+                env_config,
+                use_service_account=False,
+                health_props=HealthProperties()
+            )
+        )
+        result.append(
+            create_serviceaccount(
+                namespace,
+                service_name,
+            )
+        )
+        result.append(
+            create_service(
+                namespace,
+                service_name,
+                service_port,
+                target_port,
+            )
+        )
+        return result

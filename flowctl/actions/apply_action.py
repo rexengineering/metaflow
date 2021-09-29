@@ -5,9 +5,13 @@ import os
 import xmltodict
 import yaml
 
+from io import FileIO
+
 from flowlib import flow_pb2
 from flowlib import bpmn_util
+from flowlib.bpmn_util import BPMN
 from flowlib.flowd_utils import get_flowd_connection
+from flowlib.constants import Literals
 
 __help__ = 'apply sufficiently annotated BPMN file(s)'
 
@@ -31,53 +35,81 @@ def __refine_args__(parser: argparse.ArgumentParser):
     )
     return parser
 
+def _load_json_from_file(spec_file:FileIO, fspec:str, what:str) -> str:
+    """
+    Load a file's contents, stripping all the newlines. If the file name
+    starts with anything other than '/', then assume the file is in the same
+    folder as the source BPMN file.
 
-def process_specification(spec_file):
-    '''process_specification(spec_file)
+    Return the contents as string, or None if the file is not found.
+    """
+    try:
+        if not fspec.startswith('/'):
+            fspec = '/'.join([os.path.dirname(spec_file.name),fspec])
+        logging.info(f'Loading {what} from {fspec}')
+        with open(fspec, 'r') as fd:
+            data = fd.read().replace('\n','')
+            return data
+    except FileNotFoundError:
+        logging.error(f'File not found {fspec}')
+    return None
+
+def process_specification(spec_file:FileIO) -> dict:
+    """process_specification(spec_file)
     Given a BPMN specification (this can either be a file or string), perform
     rudimentary validation and cleanup of the document.  Returns a string with
     the resulting XML.
-    '''
+    """
     spec = xmltodict.parse(spec_file)
-    definition = spec['bpmn:definitions']
+    definition = spec[BPMN.definitions]
     definition_child_count = len([key for key in definition if key[0] != '@'])
     assert definition_child_count == 2, \
         f'Unexpected child count (got {definition_child_count}, not 2).'
-    '''
-    Check for user tasks, and if found, check for form specification files and
-    import them inline.
-    '''
-    process = definition['bpmn:process']
-    if process and 'bpmn:userTask' in process.keys():
+
+    # Check for user tasks, and if found, check for form specification files and
+    # import them inline.
+
+    process = definition[BPMN.process]
+    if process and BPMN.user_task in process.keys():
         # if there is one userTask element, then an OrderedDict is returned by
         # process['bpmn:userTask'], otherwise it is a list of OrderedDict.
-        for task in bpmn_util.iter_xmldict_for_key(process, 'bpmn:userTask'):
+        for task in bpmn_util.iter_xmldict_for_key(process, BPMN.user_task):
             for annot,text in bpmn_util.get_annotations(process, task['@id']):
                 try:
-                    ''' Load the field description JSON from the provided file. If the file name
+                    """Load the field description JSON from the provided file. If the file name
                     starts with anything other than '/', then assume the file is in the same folder
-                    as the source BPMN file.'''
+                    as the source BPMN file."""
                     fspec = text['rexflow']['fields']['file']
-                    if not fspec.startswith('/'):
-                        fspec = '/'.join([os.path.dirname(spec_file.name),fspec])
-                    try:
-                        with open(fspec, 'r') as fd:
-                            logging.info(f'Loading field descriptions from {fspec}')
-                            data = fd.read().replace('\n','')
-                            text['rexflow']['fields']['desc'] = json.loads(data)
-                            annot['bpmn:text'] = yaml.dump(text)
-                    except FileNotFoundError:
-                        logging.error(f'File not found {fspec}')
+                    data = _load_json_from_file(spec_file, fspec, 'field descriptions')
+                    if data is not None:
+                        text['rexflow']['fields']['desc'] = json.loads(data)
+                        annot[BPMN.text] = yaml.dump(text)
                 except KeyError:
                     pass
+
+        # since user tasks exist, we need to check if salesforce is in play. If so, we
+        # need a salesforce profile
+        for annot in bpmn_util.iter_xmldict_for_key(process, BPMN.text_annotation):
+            if annot[BPMN.text].startswith(Literals.GLOBAL_PROPERTIES_KEY):
+                text = yaml.safe_load(annot[BPMN.text].replace('\xa0', ''))
+                hive = text[Literals.GLOBAL_PROPERTIES_KEY]
+                if Literals.SALESFORCE in hive and hive[Literals.SALESFORCE].keys() >= {'enabled','file'} and hive[Literals.SALESFORCE]['enabled']:
+                    fspec = hive[Literals.SALESFORCE]['file']
+                    data = _load_json_from_file(spec_file, fspec, 'salesforce profile')
+                    if data is not None:
+                        sf_info = json.loads(data)
+                        hive[Literals.SALESFORCE].update(sf_info)
+                        annot[BPMN.text] = yaml.dump(text)
+                break
+
     return xmltodict.unparse(spec)
 
 def apply_action(namespace: argparse.Namespace, *args, **kws):
-    '''apply_action(namespace)
+    """apply_action(namespace)
     Arguments:
         namespace: argparse.Namespace - Argument map of command line inputs
     Returns toplevel exit code.
-    '''
+    """
     responses = dict()
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         for spec in namespace.bpmn_spec:

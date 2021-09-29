@@ -1,31 +1,41 @@
-import setuptools
-from subprocess import check_output
+#!/usr/bin/env python3
 
-git_version = check_output("git describe --abbrev=4 --dirty --always".split()).decode('utf-8').strip()
+import setuptools
+from rex.setuptools.setup import rex_setup_args
 
 with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+    LONG_DESCRIPTION = fh.read()
 
-setuptools.setup(
-    name="flowlib",  # NOTE: Hopefully this is temporary; see REXFLOW-190.
-    version=git_version,
-    author="REXFlow Developers",
-    author_email="engineering@rexchange.com",
-    description="A utility library for workflow orchestration",
-    long_description=long_description,  # TODO: Make this flowlib specific...
-    long_description_content_type="text/markdown",
-    url="https://bitbucket.org/rexdev/rexflow",
-    packages=['flowlib', 'flowlib.configs'],
-    classifiers=[
-        "Programming Language :: Python :: 3",
-    ],
+setuptools.setup(**rex_setup_args(
+    long_description=LONG_DESCRIPTION,
+    description='A utility library for workflow orchestration',
+    entry_points={'console_scripts': ['flowctl=flowctl.__main__:main']},
     install_requires=[
         'boto3',
         'confluent-kafka',
         'etcd3',
         'grpcio',
+        'isodate',
+        'pyyaml',
         'quart',
+        'requests',
+        'retry',
         'xmltodict',
     ],
-    python_requires='>=3.8',
-)
+    long_description_content_type='text/markdown',
+    # TODO: call this "rex-flowlib"/"rex.flowlib" instead of waffling
+    # between "rexflowlib" and "flowlib"
+    name='rexflowlib',
+    packages=[
+        'flowctl',
+        'flowctl.actions',
+        'flowlib',
+        'flowlib.configs',
+        'rexflowlib',
+    ],
+    # TODO: There is currently no python-etcd3 conda package. Re-enable
+    # this once there is one.
+    rex_conda_name=None,
+    python_requires='>=3.7',
+    url='https://bitbucket.org/rexdev/rexflow',
+))

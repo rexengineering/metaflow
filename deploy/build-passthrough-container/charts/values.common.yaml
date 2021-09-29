@@ -1,0 +1,4 @@
+nameOverride: rexflow-passthrough
+
+build:
+   build_from: ../..

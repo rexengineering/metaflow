@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_18l9p40" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="AmortTable" name="Amortization Table" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_033d8xa</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_033d8xa" sourceRef="StartEvent_1" targetRef="get_terms" />
+    <bpmn:userTask id="get_terms" name="Get principal, term and rate">
+      <bpmn:incoming>Flow_033d8xa</bpmn:incoming>
+      <bpmn:outgoing>Flow_09h99g5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="amortize" name="calculate amortization table">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>happiness</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_09h99g5</bpmn:incoming>
+      <bpmn:outgoing>Flow_0485f4p</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0485f4p" sourceRef="amortize" targetRef="show_table" />
+    <bpmn:endEvent id="Event_14lfbxr">
+      <bpmn:incoming>Flow_1ucusod</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1ucusod" sourceRef="show_table" targetRef="Event_14lfbxr" />
+    <bpmn:userTask id="show_table" name="Report the result">
+      <bpmn:incoming>Flow_0485f4p</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ucusod</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_09h99g5" sourceRef="get_terms" targetRef="amortize" />
+    <bpmn:textAnnotation id="TextAnnotation_1gcjsvw">
+      <bpmn:documentation>Get two numbers</bpmn:documentation>
+      <bpmn:text>rexflow:
+  fields:
+    file: amort_terms_form.json</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0kjjvp5" sourceRef="get_terms" targetRef="TextAnnotation_1gcjsvw" />
+    <bpmn:textAnnotation id="TextAnnotation_0hu7c9d">
+      <bpmn:text>rexflow:
+  fields:
+    file: amort_result_form.json</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1eubqhp" sourceRef="show_table" targetRef="TextAnnotation_0hu7c9d" />
+    <bpmn:textAnnotation id="TextAnnotation_0gjsqdz">
+      <bpmn:text>rexflow:
+    service:
+        host: amort-calc
+        port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1qs7vdg" sourceRef="amortize" targetRef="TextAnnotation_0gjsqdz" />
+    <bpmn:textAnnotation id="TextAnnotation_1mpg83g">
+      <bpmn:text>rexflow_global_properties:
+  xgw_expression_type: python
+  salesforce:
+    enabled: true
+    file: sf_ghester_prod.json</bpmn:text>
+    </bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="AmortTable">
+      <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
+        <dc:Bounds x="160" y="40" width="260" height="82" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_09h99g5_di" bpmnElement="Flow_09h99g5">
+        <di:waypoint x="440" y="367" />
+        <di:waypoint x="660" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ucusod_di" bpmnElement="Flow_1ucusod">
+        <di:waypoint x="940" y="367" />
+        <di:waypoint x="992" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0485f4p_di" bpmnElement="Flow_0485f4p">
+        <di:waypoint x="760" y="367" />
+        <di:waypoint x="840" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_033d8xa_di" bpmnElement="Flow_033d8xa">
+        <di:waypoint x="278" y="367" />
+        <di:waypoint x="340" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="242" y="349" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0lochb8_di" bpmnElement="get_terms">
+        <dc:Bounds x="340" y="327" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1kigtnz_di" bpmnElement="amortize">
+        <dc:Bounds x="660" y="327" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_14lfbxr_di" bpmnElement="Event_14lfbxr">
+        <dc:Bounds x="992" y="349" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0n7rayl_di" bpmnElement="show_table">
+        <dc:Bounds x="840" y="327" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1gcjsvw_di" bpmnElement="TextAnnotation_1gcjsvw">
+        <dc:Bounds x="310" y="180" width="192" height="54" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0hu7c9d_di" bpmnElement="TextAnnotation_0hu7c9d">
+        <dc:Bounds x="850" y="164" width="220" height="54" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0gjsqdz_di" bpmnElement="TextAnnotation_0gjsqdz">
+        <dc:Bounds x="630" y="157" width="160" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_0kjjvp5_di" bpmnElement="Association_0kjjvp5">
+        <di:waypoint x="383" y="327" />
+        <di:waypoint x="366" y="234" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1eubqhp_di" bpmnElement="Association_1eubqhp">
+        <di:waypoint x="892" y="327" />
+        <di:waypoint x="898" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1qs7vdg_di" bpmnElement="Association_1qs7vdg">
+        <di:waypoint x="704" y="327" />
+        <di:waypoint x="689" y="225" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

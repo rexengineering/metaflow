@@ -28,7 +28,7 @@ def handler(request: flow_pb2.DeleteRequest):
                 result[workflow_id] = dict(result=-1, message=message)
                 continue
             workflow_state = workflow['state']
-            if workflow_state not in {BStates.ERROR, BStates.STOPPED}:
+            if not request.force and workflow_state not in {BStates.ERROR, BStates.STOPPED}:
                 message = f'Workflow deployment {workflow_id} is not in the ERROR or STOPPED state.'
                 logging.warn(message)
                 result[workflow_id] = dict(result=-2, message=message)
@@ -63,7 +63,7 @@ def handler(request: flow_pb2.DeleteRequest):
             instance_state = etcd.get(state_key)[0]
             good_states = {BStates.STOPPED, BStates.ERROR, BStates.COMPLETED}
             logging.debug(instance_state)
-            if instance_state not in good_states:
+            if not request.force and instance_state not in good_states:
                 message = f'Workflow instance {instance_id} is not in the '\
                     'COMPLETED, ERROR, or STOPPED state.'
                 logging.warn(message)

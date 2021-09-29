@@ -31,14 +31,17 @@ def __refine_args__(parser: argparse.ArgumentParser):
         '--kubernetes-output', action='store',
         help='File location to dump kubernetes spec. Valid only for -k DEPLOYMENT.'
     )
-    # expand group with additional shorthands for new KIND types
-
+    parser.add_argument(
+        "--meta", "-m",  type=str, help='search instance-specific metadata as {key:value[,key:value ...]}'
+    )
     parser.add_argument(
         '-o',
         '--output',
         action='store_true',
         help='Output response data to stdout.'
     )
+
+    # expand group with additional shorthands for new KIND types
     parser.add_argument(
         'ids',
         nargs='*',
@@ -49,6 +52,14 @@ def __refine_args__(parser: argparse.ArgumentParser):
 
 
 def ps_action(namespace: argparse.Namespace, *args, **kws):
+    metadata = None
+    if namespace.meta is not None:
+        m = json.loads(namespace.meta)
+        metadata = [
+            flow_pb2.StringPair(key=the_key, value=the_value)
+            for the_key, the_value in m.items()
+        ]
+
     response = None
     if namespace.kubernetes_output:
         include_kubernetes = True
@@ -63,6 +74,7 @@ def ps_action(namespace: argparse.Namespace, *args, **kws):
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         request = flow_pb2.PSRequest(
             kind=kind, ids=namespace.ids, include_kubernetes=include_kubernetes,
+            metadata=metadata
         )
         response = flowd.PSQuery(request)
     status = response.status

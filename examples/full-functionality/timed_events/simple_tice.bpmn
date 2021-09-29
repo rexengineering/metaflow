@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_05918r5" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="tice" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_1twjg73</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1twjg73" sourceRef="StartEvent_1" targetRef="time_r3pt30s" />
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_0f4mf4k</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0f4mf4k" sourceRef="time_r3pt30s" targetRef="EndEvent_1" />
+    <bpmn:intermediateCatchEvent id="time_r3pt30s">
+      <bpmn:incoming>Flow_1twjg73</bpmn:incoming>
+      <bpmn:outgoing>Flow_0f4mf4k</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_0m0m99c">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R3/PT30S</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="tice">
+      <bpmndi:BPMNEdge id="Flow_0f4mf4k_di" bpmnElement="Flow_0f4mf4k">
+        <di:waypoint x="308" y="97" />
+        <di:waypoint x="372" y="97" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1twjg73_di" bpmnElement="Flow_1twjg73">
+        <di:waypoint x="215" y="97" />
+        <di:waypoint x="272" y="97" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="79" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1xymfuq_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="372" y="79" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hm33vr_di" bpmnElement="time_r3pt30s">
+        <dc:Bounds x="272" y="79" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

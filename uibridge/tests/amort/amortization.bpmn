@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_18l9p40" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="AmortTable" name="Amortization Table" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_033d8xa</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_033d8xa" sourceRef="StartEvent_1" targetRef="get_terms" />
+    <bpmn:userTask id="get_terms" name="Get principal, term and rate">
+      <bpmn:incoming>Flow_033d8xa</bpmn:incoming>
+      <bpmn:outgoing>Flow_1cua4jb</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_1cua4jb" sourceRef="get_terms" targetRef="FindBestRateDecision" />
+    <bpmn:serviceTask id="amortize" name="calculate amortization table">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>happiness</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_13s7bhy</bpmn:incoming>
+      <bpmn:incoming>Flow_10glq9v</bpmn:incoming>
+      <bpmn:outgoing>Flow_0485f4p</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0485f4p" sourceRef="amortize" targetRef="show_table" />
+    <bpmn:endEvent id="Event_14lfbxr">
+      <bpmn:incoming>Flow_1ucusod</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1ucusod" sourceRef="show_table" targetRef="Event_14lfbxr" />
+    <bpmn:userTask id="show_table" name="Report the result">
+      <bpmn:incoming>Flow_0485f4p</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ucusod</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="FindBestRateDecision" name="Find Best Rate?">
+      <bpmn:incoming>Flow_1cua4jb</bpmn:incoming>
+      <bpmn:outgoing>Flow_10glq9v</bpmn:outgoing>
+      <bpmn:outgoing>Flow_16sj2pb</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_13s7bhy" sourceRef="amort_best_rate" targetRef="amortize" />
+    <bpmn:sequenceFlow id="Flow_10glq9v" name="use provided rate" sourceRef="FindBestRateDecision" targetRef="amortize">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">req_json['findrate'] == 'False'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_16sj2pb" sourceRef="FindBestRateDecision" targetRef="amort_best_rate" />
+    <bpmn:serviceTask id="amort_best_rate" name="Research best rate">
+      <bpmn:incoming>Flow_16sj2pb</bpmn:incoming>
+      <bpmn:outgoing>Flow_13s7bhy</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:textAnnotation id="TextAnnotation_1gcjsvw">
+      <bpmn:documentation>Get two numbers</bpmn:documentation>
+      <bpmn:text>rexflow:
+  fields:
+    file: amort_terms_form.json</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0kjjvp5" sourceRef="get_terms" targetRef="TextAnnotation_1gcjsvw" />
+    <bpmn:textAnnotation id="TextAnnotation_0hu7c9d">
+      <bpmn:text>rexflow:
+  fields:
+    file: amort_result_form.json</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1eubqhp" sourceRef="show_table" targetRef="TextAnnotation_0hu7c9d" />
+    <bpmn:textAnnotation id="TextAnnotation_0gjsqdz">
+      <bpmn:text>rexflow:
+    service:
+        host: amort-calc
+        port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1qs7vdg" sourceRef="amortize" targetRef="TextAnnotation_0gjsqdz" />
+    <bpmn:textAnnotation id="TextAnnotation_1w5rjen">
+      <bpmn:text>rexflow:
+    service:
+        host: amort-best-rate
+        port: 5000</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1wozo4u" sourceRef="amort_best_rate" targetRef="TextAnnotation_1w5rjen" />
+    <bpmn:textAnnotation id="TextAnnotation_1mpg83g">
+      <bpmn:text>rexflow_global_properties:
+  xgw_expression_type: python</bpmn:text>
+    </bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="AmortTable">
+      <bpmndi:BPMNShape id="TextAnnotation_1mpg83g_di" bpmnElement="TextAnnotation_1mpg83g">
+        <dc:Bounds x="160" y="80" width="250" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0hu7c9d_di" bpmnElement="TextAnnotation_0hu7c9d">
+        <dc:Bounds x="890" y="157" width="220" height="54" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1w5rjen_di" bpmnElement="TextAnnotation_1w5rjen">
+        <dc:Bounds x="510" y="630" width="170" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1gcjsvw_di" bpmnElement="TextAnnotation_1gcjsvw">
+        <dc:Bounds x="310" y="180" width="192" height="54" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_0gjsqdz_di" bpmnElement="TextAnnotation_0gjsqdz">
+        <dc:Bounds x="640" y="157" width="160" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_16sj2pb_di" bpmnElement="Flow_16sj2pb">
+        <di:waypoint x="560" y="392" />
+        <di:waypoint x="560" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10glq9v_di" bpmnElement="Flow_10glq9v">
+        <di:waypoint x="585" y="367" />
+        <di:waypoint x="700" y="367" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="600" y="349" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13s7bhy_di" bpmnElement="Flow_13s7bhy">
+        <di:waypoint x="610" y="520" />
+        <di:waypoint x="750" y="520" />
+        <di:waypoint x="750" y="407" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ucusod_di" bpmnElement="Flow_1ucusod">
+        <di:waypoint x="970" y="367" />
+        <di:waypoint x="1032" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0485f4p_di" bpmnElement="Flow_0485f4p">
+        <di:waypoint x="800" y="367" />
+        <di:waypoint x="870" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1cua4jb_di" bpmnElement="Flow_1cua4jb">
+        <di:waypoint x="440" y="367" />
+        <di:waypoint x="535" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_033d8xa_di" bpmnElement="Flow_033d8xa">
+        <di:waypoint x="278" y="367" />
+        <di:waypoint x="340" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Activity_1kigtnz_di" bpmnElement="amortize">
+        <dc:Bounds x="700" y="327" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_14lfbxr_di" bpmnElement="Event_14lfbxr">
+        <dc:Bounds x="1032" y="349" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0n7rayl_di" bpmnElement="show_table">
+        <dc:Bounds x="870" y="327" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1vb8o6s_di" bpmnElement="FindBestRateDecision" isMarkerVisible="true">
+        <dc:Bounds x="535" y="342" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="523" y="312" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_12tetpz_di" bpmnElement="amort_best_rate">
+        <dc:Bounds x="510" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0lochb8_di" bpmnElement="get_terms">
+        <dc:Bounds x="340" y="327" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="242" y="349" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_1eubqhp_di" bpmnElement="Association_1eubqhp">
+        <di:waypoint x="924" y="327" />
+        <di:waypoint x="937" y="211" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1wozo4u_di" bpmnElement="Association_1wozo4u">
+        <di:waypoint x="560" y="560" />
+        <di:waypoint x="560" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0kjjvp5_di" bpmnElement="Association_0kjjvp5">
+        <di:waypoint x="383" y="327" />
+        <di:waypoint x="366" y="234" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1qs7vdg_di" bpmnElement="Association_1qs7vdg">
+        <di:waypoint x="737" y="327" />
+        <di:waypoint x="705" y="225" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

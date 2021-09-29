@@ -1,0 +1,30 @@
+[
+    {"dataId":"principal", "type":"COPY", "order":1, "label":"Principal", "data":"", "encrypted":"False", 
+        "default" : {"type":"EVAL", "value":"'Principal: ' + str(req_json['principal'])"},
+        "validators":[]
+    },
+    {"dataId":"interest", "type":"COPY", "order":2, "label":"Interest Rate %", "data":"", "encrypted":"False", 
+        "default" : {"type":"EVAL", "value":"'Interest Rate %: ' + str(req_json['interest'])"},
+        "validators":[]
+    },
+    {"dataId":"term", "type":"COPY", "order":4, "label":"Term (months)", "data":"", "encrypted":"False", 
+        "default" : {"type":"EVAL", "value":"'Term (months):' + str(req_json['term'])"},
+        "validators":[]
+    },
+    {"dataId":"payment", "type":"COPY", "order":5, "label":"Monthly Payment", "data":"", "encrypted":"False", 
+        "default": {"type":"EVAL", "value":"'Monthly Payment: ' + str(req_json['payment'])"},
+        "validators":[]
+    },
+    {"dataId":"tot_int", "type":"COPY", "order":6, "label":"Total Interest", "data":"", "encrypted":"False", 
+        "default": {"type":"EVAL", "value":"'Total Interest: ' + str(req_json['total_interest'])"},
+        "validators":[]
+    },
+    {"dataId":"tot_pay", "type":"COPY", "order":7, "label":"Total Payments", "data":"", "encrypted":"False", 
+        "default": {"type":"EVAL", "value":"'Total Payments: ' + str(req_json['total_payments'])"},
+        "validators":[]
+    },
+    {"dataId":"amort_table", "type":"TABLE", "order":8, "label":"Amortization Table", "data":"", "encrypted":"False", 
+        "default": {"type":"EVAL","value":"req_json['table']"}, 
+        "validators":[]
+    }    
+]

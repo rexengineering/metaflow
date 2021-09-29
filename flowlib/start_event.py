@@ -1,6 +1,6 @@
-'''
+"""
 Implements BPMNStartEvent object, which for now is just a pass-through to Flowd.
-'''
+"""
 
 from collections import OrderedDict
 from typing import Mapping
@@ -21,8 +21,7 @@ from .config import (
     CATCH_IMAGE,
     CATCH_LISTEN_PORT,
     CREATE_DEV_INGRESS,
-    FLOWD_HOST,
-    FLOWD_PORT,
+    K8S_DEFAULT_REPLICAS,
 )
 
 
@@ -31,8 +30,8 @@ ATTEMPTS = 2
 
 
 class BPMNStartEvent(BPMNComponent):
-    '''Wrapper for BPMN service task metadata.
-    '''
+    """Wrapper for BPMN service task metadata.
+    """
     def __init__(self, event: OrderedDict, process: OrderedDict, global_props):
         super().__init__(event, process, global_props)
         self._namespace = global_props.namespace
@@ -59,7 +58,7 @@ class BPMNStartEvent(BPMNComponent):
 
         # if this is a timed start event, verify that the timer aspects are valid
         if self._timer_aspects:
-            assert self._timer_aspects.recurrance >=0, f'Invalid recurrance for start event \'{self._timer_aspects.recurrance}\''
+            assert self._timer_aspects.recurrence >=0, f'Invalid recurrence for start event \'{self._timer_aspects.recurrence}\''
 
     def to_kubernetes(self, id_hash, component_map: Mapping[str, BPMNComponent],
                       digraph: OrderedDict, edge_map: OrderedDict) -> list:
@@ -118,12 +117,12 @@ class BPMNStartEvent(BPMNComponent):
                 "value": self.service_name,
             },
             {
-                "name": "REXFLOW_FLOWD_HOST",
-                "value": FLOWD_HOST,
+                "name": "API_WRAPPER_TIMEOUT",
+                "value": str(self._global_props.synchronous_wrapper_timeout),
             },
             {
-                "name": "REXFLOW_FLOWD_PORT",
-                "value": FLOWD_PORT,
+                "name": "TID",
+                "value": self.id,
             }
         ]
         if self._global_props.traffic_shadow_url:
@@ -147,6 +146,10 @@ class BPMNStartEvent(BPMNComponent):
         namespace = self._namespace
         k8s_objects.append(create_serviceaccount(namespace, self.service_name))
         k8s_objects.append(create_service(namespace, self.service_name, port))
+        if self._timer_aspects or self._timer_dynamic:
+            replicas = 1
+        else:
+            replicas = K8S_DEFAULT_REPLICAS
         k8s_objects.append(create_deployment(
             namespace,
             self.service_name,
@@ -156,6 +159,8 @@ class BPMNStartEvent(BPMNComponent):
             etcd_access=True,
             kafka_access=True,
             priority_class=self.workflow_properties.priority_class,
+            health_props=self.health_properties,
+            replicas=replicas,
         ))
         if CREATE_DEV_INGRESS:
             k8s_objects.append(create_rexflow_ingress_vs(

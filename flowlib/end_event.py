@@ -95,5 +95,6 @@ class BPMNEndEvent(BPMNComponent):
             etcd_access=True,
             kafka_access=(self._kafka_topic is not None),
             priority_class=self.workflow_properties.priority_class,
+            health_props=self.health_properties,
         ))
         return k8s_objects

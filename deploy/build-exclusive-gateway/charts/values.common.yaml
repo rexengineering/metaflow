@@ -1,0 +1,4 @@
+nameOverride: rexflow-exclusive-gateway
+
+build:
+   build_from: ../..

@@ -1,0 +1,8 @@
+[
+    {"dataId":"uname", "type":"TEXT", "order":1, "label":"User Name", "data":"", "encrypted":"True", "validators":[
+            {"type" : "REGEX", "constraint" : "[A-Za-z]{8,15}$"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"password", "type":"TEXT", "order":2, "label":"Password", "data":"", "encrypted":"True", "validators":[]}
+]

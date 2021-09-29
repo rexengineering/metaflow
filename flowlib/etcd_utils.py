@@ -5,6 +5,8 @@ import time
 
 import etcd3
 from etcd3.exceptions import ConnectionFailedError
+from etcd3.locks import Lock
+from retry import retry
 
 from .config import (
     ETCD_HOSTS,
@@ -269,3 +271,41 @@ def transition_state(etcd, state_key, from_states, to_state):
     else:
         logging.error(f'State transition failed! {state_key} : {crnt_state} -> {to_state}')
     return result
+
+def locked_call(key:str, callback:callable, args:list = None):
+    """
+    encapsulate an etcd3 operation in a key lock.
+    key - the key to lock
+    callback - a callable evoked with the expansion of the given args
+    args - list of arguments to pass or None
+
+    * note - the first parm passed to callable is the etcd handle.
+
+    def foo():
+        def __logic(etcd, a, b):
+            return a * b
+
+        locked_call('hello', __logic, [2,3])
+
+    $ foo()
+    6
+    $
+    """
+    @retry(tries=20, delay=0.01, jitter=(0, 0.01), logger=logging)
+    def __acquire(lock):
+        """The etcd3.Lock class attempts to implement this itself; however,
+        there is a bug in it as of the time of this writing. The code throws a TypeError
+        which is obviously just a bug that got into some release of open-source software.
+        """
+        return lock.acquire()
+
+    etcd = get_etcd()
+    lock:Lock = etcd.lock(key)
+    did_lock = False
+    try:
+        did_lock = __acquire(lock)
+        args = args or []
+        return callback(etcd,*args)
+    finally:
+        if did_lock:
+            lock.release()

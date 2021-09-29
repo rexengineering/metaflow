@@ -2,7 +2,10 @@ from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 
 
-MIN_WORKERS = 4
+# High number of workers because we use this for i/o bound tasks.
+# Specifically in healthd, most of the time is spent sleeping rather
+# than doing anything. See REXFLOW-209.
+MIN_WORKERS = 32
 
 
 def _init_get_executor():

@@ -31,6 +31,13 @@ def __refine_args__(parser: argparse.ArgumentParser):
     # expand group with additional shorthands for new KIND types
 
     parser.add_argument(
+        '-f',
+        '--force',
+        action='store_true',
+        help=''
+    )
+
+    parser.add_argument(
         'ids',
         nargs='+',
         type=str,
@@ -49,7 +56,7 @@ def delete_action(namespace: argparse.Namespace, *args, **kws):
         kind = getattr(flow_pb2.RequestKind, namespace.kind, flow_pb2.RequestKind.INSTANCE)
     with get_flowd_connection(namespace.flowd_host, namespace.flowd_port) as flowd:
         response = flowd.DeleteWorkflow(flow_pb2.DeleteRequest(
-            kind=kind, ids=namespace.ids
+            kind=kind, ids=namespace.ids, force=namespace.force
         ))
     status = response.status
     if status < 0:

@@ -24,6 +24,7 @@ from .k8s_utils import create_deployment, create_service, create_serviceaccount
 from .envoy_config import get_envoy_config, Upstream
 from .etcd_utils import get_etcd
 from .bpmn_util import (
+    BPMN,
     iter_xmldict_for_key,
     get_annotations,
     CallProperties,
@@ -104,16 +105,16 @@ class BPMNParallelGateway(BPMNComponent):
 
             outgoing_component_targets = {
                 association['@targetRef']: association['@sourceRef']
-                for association in iter_xmldict_for_key(self._proc, 'bpmn:association')
+                for association in iter_xmldict_for_key(self._proc, BPMN.association)
                 if association['@sourceRef'] in outgoing_calls
             }
 
-            for annotation in iter_xmldict_for_key(self._proc, 'bpmn:textAnnotation'):
+            for annotation in iter_xmldict_for_key(self._proc, BPMN.text_annotation):
 
-                if (annotation['@id'] not in outgoing_component_targets.keys()) or not annotation['bpmn:text'].startswith('rexflow:'):
+                if (annotation['@id'] not in outgoing_component_targets.keys()) or not annotation[BPMN.text].startswith('rexflow:'):
                     continue
 
-                annot_dict = yaml.safe_load(annotation['bpmn:text'].replace('\xa0', ''))['rexflow']
+                annot_dict = yaml.safe_load(annotation[BPMN.text].replace('\xa0', ''))['rexflow']
                 next_step_id = annot_dict.get('next_step_id')
 
                 if next_step_id:
@@ -136,20 +137,20 @@ class BPMNParallelGateway(BPMNComponent):
 
             outgoing_component_targets = {
                 association['@targetRef']: association['@sourceRef']
-                for association in iter_xmldict_for_key(self._proc, 'bpmn:association')
+                for association in iter_xmldict_for_key(self._proc, BPMN.association)
                 if association['@sourceRef'] in outgoing_calls
             }
 
             logging.info(f"outgoing_component_targets = {outgoing_component_targets}")
 
-            for annotation in iter_xmldict_for_key(self._proc, 'bpmn:textAnnotation'):
+            for annotation in iter_xmldict_for_key(self._proc, BPMN.text_annotation):
                 logging.info(f"annotation = {annotation}")
 
-                #`if (annotation['@id'] not in outgoing_component_targets.keys()) or not annotation['bpmn:text'].startswith('rexflow:'):
+                #`if (annotation['@id'] not in outgoing_component_targets.keys()) or not annotation[BPMN.text].startswith('rexflow:'):
                 if (annotation['@id'] not in outgoing_component_targets.keys()):
                     continue
 
-                annot_dict = yaml.safe_load(annotation['bpmn:text'].replace('\xa0', ''))['rexflow']
+                annot_dict = yaml.safe_load(annotation[BPMN.text].replace('\xa0', ''))['rexflow']
 
                 logging.info(f"annot_dict = {annot_dict}")
 

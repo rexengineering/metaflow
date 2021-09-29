@@ -13,7 +13,7 @@ RUN curl -sL  https://istio.io/downloadIstioctl | sh - && \
     mv $HOME/.istioctl/bin/istioctl /usr/local/bin/istioctl
 
 COPY flowlib flowlib/
-COPY healthd.py .
+COPY daemons/healthd.py .
 EXPOSE 5050/tcp
 
 FROM base AS test

@@ -1,0 +1,17 @@
+[
+    {"dataId":"principal", "type":"CURRENCY", "order":1, "label":"Principal", "data":"", "encrypted":"False", "validators":[
+            {"type" : "POSITIVE"},
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"interest", "type":"PERCENTAGE", "order":2, "label":"Interest Rate %", "data":"", "encrypted":"False", "validators":[
+            {"type" : "REQUIRED"}
+        ]
+    },
+    {"dataId":"term", "type":"INTEGER", "order":4, "label":"Term (months)", "data":"", "encrypted":"False", "validators":[
+            {"type" : "REQUIRED"},
+            {"type" : "POSITIVE"}
+        ]
+    },
+    {"dataId":"seller", "type":"WORKFLOW", "order":5, "label":"Seller", "data":"Underpants", "encrypted":"False"}
+]

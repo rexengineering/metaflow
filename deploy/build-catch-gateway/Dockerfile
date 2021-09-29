@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y curl
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY flowlib flowlib/
-COPY catchgateway.py .
+COPY bpmn_containers/catchgateway.py .
 EXPOSE 5050/tcp
 
 FROM catch-base AS test

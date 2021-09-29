@@ -1,0 +1,286 @@
+# mutation ValidateTaskForm {
+#   tasks {
+#     validate( input:{
+#         iid: "process-0p1yoqw-aa16211c-bcae82ba9f7a11eb99025a356ea63920", 
+#         tid: "Activity_144fvu9",
+#       	fields: [
+#           {id: "fname", type: TEXT, data: "Steve", encrypted: false},
+#           {id: "lname", type: TEXT, data: "McClure", encrypted: false}
+#         ]
+#     }
+#     ){
+#       iid, tid, status, passed, results { field, passed, results {passed, result} }
+#     }
+#   }
+# }
+#
+# mutation GetTaskForm {
+#   tasks{
+#       form( input: { 
+#         iid: "process-0p1yoqw-aa16211c-bcae82ba9f7a11eb99025a356ea63920", 
+#         tid: "Activity_144fvu9" 
+#       } ) {
+#       	iid, tid, status, fields {id, type, order, label, data, encrypted, validators{type}}
+#     }
+#   }
+# }
+#
+# mutation CreateWorkflowInstance {
+#     createInstance {
+#       status, did, iid, tasks
+#     }
+#   }
+
+# Scalar types
+
+scalar WorkflowInstanceId
+
+scalar WorkflowDeployemntId
+
+scalar TaskId
+
+scalar DataId
+
+# Enum types
+
+enum WorkflowStatus {
+    COMPLETED
+    ERROR
+    RUNNING
+    START
+    STARTING
+    STOPPED
+    STOPPING
+    UNKNOWN
+}
+
+enum TaskStatus {
+    UP
+    DOWN
+}
+
+enum OperationStatus {
+    SUCCESS
+    FAILURE
+}
+
+"""Client side constraints for user input"""
+enum ValidationType {
+    BOOLEAN
+    INTERVAL
+    REQUIRED
+    PERCENTAGE
+    POSITIVE
+    REGEX
+}
+
+"""Data request types that will be mapped to UI components"""
+enum DataType {
+    COPY
+    TEXT
+    CURRENCY
+    INTEGER
+    FLOAT
+    BOOLEAN
+    PERCENTAGE
+    TABLE
+    WORKFLOW
+}
+
+"""Values for field.variant"""
+enum TextVariant {
+    BODY1
+    BODY2
+    H1
+    H2
+    H3
+    H4
+    H5
+    H6
+    SUBTITLE1
+    SUBTITLE2
+}
+
+"""Types of methods to initialize a field's default"""
+enum FieldInitializerType {
+    TEXT
+    EVAL
+}
+
+"""A task will request a list of data elements"""
+type Task {
+    iid: WorkflowInstanceId
+    tid: TaskId!
+    data: [TaskFieldData!]!
+    status: TaskStatus!
+}
+
+"""Individual data element that will map to a component on the UI"""
+type TaskFieldData {
+    dataId: DataId!
+    type: DataType!
+    order: Int!
+    label: String
+    data: String
+    variant: TextVariant
+    default: FieldInitializer
+    encrypted: Boolean!
+    validators: [Validator]
+}
+
+type Validator {
+    type: ValidationType!
+    constraint: String
+}
+
+type FieldInitializer {
+    type: FieldInitializerType!
+    value: String!
+}
+
+
+"""Used to communicate specific validator results"""
+type ValidatorResult {
+    validator: Validator!
+    passed: Boolean!
+    message: String
+}
+
+type FieldValidationResult {
+    dataId: DataId!
+    passed: Boolean!
+    results: [ValidatorResult!]!
+}
+
+# Inputs
+input MetaDataInput {
+    key: String!
+    value: String!
+}
+
+input GetInstanceInput {
+    iid: WorkflowInstanceId
+    meta_data: [MetaDataInput]
+}
+
+input CreateWorkflowInstanceInput {
+    did: String
+    graphqlUri: String!
+    meta_data: [MetaDataInput]
+}
+
+input CancelWorkflowInstanceInput {
+    iid: WorkflowInstanceId!
+}
+
+input TaskMutationFormInput {
+    iid:WorkflowInstanceId
+    tid:TaskId!
+    reset: Boolean
+}
+
+input TaskFieldInput {
+    dataId: DataId!
+    data: String
+}
+
+input TaskMutationValidateInput {
+    iid:WorkflowInstanceId!
+    tid:TaskId!
+    entire: Boolean
+    fields: [TaskFieldInput!]!
+}
+
+input TaskMutationSaveInput {
+    iid:WorkflowInstanceId!
+    tid:TaskId!
+    fields: [TaskFieldInput!]!
+}
+
+input TaskMutationCompleteInput {
+    iid:WorkflowInstanceId!
+    tid:TaskId!
+}
+
+# Payloads
+type MetaData {
+    key: String!
+    value: String!
+}
+
+type CreateInstancePayload {
+    did: WorkflowDeployemntId!
+    iid: WorkflowInstanceId!
+    status: OperationStatus!
+    tasks: [TaskId!]!
+}
+
+type CancelInstancePayload {
+    did: WorkflowDeployemntId!
+    iid: WorkflowInstanceId!
+    iid_status: WorkflowStatus!
+    status: OperationStatus!
+}
+
+type WorkflowInstanceInfo {
+    iid: WorkflowInstanceId!
+    iid_status: WorkflowStatus!
+    meta_data: [MetaData]
+    graphqlUri: String
+}
+
+type GetInstancePayload {
+    did: WorkflowDeployemntId!
+    did_status: WorkflowStatus!
+    iid_list: [WorkflowInstanceInfo!]!
+    tasks: [TaskId!]!
+}
+
+type TaskFormPayload {
+    iid: WorkflowInstanceId
+    tid: TaskId!
+    status: OperationStatus!
+    fields: [TaskFieldData!]!
+}
+
+type TaskValidatePayload {
+    iid: WorkflowInstanceId!
+    tid: TaskId!
+    status: OperationStatus!
+    passed: Boolean!
+    results: [FieldValidationResult!]!
+}
+
+type TaskSavePayload {
+    iid: WorkflowInstanceId!
+    tid: TaskId!
+    status: OperationStatus!
+    passed: Boolean!
+    results: [FieldValidationResult!]!
+}
+
+type TaskCompletePayload {
+    iid: WorkflowInstanceId!
+    tid: TaskId!
+    status: OperationStatus!
+}
+
+# Mutations
+
+type Query {
+    version: String
+    getInstances(input: GetInstanceInput) : GetInstancePayload
+}
+
+type Mutation {
+    createInstance(input: CreateWorkflowInstanceInput!) : CreateInstancePayload
+    cancelInstance(input: CancelWorkflowInstanceInput!) : CancelInstancePayload
+    tasks: TaskMutation
+}
+
+type TaskMutation {
+    form(input: TaskMutationFormInput!) : TaskFormPayload
+    validate(input: TaskMutationValidateInput!) : TaskValidatePayload
+    save(input: TaskMutationSaveInput!) : TaskSavePayload
+    complete(input: TaskMutationCompleteInput!) : TaskCompletePayload
+}

@@ -55,3 +55,7 @@ Thumbs.db
 build/
 *.egg-info/
 .env
+.coverage
+build_artifacts
+htmlcov
+.*.sw*

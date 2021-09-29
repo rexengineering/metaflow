@@ -1,0 +1,16 @@
+FROM python:3.8-slim AS pgw-base
+WORKDIR /opt/rexflow
+RUN apt-get update && apt-get install -y curl
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY flowlib flowlib/
+COPY bpmn_containers/parallelgateway.py .
+EXPOSE 5050/tcp
+
+FROM pgw-base AS test
+
+CMD ["echo", "TODO: run quick unit tests here."]
+
+FROM pgw-base AS container
+
+CMD ["python", "-m", "parallelgateway"]

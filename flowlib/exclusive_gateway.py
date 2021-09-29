@@ -6,7 +6,7 @@ from collections import OrderedDict
 import json
 from typing import Mapping
 
-from .bpmn_util import BPMNComponent, outgoing_sequence_flow_table, get_edge_transport
+from .bpmn_util import BPMNComponent, outgoing_sequence_flow_table, get_edge_transport, BPMN
 from .reliable_wf_utils import create_kafka_transport
 from .k8s_utils import (
     create_deployment,
@@ -73,9 +73,9 @@ class BPMNXGateway(BPMNComponent):
             transport_type = get_edge_transport(edge, self.workflow_properties.transport)
             assert transport_type in ['kafka', 'rpc'], \
                 f"transport_type {transport_type} not implemented for xgw."
-            if 'bpmn:conditionExpression' in edge:
+            if BPMN.condition_expression in edge:
                 bpmn_component = component_map[edge['@targetRef']]
-                expr = edge['bpmn:conditionExpression']['#text']
+                expr = edge[BPMN.condition_expression]['#text']
                 if transport_type == 'kafka':
                     transport = create_kafka_transport(self, bpmn_component)
                     self.kafka_topics.append(transport.kafka_topic)
@@ -118,10 +118,6 @@ class BPMNXGateway(BPMNComponent):
 
         # Note: we may or may not take this out for FEEL...
         assert default_path is not None, "Must have a default path"
-
-        # TODO: Work with Jon to see what a BPMN document would look like with more than
-        # two outgoing edges from a BPMN diagram.
-        assert len(conditional_paths) == 1, "Not implemented."
 
         # Add k8s specs for the actual XGW
         service_name = self.service_properties.host
@@ -166,5 +162,6 @@ class BPMNXGateway(BPMNComponent):
             XGW_IMAGE,
             port,
             env_config,
+            health_props=self.health_properties,
         ))
         return k8s_objects

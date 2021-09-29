@@ -1,29 +1,31 @@
 from hashlib import sha256
+import uuid
 import re
 from flowlib.config import REXFLOW_ROOT_PREFIX
 
-'''
+"""
 These are the valid states for a workflow and the workflow instances, specified here
 so that all parts necessarily use the same values and to avoid embedding literal
 constants everywhere.
-'''
-
-BPMN_INTERMEDIATE_CATCH_EVENT = 'bpmn:intermediateCatchEvent'
-BPMN_START_EVENT = 'bpmn:startEvent'
-BPMN_TIMER_EVENT_DEFINITION = 'bpmn:timerEventDefinition'
+"""
+class Literals:
+    GLOBAL_PROPERTIES_KEY = 'rexflow_global_properties'
+    REXFLOW               = 'rexflow'
+    SALESFORCE            = 'salesforce'
 
 TIMER_DESCRIPTION = 'TIMER_DESCRIPTION'
+TIMER_RECOVER_POLICY = 'TIMER_RECOVERY_POLICY'
 
 K8S_MAX_NAMELENGTH = 63
 
 TEST_MODE_URI = 'http://gndn.net/' # goes nowhere, does nothing
 
 def to_valid_k8s_name(name):
-    '''
+    """
     Takes in a name and massages it until it complies to the k8s name regex, which is:
         [a-z0-9]([-a-z0-9]*[a-z0-9])?
     Raises an AssertionError if we fail to make the name comply.
-    '''
+    """
     name = name.lower()
 
     # Replace space-like chars with a '-'
@@ -63,6 +65,18 @@ class States:
     TRUE = 'TRUE'
 
 
+class ErrorCodes:
+    """Possible error codes for workflow Instances in the ERROR state.
+    The BAVS code sends these error codes to the flowd /instancefail endpoint
+    when a failure occurs.
+    """
+    CANCELED_INSTANCE = "CANCELED_INSTANCE"
+    FAILED_TASK = "FAILED_TASK"
+    FAILED_CONNECTION = "FAILED_CONNECTION"
+    FAILED_CONTEXT_INPUT_PARSING = "FAILED_CONTEXT_INPUT_PARSING"
+    FAILED_CONTEXT_OUTPUT_PARSING = "FAILED_CONTEXT_OUTPUT_PARSING"
+
+
 # TODO: research caching this conversion.
 class ByteStatesClass:
     def __getattr__(self, name):
@@ -76,15 +90,20 @@ REXFLOW_ROOT = REXFLOW_ROOT_PREFIX
 
 
 class Headers:
-    '''Because namespace pollution affects us all...
-    '''
+    """Because namespace pollution affects us all...
+    """
     FLOWID_HEADER = 'X-Rexflow-Iid'
     TRACEID_HEADER = 'X-B3-Traceid'
     X_HEADER_FLOW_ID = 'X-Rexflow-Iid'
     X_HEADER_WORKFLOW_ID = 'X-Rexflow-Did'
     X_HEADER_TOKEN_POOL_ID = 'X-Rexflow-Token-Pool-Id'
     X_HEADER_TASK_ID = 'X-Rexflow-Tid'
+    X_HEADER_ORIGINAL_HOST = 'X-Rexflow-Original-Host'
+    X_HEADER_ORIGINAL_PATH = 'X-Rexflow-Original-Path'
     CONTENT_TYPE = 'Content-Type'
+    X_REXFLOW_ORIGINAL_HOST = 'x-rexflow-original-host'
+    X_REXFLOW_ORIGINAL_PATH = 'x-rexflow-original-path'
+    X_REXFLOW_FAILURE = 'x-rexflow-failure'
 
 
 class WorkflowKeys:
@@ -132,6 +151,18 @@ class WorkflowKeys:
     def field_key(cls,did,tid):
         return f'{cls.key_of(did)}/fields/{tid}'
 
+    @classmethod
+    def catch_event_key(cls, did, correlation_id):
+        return f'{cls.key_of(did)}/catchEvents/{correlation_id}'
+
+    @classmethod
+    def timed_events_key(cls, did):
+        return f'{cls.key_of(did)}/timed_events'
+
+    @classmethod
+    def salesforce_info(cls, did, tid):
+        return f'{cls.key_of(did)}/salesforce/{tid}'
+
 
 # TODO: There seems to be a proliferation of instance-related keys in ETCD.
 # Schedule a careful review of these and remove as many as possible.
@@ -144,19 +175,21 @@ class WorkflowInstanceKeys:
         self.proc           = self.proc_key(iid)
         self.result         = self.result_key(iid)
         self.state          = self.state_key(iid)
-        self.error_code     = self.error_code_key(iid)
-        self.error_message  = self.error_message_key(iid)
-        self.failed_task    = self.failed_task_key(iid)
-        self.input_headers  = self.input_headers_key(iid)
-        self.input_data     = self.input_data_key(iid)
-        self.output_data    = self.output_data_key(iid)
-        self.output_headers = self.output_headers_key(iid)
         self.parent         = self.parent_key(iid)
         self.end_event      = self.end_event_key(iid)
         self.traceid        = self.traceid_key(iid)
         self.content_type   = self.content_type_key(iid)
-        self.timed_events   = self.timed_events_key(iid)
         self.timed_results  = self.timed_results_key(iid)
+        self.metadata       = self.metadata_key(iid)
+
+    @classmethod
+    def iid_from_key(cls, key):
+        """Given an etcd key for a workflow instance, return the iid
+        that the key is associated with.
+        """
+        trimmed = key[len(WorkflowInstanceKeys.ROOT) + 1:]
+        iid = trimmed[:trimmed.find('/')]
+        return iid
 
     @classmethod
     def key_of(cls, iid):
@@ -187,44 +220,12 @@ class WorkflowInstanceKeys:
         return f'{cls.key_of(iid)}/end_event'
 
     @classmethod
-    def error_code_key(cls, id):
-        return f'{cls.key_of(id)}/error_code'
-
-    @classmethod
-    def failed_task_key(cls, id):
-        return f'{cls.key_of(id)}/failed_task'
-
-    @classmethod
-    def error_message_key(cls, id):
-        return f'{cls.key_of(id)}/error_message'
-
-    @classmethod
-    def input_headers_key(cls, id):
-        return f'{cls.key_of(id)}/input_headers'
-
-    @classmethod
-    def input_data_key(cls, id):
-        return f'{cls.key_of(id)}/input_data'
-
-    @classmethod
-    def output_headers_key(cls, id):
-        return f'{cls.key_of(id)}/output_headers'
-
-    @classmethod
-    def output_data_key(cls, id):
-        return f'{cls.key_of(id)}/output_data'
-
-    @classmethod
     def traceid_key(cls, iid):
         return f'{cls.key_of(iid)}/traceid'
 
     @classmethod
     def content_type_key(cls, iid):
         return f'{cls.key_of(iid)}/content_type'
-
-    @classmethod
-    def timed_events_key(cls, iid):
-        return f'{cls.key_of(iid)}/timed_events'
 
     @classmethod
     def timed_results_key(cls, iid):
@@ -242,14 +243,26 @@ class WorkflowInstanceKeys:
     def ui_server_uri_key(cls, iid):
         return f'{cls.form_key(iid)}/graphql_uri'
 
+    @classmethod
+    def async_request_payload_key(cls, iid, tid, request_id):
+        return f'{cls.key_of(iid)}/async_service_task/{tid}/{request_id}/payload'
+
+    @classmethod
+    def async_callback_response_key(cls, iid, tid, request_id):
+        return f'{cls.key_of(iid)}/async_service_task/{tid}/{request_id}/response'
+
+    @classmethod
+    def metadata_key(cls, iid):
+        return f'{cls.key_of(iid)}/metadata'
+
 def split_key(iid: str):
-    '''
+    """
     Accept a key in the form of <workflow_id>-<guid>
     and return a tuple of (workflow_id,guid)
 
     It's assumed that the instance_id has no occurance of '-'
     othwerise this breaks.
-    '''
+    """
     parts = iid.split('-')
     return ('-'.join(parts[0:-1]), '-'.join(parts[-1]))
 
@@ -263,6 +276,13 @@ def flow_result(status: int, message: str, **kwargs):
 def get_ingress_object_name(hostname):
     long_name = f'rexflow-{hostname}-{sha256(hostname.encode()).hexdigest()[:8]}'
     return to_valid_k8s_name(long_name)
+
+
+def generate_request_id():
+    """Return a 10-char high-entropy string. Currently used for
+    async service bridge request ID's.
+    """
+    return uuid.uuid4().hex[:10]
 
 
 class IngressHostKeys:

@@ -25,7 +25,7 @@ default: 1</camunda:outputParameter>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="Flow_19qe7vw" sourceRef="Task_1dqvybv" targetRef="Gateway_124y97k" />
     <bpmn:sequenceFlow id="Flow_172xa7g" sourceRef="Gateway_124y97k" targetRef="Activity_15meqvg">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">request.json['number'] == 1</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">req_json['number'] == 1</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1f6ja2m" sourceRef="Gateway_124y97k" targetRef="Activity_08qzm98" />
     <bpmn:endEvent id="Event_1tm3vxv" name="emailed_2">

@@ -1,3 +1,0 @@
-nameOverride: rexflow-exclusive-gateway
-build:
-  from_root: false
