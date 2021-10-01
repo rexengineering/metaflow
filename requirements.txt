@@ -15,6 +15,8 @@ ariadne
 gql[aiohttp]==3.0.0a5
 pydantic==1.8.*
 isodate
+graphviz
+Pillow
 requests
 simple_salesforce
 # Optional development dependency

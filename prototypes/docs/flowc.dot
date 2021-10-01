@@ -1,0 +1,27 @@
+digraph flowc_graph {
+    compound=true; rankdir=LR;
+    node [shape=record];
+    subgraph cluster_dist {
+        label = "dist/";
+        subgraph cluster_wfname_bpmn {
+            label = "";
+            "wfname.bpmn" [shape=plaintext];
+        }
+        subgraph cluster_makefile {
+            label = "";
+            "Makefile" [shape=plaintext];
+        }
+        subgraph cluster_task1 {
+            label="task1/";
+            "Dockerfile";
+            "app.py";
+        }
+        subgraph cluster_taskn {
+            label = <task<i>n</i>/>;
+            "..." [shape=plaintext];
+        }
+    }
+    flowc [shape=ellipse];
+    "wfname.py" -> flowc;
+    flowc -> "wfname.bpmn" [lhead=cluster_dist];
+}
