@@ -103,10 +103,6 @@ class Workflow:
         self.exchange_ids[xid] = [iid,tid,XidState.START]
         return xid
 
-    def unregister_xid(self, xid:str):
-        logging.info(f'Un-registered xid {xid}')
-        del self.exchange_ids[xid]
-
     def set_xid_state(self, xid:str, state:XidState):
         self.exchange_ids[xid][2] = state
 
@@ -119,10 +115,9 @@ class Workflow:
             if vals[0] == iid:
                 tid = vals[1]
                 sta = vals[2]  # XidState
-                if tid in ret:
-                    ret[tid].append([xid,sta])
-                else:
-                    ret[tid] = [[xid,sta]]
+                if tid not in ret:
+                    ret[tid] = []
+                ret[tid].append([xid,sta])
         return ret
 
     def get_semaphore(self):
@@ -255,17 +250,6 @@ class Workflow:
                     iid = data[ID]
                     self._put_etcd_value(WorkflowInstanceKeys.ui_server_uri_key(iid), graphql_uri)
                 return data
-
-    def start_instance(self, iid:str):
-        # start an instance. It must be STOPPED or get an error
-        with get_flowd_connection(self.flowd_host, self.flowd_port) as flowd:
-            response = flowd.StartWorkflow(flow_pb2.StartRequest(
-                kind=flow_pb2.RequestKind.INSTANCE,
-                ids=[iid]
-            ))
-            data = json.loads(response)
-            print(data)
-            return data
 
     def cancel_instance(self, iid:str):
         if iid in self.get_instances():
@@ -472,20 +456,28 @@ class WorkflowTask:
 
     def update(self, iid:str, xid:str, in_fields:list) -> dict:
         # get the current fields into a dict for easy access!
-        tmp = self.get_form(iid,xid)
+        if xid is None:
+            tmp = self.get_form(iid,self.tid)
+        else:
+            tmp = self.get_form(iid,xid)
+
         flds = {}
         for f in tmp:
             flds[f[DATA_ID]] = f
         for f in in_fields:
             flds[f[DATA_ID]][DATA] = f[DATA]
+
         if xid is None:
             key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
         else:
             key = WorkflowInstanceKeys.exchange_form_key(iid,xid)
+
         val = json.dumps(list(flds.values()))
-        logging.info(f'UPD FORM xid {xid} {val}')
+        logging.info(f'UPD FORM xid {key} {val}')
         self.wf._put_etcd_value(key, val)
-        self.wf.set_xid_state(xid, XidState.SAVED)
+
+        if xid is not None:
+            self.wf.set_xid_state(xid, XidState.SAVED)
 
         return flds
 
