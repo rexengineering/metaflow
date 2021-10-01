@@ -84,6 +84,8 @@ def process_specification(spec_file:FileIO) -> dict:
                     if data is not None:
                         text['rexflow']['fields']['desc'] = json.loads(data)
                         annot[BPMN.text] = yaml.dump(text)
+                    else:
+                        raise FileNotFoundError(f'File {fspec} not found - apply aborted')
                 except KeyError:
                     pass
 
@@ -100,6 +102,8 @@ def process_specification(spec_file:FileIO) -> dict:
                         sf_info = json.loads(data)
                         hive[Literals.SALESFORCE].update(sf_info)
                         annot[BPMN.text] = yaml.dump(text)
+                    else:
+                        raise FileNotFoundError(f'File {fspec} not found - apply aborted')
                 break
 
     return xmltodict.unparse(spec)
