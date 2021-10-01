@@ -1,6 +1,8 @@
 import asyncio
 import copy
+import datetime
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -32,6 +34,7 @@ from .graphql_wrappers import (
     TYPE,
     UNKNOWN,
     VALUE,
+    XidState,
 )
 from .prism_api.client import PrismApiClient
 
@@ -87,11 +90,35 @@ class Workflow:
         self.instance_headers = {}
         self.instance_data = {}
         self.reponses = {}
+        self.exchange_ids = {}
         self.semaphore = threading.Semaphore()
 
         for tid in tids:
             self.tasks[tid] = WorkflowTask(self,tid)
         logging.info(f'Workflow object initialized to process workflow {did}')
+
+    def register_xid(self, iid:str, tid:str) -> str:
+        xid = hashlib.sha256(str(datetime.datetime.now()).encode()).hexdigest()[:16]
+        logging.info(f'Registered xid {xid} for {iid}/{tid}')
+        self.exchange_ids[xid] = [iid,tid,XidState.START]
+        return xid
+
+    def set_xid_state(self, xid:str, state:XidState):
+        self.exchange_ids[xid][2] = state
+
+    def get_iid_tid_for_xid(self, xid:str) -> list:
+        return self.exchange_ids[xid][0:2]
+
+    def get_tid_list(self, iid:str) -> dict:
+        ret = {}
+        for xid,vals in self.exchange_ids.items():
+            if vals[0] == iid:
+                tid = vals[1]
+                sta = vals[2]  # XidState
+                if tid not in ret:
+                    ret[tid] = []
+                ret[tid].append([xid,sta])
+        return ret
 
     def get_semaphore(self):
         return self.semaphore
@@ -159,7 +186,7 @@ class Workflow:
         response = await PrismApiClient.complete_workflow(endpoint,iid)
         logging.info(f'Notifying {endpoint} that {iid} has completed state ({state}); response {response}')
 
-    def create_instance(self, did:str, graphql_uri:str, meta:list):
+    def create_instance(self, did:str, stopped:bool, graphql_uri:str, meta:list):
         """
         Run a workflow instance. If did is none, run the workflow for this UI-BRIDGE,
         else resolve the DID to a workflow deployment via the workflow map, and ask
@@ -207,9 +234,10 @@ class Workflow:
             #          -> executor()
             #             -> catchgateway.run_instance() <= via executor
             #                -> app.init_route() # BOOM! iid is unknown
+            #          -> return iid
             #       -> return iid
-            #    -> return iid
-            # -> return iid <= caller learns IID at this point
+            #    -> return iid <= we know IID now
+            # -> return iid <= caller knows IID 
             #
             with self.get_semaphore():
                 response = flowd.RunWorkflow(flow_pb2.RunRequest(
@@ -264,6 +292,7 @@ class Workflow:
         return None
 
     def _get_etcd_value(self, key:str):
+        logging.info(f'ETCD R {key}')
         def __logic(etcd):
             ret, _ = etcd.get(key)
             if ret:
@@ -273,6 +302,7 @@ class Workflow:
         return locked_call(key, __logic)
 
     def _put_etcd_value(self, key:str, data:Any):
+        logging.info(f'ETCD W {key}')
         # data must be bytes
         if isinstance(data, str):
             data = data.encode()
@@ -294,9 +324,11 @@ class Workflow:
             return None
         return self.tasks[tid]
 
-    def complete(self, iid : str, tid : str):
+    def complete(self, iid : str, tid : str, xid:str):
         assert tid in self.bridge_cfg, 'Configuration error - {tid} is not in BRIDGE_CONFIG'
         task = self.tasks[tid]
+        if xid is not None:
+            self.set_xid_state(xid, XidState.COMPLETE)
         for next_task in self.bridge_cfg[tid]: # handle more than one outbound edge
             logging.info(f'Firing edge {next_task}')
             # TODO: [REXFLOW-191] Either remove this duplicated code from app or here.
@@ -316,7 +348,7 @@ class Workflow:
             # This is at least the data that was passed in to this task, but we
             # need to append the form data collected here.
             data = {}
-            for fld in task.get_form(iid):
+            for fld in task.get_form(iid,xid):
                 if not is_ignored_data_type(fld[TYPE]):
                     data[fld[DATA_ID]] = fld[DATA]
             if iid in self.instance_data:
@@ -343,8 +375,9 @@ class Workflow:
         Pull the current workflow map from flowd. This allows us to map generic workflow names to specific workflow
         deployments.
         """
+        url = f'http://{self.flowd_host}:9002/wf_map'
         try:
-            resp = requests.get(f'http://{self.flowd_host}:9002/wf_map')
+            resp = requests.get(url)
             """
             {'message': 'Ok',
              'status': 0,
@@ -355,7 +388,7 @@ class Workflow:
             return resp.json()['wf_map']
         except Exception as exn:
             logging.exception(
-                f"failed making a call to {next_task['k8s_url']} on wf {iid}\nheaders:{next_headers}", #\ndata:{data}",
+                f"failed making a call to {url} on wf {iid}",
                 exc_info=exn,
             )
 
@@ -366,7 +399,7 @@ class WorkflowTask:
         self._fields = {}   # the immutable complete set of form information
         self._values = {}   # the immutable initial set of form data
         self._has_persistent_fields = False
-        form, _ = wf.etcd.get(WorkflowKeys.field_key(wf.did,tid))
+        form = wf._get_etcd_value(WorkflowKeys.field_key(wf.did,tid))
         if form:
             self._fields = self._normalize_fields(form)
             for k,v in self._fields.items():
@@ -377,7 +410,7 @@ class WorkflowTask:
     def has_persistent_fields(self) -> bool:
         return self._has_persistent_fields
 
-    def get_form(self, iid:str, reset:bool = False):
+    def get_form(self, iid:str, xid:str, reset:bool = False):
         """
         If iid is not provided, pull the form for the task. Otherwise
         pull the task form for the given iid. If the iid record does not exist,
@@ -385,15 +418,18 @@ class WorkflowTask:
         """
         tid_key = WorkflowKeys.field_key(self.wf.did,self.tid)
         if iid:
-            iid_key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
-            form, _ = self.wf.etcd.get(iid_key)
+            if xid is None:
+                form_key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
+            else:
+                form_key = WorkflowInstanceKeys.exchange_form_key(iid,xid)
+            form = self.wf._get_etcd_value(form_key)
             if form is None:
-                form, _ = self.wf.etcd.get(tid_key)
-                self.wf._put_etcd_value(iid_key, form)
-                logging.info(f'Form for {iid_key} did not exist - {form}')
+                form = self.wf._get_etcd_value(tid_key)
+                self.wf._put_etcd_value(form_key, form)
+                logging.info(f'Form for {form_key} did not exist - {form}')
                 reset = True # run any initializers since we're creating the form
         else:
-            form, _ = self.wf.etcd.get(tid_key)
+            form = self.wf._get_etcd_value(tid_key)
 
         form = list(self._normalize_fields(form).values())
 
@@ -418,18 +454,30 @@ class WorkflowTask:
                             fld[DATA] = initr[VALUE]
         return form
 
-    def update(self, iid:str, in_fields:list):
+    def update(self, iid:str, xid:str, in_fields:list) -> dict:
         # get the current fields into a dict for easy access!
-        tmp = self.get_form(iid)
+        if xid is None:
+            tmp = self.get_form(iid,self.tid)
+        else:
+            tmp = self.get_form(iid,xid)
+
         flds = {}
         for f in tmp:
             flds[f[DATA_ID]] = f
         for f in in_fields:
             flds[f[DATA_ID]][DATA] = f[DATA]
-        key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
-        val = json.dumps(list(flds.values()))
 
+        if xid is None:
+            key = WorkflowInstanceKeys.task_form_key(iid,self.tid)
+        else:
+            key = WorkflowInstanceKeys.exchange_form_key(iid,xid)
+
+        val = json.dumps(list(flds.values()))
+        logging.info(f'UPD FORM xid {key} {val}')
         self.wf._put_etcd_value(key, val)
+
+        if xid is not None:
+            self.wf.set_xid_state(xid, XidState.SAVED)
 
         return flds
 
@@ -438,7 +486,9 @@ class WorkflowTask:
         graphql provides booleans as strings, so convert them to their python equivalents.
         """
         fields = {}
-        field_list = json.loads(form.decode('utf-8'))
+        if isinstance(form,bytes):
+            form = form.decode('utf-8')
+        field_list = json.loads(form)
         for field in field_list:
             field[ENCRYPTED] = bool(field[ENCRYPTED])
             fields[field[DATA_ID]] = field

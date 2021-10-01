@@ -7,6 +7,7 @@ from .validators import validator_factory
 from . import graphql_wrappers as gql
 from .graphql_wrappers import (
     is_ignored_data_type,
+    CREATE_STOPPED,
     DATA,
     DID,
     FAILURE,
@@ -19,12 +20,13 @@ from .graphql_wrappers import (
     PASSED,
     RESET,
     RESULTS,
-    SUCCESS, 
+    SUCCESS,
     TID,
     TYPE,
     VALIDATORS,
     VALUE,
     WORKFLOW,
+    XID,
 )
 from typing import List, Dict, Tuple
 
@@ -35,6 +37,7 @@ from .flowd_api import Workflow, WorkflowTask
 query = ObjectType("Query")
 mutation = ObjectType("Mutation")
 task_mutation = ObjectType("TaskMutation")
+task_exchange_mutation = ObjectType("TaskExchangeMutation")
 
 # Queries
 
@@ -56,15 +59,23 @@ def mutation_get_instance(_,info, input=None):
 
     iid_info = []
     for iid in iid_list:
-        uri = workflow.get_instance_graphql_uri(iid)
-        meta = workflow.get_instance_meta_data(iid)
+        tid_list = []
+        for tid,xids in workflow.get_tid_list(iid).items():
+            xid_list = [
+                gql.exchange_info(x[0],x[1])
+                for x in xids
+            ]
+            tid_list.append(gql.task_exchange_info(tid, xid_list))
+        logging.info(tid_list)
+        uri      = workflow.get_instance_graphql_uri(iid)
+        meta     = workflow.get_instance_meta_data(iid)
         if meta is not None:
             meta = [
                 gql.meta_data(k, v)
                 for k,v in meta.items()
             ]
         iid_status = workflow.get_instance_status(iid)
-        iid_info.append(gql.workflow_instance_info(iid, iid_status, meta, uri))
+        iid_info.append(gql.workflow_instance_info(iid, iid_status, meta, uri, tid_list))
     return gql.get_instances_payload(workflow.did, status, iid_info, workflow.get_task_ids())
 
 # Workflow Mutations
@@ -73,22 +84,23 @@ def mutation_get_instance(_,info, input=None):
 def mutation_create_instance(_,info,input):
     workflow = info.context[WORKFLOW]
     #data: {"id": "process-0p1yoqw-aa16211c-9f5251689f1811eba4489a05f2a68bd3", "message": "Ok", "status": 0}
-    meta = input.get(META_DATA, [])
-    uri  = input[GRAPHQL_URI]
-    did  = input.get(DID, None)
-    data = workflow.create_instance(did, uri, meta)
+    meta    = input.get(META_DATA, [])
+    uri     = input[GRAPHQL_URI]
+    did     = input.get(DID, None)
+    stopped = input.get(CREATE_STOPPED,True)
+    logging.info(f'{uri} {stopped}')
+    data = workflow.create_instance(did, stopped, uri, meta)
     return gql.create_instance_payload(workflow.did, data['id'], SUCCESS, workflow.get_task_ids())
 
 @mutation.field('cancelInstance')
 def mutation_stop_instance(_, info, input):
     workflow = info.context[WORKFLOW]
-    iid = input[IID]
-    status = SUCCESS
-    state = ''
+    iid      = input[IID]
+    status   = SUCCESS
     try:
         state = workflow.cancel_instance(iid)
     except ValueError:
-        status = FAILURE
+        state  = FAILURE
     return gql.cancel_instance_payload(workflow.did, iid, state, status)
 
 # Task Mutations
@@ -110,22 +122,28 @@ def task_mutation_form(_, info, input):
        copy is not affected.
     '''
     workflow = info.context[WORKFLOW]
-    task  = workflow.task(input[TID])
-    iid   = input.get(IID, '')
-    reset = input.get(RESET, False)
-    form = []
+    iid    = input.get(IID, '')
+    tid    = input[TID]
+    xid    = None
+    reset  = input.get(RESET, False)
+    form   = []
+    task   = workflow.task(tid)
     status = FAILURE
     if task:
-        form = task.get_form(iid,reset)
+        form = task.get_form(iid, xid, reset)
         status = SUCCESS
         logging.info(form)
-    return gql.task_form_payload(iid, input[TID], status, form)
+    return gql.task_form_payload(iid, tid, xid, status, form)
 
 @task_mutation.field('validate')
 def task_mutation_validate(_,info,input):
-    task = info.context[WORKFLOW].task(input[TID])
-    all_passed, field_results = _validate_fields(task, input[IID], input[FIELDS])
-    return gql.task_validate_payload(input[IID], input[TID], SUCCESS, all_passed, field_results)
+    workflow = info.context[WORKFLOW]
+    iid      = input.get(IID, '')
+    tid      = input[TID]
+    xid      = None
+    task     = workflow.task(tid)
+    all_passed, field_results = _validate_fields(task, tid, input[FIELDS])
+    return gql.task_validate_payload(iid, tid, xid, SUCCESS, all_passed, field_results)
 
 @task_mutation.field('save')
 def task_mutation_save(_,info,input):
@@ -147,13 +165,82 @@ def task_mutation_save(_,info,input):
 
 @task_mutation.field('complete')
 def task_mutation_complete(_,info,input):
-    logging.info(f'task_mutation_complete {input[IID]} {input[TID]}')
+    workflow = info.context[WORKFLOW]
+    iid      = input[IID]
+    tid      = input[TID]
+    xid      = None
+    logging.info(f'task_mutation_complete {iid} {tid}')
+    # notify rexflow to continue the workflow
+    workflow.complete(iid, tid, xid)
+    return gql.task_complete_payload(iid, tid, xid, SUCCESS)
+
+@task_mutation.field('exchange')
+def mutation_tasks_exchange(_,info):
+    return task_exchange_mutation
+
+@task_exchange_mutation.field('form')
+def task_mutation_exchange_form(_, info, input):
+    '''
+    Return the list of fields for the given tid. There are two copies of the
+    form - the immutable copy in the did, and the instance copy in the iid.
+
+    Which one the caller receives depends on a few things:
+    1. If the iid is provided, then the iid copy is returned, unless
+       it does not exist, in which case it is created from the did copy.
+    2. If the iid is not provided then the did copy is returned. Any iid
+       copy is not affected.
+    '''
+    workflow = info.context[WORKFLOW]
+    xid      = input.get(XID)
+    iid,tid  = workflow.get_iid_tid_for_xid(xid)
+    task     = workflow.task(tid)
+    reset    = input.get(RESET, False)
+    form     = []
+    status   = FAILURE
+    if task:
+        form = task.get_form(iid,xid,reset)
+        status = SUCCESS
+        logging.info(form)
+    return gql.task_form_payload(iid, tid, xid, status, form)
+
+@task_exchange_mutation.field('validate')
+def task_mutation_exchange_validate(_,info,input):
+    workflow = info.context[WORKFLOW]
+    xid      = input.get(XID)
+    iid,tid  = workflow.get_iid_tid_for_xid(xid)
+    task     = workflow.task(tid)
+    all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
+    return gql.task_validate_payload(iid, tid, xid, SUCCESS, all_passed, field_results)
+
+@task_exchange_mutation.field('save')
+def task_mutation_exchange_save(_,info,input):
+    workflow = info.context[WORKFLOW]
+    xid      = input.get(XID)
+    iid,tid  = workflow.get_iid_tid_for_xid(xid)
+    task     = workflow.task(tid)
+    sf       = info.context.get('salesforce', False)
+    status   = FAILURE
+    sf_mgr:SalesforceManager = info.context.get('sf_mgr', None)
+    logging.info(f'Salesforce info {sf} {sf_mgr}')
+    if task:
+        all_passed, field_results = _validate_fields(task, iid, input[FIELDS])
+        flds = task.update(iid, xid, input[FIELDS])
+        status = SUCCESS
+        if sf and sf_mgr:
+            sf_mgr.post(iid, xid, task, flds)
+    return gql.task_validate_payload(iid, tid, xid, status, all_passed, field_results)
+
+@task_exchange_mutation.field('complete')
+def task_mutation_exchange_complete(_,info,input):
     # notify rexflow to continue the workflow
     workflow = info.context[WORKFLOW]
-    workflow.complete(input[IID], input[TID])
-    return gql.task_complete_payload(input[IID], input[TID], SUCCESS)
+    xid      = input.get(XID)
+    iid,tid  = workflow.get_iid_tid_for_xid(xid)
+    logging.info(f'task_mutation_complete {iid} {tid} {xid}')
+    workflow.complete(iid, tid, xid)
+    return gql.task_complete_payload(iid, tid, xid, SUCCESS)
 
-def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, List]:
+def _validate_fields(task:WorkflowTask, iid:str, fields:list) -> Tuple[bool, list]:
     """
     Validate the fields vs its validators (if any.) The fields passed in may be
     a subset of all fields in the form for the task, and in this case fill in the
@@ -191,7 +278,7 @@ def _validate_fields(task:WorkflowTask, iid:str, fields:List) -> Tuple[bool, Lis
             for validator in task_field[VALIDATORS]:
                 # TODO: don't call validator_factory here. Prior to us getting here
                 # task_field[VALIDATORS] should already be populated with objects
-                # of BaseValidator-derived classes
+                # of BaseValidator-derived objects
                 try:
                     vdor = validator_factory(validator)
                     if vdor is None:

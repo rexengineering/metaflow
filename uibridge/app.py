@@ -60,6 +60,7 @@ class REXFlowUIBridge(AsyncService):
             graphql_handlers.query,
             graphql_handlers.mutation,
             graphql_handlers.task_mutation,
+            graphql_handlers.task_exchange_mutation,
         )
 
         self.workflow = flowd_api.Workflow(WORKFLOW_DID, WORKFLOW_TIDS, BRIDGE_CONFIG, flowd_host, flowd_port)
@@ -115,14 +116,14 @@ class REXFlowUIBridge(AsyncService):
             ui_srv_url = self.workflow.get_instance_graphql_uri(iid)
 
         # upstream cycle timer events can call this access point multiple times for the
-        # same iid/tid pair, so generate a uuid request id (rid) for us to use for this
+        # same iid/tid pair, so generate a uuid exchange id (xid) for us to use for this
         # specific interaction
-        #rid = hashlib.sha256(request.get_json() + time.now()).hexdigest()[:8]
+        xid = self.workflow.register_xid(iid,tid)
         if ui_srv_url:
             if not ui_srv_url.startswith(TEST_MODE_URI):
-                response = await PrismApiClient.notify_task_started(ui_srv_url, iid, tid)
-                logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {response}')
-            return {'status': 200, 'message': f'REXFlow UI Bridge assigned to workflow {WORKFLOW_DID}'}
+                response = await PrismApiClient.notify_task_started(ui_srv_url, iid, tid, xid)
+                logging.info(f'UI-Srv {ui_srv_url} {iid} {tid} {xid} {response}')
+            return {'status': 200, 'message': f'xid {xid}'}
 
         return {'status':500, 'message': 'Unwise to execute user-task infused workflows from flowctl'}
 
@@ -161,7 +162,7 @@ class REXFlowUIBridge(AsyncService):
         data = await request.get_json()
         logging.info(request, data)
         context = {
-            'request':request, 
+            'request':request,
             'workflow': self.workflow,
             'salesforce': self.salesforce,
         }
